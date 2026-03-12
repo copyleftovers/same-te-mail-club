@@ -20,3 +20,28 @@ One of the workflows where this pattern lends itself beautifully is objective fa
 ---
 
 # CLAUDE NOTES
+
+## Active Manifestos
+
+Bind to both on session start (treat as unified framework):
+1. **Correct By Construction** — `manifestos/Manifesto, rust - "correct by construction".md`
+2. **Simple Made Easy + Decomplect** — `manifestos/Manifesto, "simple made easy".md` and `manifestos/Manifesto, KISS - "decomplect".md`
+
+Tension resolution: type richness warranted when it eliminates entanglement (enum replacing boolean flags). Not warranted when it introduces entanglement (generic trait hierarchies braiding concerns).
+
+## Project Phase
+
+Scaffold complete. Next: implementation planning per `spec/Architecture.md` Phase 1–6 order.
+
+## Key Files
+
+- `spec/Architecture.md` — authoritative technical architecture (supersedes Technical Research Brief)
+- `spec/Product Spec.md` — product decisions, season structure, failure protocols
+- `spec/User Stories.md` — acceptance criteria for all epics
+- `README.md` — config decisions, setup instructions (shared with team)
+
+## Reference Projects
+
+- `../filmorator` — Leptos 0.8 workspace, most mature CI/CD, CLAUDE.md patterns
+- `../monobank-sync` — sqlx offline mode, release-plz + cargo-dist, pre-commit with SQLx hook
+- `../gallery-rs` — cargo-chef + distroless Docker pattern
