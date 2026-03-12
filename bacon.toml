@@ -1,0 +1,27 @@
+[default]
+job = "clippy-ssr"
+
+[jobs.clippy-ssr]
+command = ["cargo", "clippy", "--features", "ssr", "--", "-D", "warnings"]
+need_stdout = false
+
+[jobs.clippy-hydrate]
+command = ["cargo", "clippy", "--target", "wasm32-unknown-unknown", "--features", "hydrate", "--", "-D", "warnings"]
+need_stdout = false
+
+[jobs.check-ssr]
+command = ["cargo", "check", "--features", "ssr"]
+need_stdout = false
+
+[jobs.check-hydrate]
+command = ["cargo", "check", "--target", "wasm32-unknown-unknown", "--features", "hydrate"]
+need_stdout = false
+
+[jobs.test]
+command = ["cargo", "test"]
+need_stdout = true
+
+[keybindings]
+s = "job:clippy-ssr"
+h = "job:clippy-hydrate"
+t = "job:test"

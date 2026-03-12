@@ -1,0 +1,102 @@
+[package]
+name = "samete"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Framework
+leptos = { version = "0.8" }
+leptos_router = { version = "0.8" }
+leptos_meta = { version = "0.8" }
+
+# Serialization (shared between server and client)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde", "js"] }
+time = { version = "0.3", features = ["serde", "formatting", "macros"] }
+
+# SSR-only
+leptos_axum = { version = "0.8", optional = true }
+axum = { version = "0.8", optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+tower-http = { version = "0.6", features = ["compression-br", "trace"], optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"], optional = true }
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "macros", "uuid", "time"], optional = true }
+reqwest = { version = "0.13", features = ["json"], optional = true }
+phonenumber = { version = "0.3", optional = true }
+rand = { version = "0.9", optional = true }
+blake2 = { version = "0.10", optional = true }
+sha2 = { version = "0.10", optional = true }
+anyhow = { version = "1", optional = true }
+
+# Hydrate-only
+wasm-bindgen = { version = "0.2", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+
+[features]
+default = []
+hydrate = [
+    "leptos/hydrate",
+    "dep:console_error_panic_hook",
+    "dep:wasm-bindgen",
+]
+ssr = [
+    "leptos/ssr",
+    "leptos_meta/ssr",
+    "leptos_router/ssr",
+    "dep:leptos_axum",
+    "dep:axum",
+    "dep:tokio",
+    "dep:tower-http",
+    "dep:tracing-subscriber",
+    "dep:sqlx",
+    "dep:reqwest",
+    "dep:phonenumber",
+    "dep:rand",
+    "dep:blake2",
+    "dep:sha2",
+    "dep:anyhow",
+]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+
+[profile.release]
+strip = true
+lto = "thin"
+panic = "abort"
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = 'z'
+lto = true
+codegen-units = 1
+
+[package.metadata.leptos]
+output-name = "samete"
+site-root = "target/site"
+site-pkg-dir = "pkg"
+style-file = "style/main.css"
+assets-dir = "public"
+site-addr = "127.0.0.1:3000"
+reload-port = 3001
+end2end-cmd = "npx playwright test"
+end2end-dir = "end2end"
+browserquery = "defaults"
+env = "DEV"
+bin-features = ["ssr"]
+bin-default-features = false
+lib-features = ["hydrate"]
+lib-default-features = false
+lib-profile-release = "wasm-release"
