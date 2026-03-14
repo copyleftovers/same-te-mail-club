@@ -35,6 +35,7 @@ All crates in Cargo.toml. No migrations, no domain types, no modules beyond `app
 ### Reference Files
 
 Read before starting any phase:
+- `spec/Data Model.md` — **authoritative schema** (supersedes Architecture.md data model section and all migration SQL in this plan if any conflict exists)
 - `spec/Architecture.md` — authoritative HOW (§Development Protocol and §Testing Strategy are binding)
 - `spec/Product Spec.md` — authoritative WHAT
 - `spec/User Stories.md` — acceptance criteria (Given/When/Then for every story)
@@ -111,33 +112,53 @@ No user-visible features. Establishes the domain model, database schema, configu
 
 **Create directory:** `migrations/`
 
-**Create file:** `migrations/20260312000001_create_types.sql`
+**Create file:** `migrations/20260314000001_create_types.sql`
 
 ```sql
 CREATE TYPE season_phase AS ENUM (
-    'signup',
-    'creating',
-    'confirming',
-    'assigning',
-    'sending',
-    'receiving',
+    'enrollment',
+    'preparation',
+    'assignment',
+    'delivery',
     'complete',
     'cancelled'
 );
+
+CREATE TYPE user_role AS ENUM (
+    'participant',
+    'admin'
+);
+
+CREATE TYPE user_status AS ENUM (
+    'active',
+    'deactivated'
+);
+
+CREATE TYPE receipt_status AS ENUM (
+    'no_response',
+    'received',
+    'not_received'
+);
 ```
 
-**Create file:** `migrations/20260312000002_create_tables.sql`
+**Create file:** `migrations/20260314000002_create_tables.sql`
 
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     phone TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
-    nova_poshta_branch TEXT,
-    is_admin BOOLEAN NOT NULL DEFAULT false,
-    is_active BOOLEAN NOT NULL DEFAULT true,
+    role user_role NOT NULL DEFAULT 'participant',
+    status user_status NOT NULL DEFAULT 'active',
     onboarded BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE delivery_addresses (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    nova_poshta_city TEXT NOT NULL,
+    nova_poshta_number INTEGER NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE sessions (
@@ -148,7 +169,8 @@ CREATE TABLE sessions (
 );
 
 CREATE TABLE otp_codes (
-    phone TEXT PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    phone TEXT NOT NULL,
     code_hash TEXT NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -157,7 +179,7 @@ CREATE TABLE otp_codes (
 
 CREATE TABLE seasons (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    phase season_phase NOT NULL DEFAULT 'signup',
+    phase season_phase NOT NULL DEFAULT 'enrollment',
     signup_deadline TIMESTAMPTZ NOT NULL,
     confirm_deadline TIMESTAMPTZ NOT NULL,
     theme TEXT,
@@ -171,8 +193,7 @@ CREATE UNIQUE INDEX one_active_season
 CREATE TABLE enrollments (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     season_id UUID NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
-    nova_poshta_branch TEXT NOT NULL,
-    confirmed_ready BOOLEAN NOT NULL DEFAULT false,
+    confirmed_ready_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, season_id)
 );
@@ -182,17 +203,12 @@ CREATE TABLE assignments (
     season_id UUID NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
     sender_id UUID NOT NULL REFERENCES users(id),
     recipient_id UUID NOT NULL REFERENCES users(id),
-    released BOOLEAN NOT NULL DEFAULT false,
+    notified_at TIMESTAMPTZ,
+    receipt_status receipt_status NOT NULL DEFAULT 'no_response',
+    receipt_note TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (season_id, sender_id),
     UNIQUE (season_id, recipient_id)
-);
-
-CREATE TABLE receipts (
-    assignment_id UUID PRIMARY KEY REFERENCES assignments(id) ON DELETE CASCADE,
-    received BOOLEAN NOT NULL,
-    note TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE known_groups (
@@ -205,13 +221,6 @@ CREATE TABLE known_group_members (
     group_id UUID NOT NULL REFERENCES known_groups(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (group_id, user_id)
-);
-
-CREATE TABLE past_pairings (
-    sender_id UUID NOT NULL REFERENCES users(id),
-    recipient_id UUID NOT NULL REFERENCES users(id),
-    season_id UUID NOT NULL REFERENCES seasons(id),
-    PRIMARY KEY (sender_id, recipient_id, season_id)
 );
 ```
 
@@ -231,17 +240,17 @@ This module compiles on BOTH server and client (no feature gate). All types: `Se
 use serde::{Deserialize, Serialize};
 
 /// Season phase — mirrors `season_phase` Postgres enum.
+/// Six phases: Enrollment → Preparation → Assignment → Delivery → Complete.
+/// Cancelled reachable from any non-terminal.
 /// Transition rules gathered here, not scattered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ssr", derive(sqlx::Type))]
 #[cfg_attr(feature = "ssr", sqlx(type_name = "season_phase", rename_all = "lowercase"))]
 pub enum Phase {
-    Signup,
-    Creating,
-    Confirming,
-    Assigning,
-    Sending,
-    Receiving,
+    Enrollment,
+    Preparation,
+    Assignment,
+    Delivery,
     Complete,
     Cancelled,
 }
@@ -250,12 +259,10 @@ impl Phase {
     /// Next phase in sequence. Err for terminal or cancelled.
     pub fn try_advance(self) -> Result<Self, InvalidTransition> {
         match self {
-            Self::Signup => Ok(Self::Creating),
-            Self::Creating => Ok(Self::Confirming),
-            Self::Confirming => Ok(Self::Assigning),
-            Self::Assigning => Ok(Self::Sending),
-            Self::Sending => Ok(Self::Receiving),
-            Self::Receiving => Ok(Self::Complete),
+            Self::Enrollment => Ok(Self::Preparation),
+            Self::Preparation => Ok(Self::Assignment),
+            Self::Assignment => Ok(Self::Delivery),
+            Self::Delivery => Ok(Self::Complete),
             Self::Complete | Self::Cancelled => Err(InvalidTransition { from: self }),
         }
     }
@@ -281,17 +288,46 @@ impl Phase {
 impl std::fmt::Display for Phase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            Self::Signup => "signup",
-            Self::Creating => "creating",
-            Self::Confirming => "confirming",
-            Self::Assigning => "assigning",
-            Self::Sending => "sending",
-            Self::Receiving => "receiving",
+            Self::Enrollment => "enrollment",
+            Self::Preparation => "preparation",
+            Self::Assignment => "assignment",
+            Self::Delivery => "delivery",
             Self::Complete => "complete",
             Self::Cancelled => "cancelled",
         };
         f.write_str(s)
     }
+}
+
+/// User role — mirrors `user_role` Postgres enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(sqlx::Type))]
+#[cfg_attr(feature = "ssr", sqlx(type_name = "user_role", rename_all = "lowercase"))]
+pub enum UserRole {
+    Participant,
+    Admin,
+}
+
+/// User account status — mirrors `user_status` Postgres enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(sqlx::Type))]
+#[cfg_attr(feature = "ssr", sqlx(type_name = "user_status", rename_all = "lowercase"))]
+pub enum UserStatus {
+    Active,
+    Deactivated,
+}
+
+/// Receipt status — mirrors `receipt_status` Postgres enum.
+/// NoResponse = hasn't responded yet (default).
+/// Received = actively confirmed receipt.
+/// NotReceived = actively reported non-receipt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(sqlx::Type))]
+#[cfg_attr(feature = "ssr", sqlx(type_name = "receipt_status", rename_all = "snake_case"))]
+pub enum ReceiptStatus {
+    NoResponse,
+    Received,
+    NotReceived,
 }
 
 /// Error for invalid phase transitions. Kept in types.rs (shared)
@@ -312,7 +348,7 @@ impl std::error::Error for InvalidTransition {}
 
 **Unit tests — add `#[cfg(test)] mod tests` in same file:**
 
-Test every valid transition chain: `Signup→Creating→...→Complete`. Test invalid: `Complete.try_advance()` is `Err`, `Cancelled.try_advance()` is `Err`. Test `cancel()` from every non-terminal returns `Ok(Cancelled)`. Test `cancel()` from `Complete` and `Cancelled` returns `Err`. Test `is_terminal()`. Test `can_advance()` matches `try_advance().is_ok()`. Test `Display` output matches Postgres enum values exactly.
+Test every valid transition chain: `Enrollment→Preparation→Assignment→Delivery→Complete`. Test invalid: `Complete.try_advance()` is `Err`, `Cancelled.try_advance()` is `Err`. Test `cancel()` from every non-terminal returns `Ok(Cancelled)`. Test `cancel()` from `Complete` and `Cancelled` returns `Err`. Test `is_terminal()`. Test `can_advance()` matches `try_advance().is_ok()`. Test `Display` output matches Postgres enum values exactly (`"enrollment"`, `"preparation"`, `"assignment"`, `"delivery"`, `"complete"`, `"cancelled"`).
 
 **Gate:**
 ```bash
@@ -350,6 +386,9 @@ pub enum AppError {
         source: InvalidTransition,
     },
 
+    #[error("rate limited")]
+    RateLimited,
+
     #[error("SMS delivery failed: {0}")]
     SmsFailed(String),
 
@@ -378,6 +417,7 @@ impl axum::response::IntoResponse for AppError {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::InvalidInput(_) => StatusCode::BAD_REQUEST,
             Self::InvalidTransition { .. } => StatusCode::CONFLICT,
+            Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::SmsFailed(_) => StatusCode::BAD_GATEWAY,
             Self::Database(_) | Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
@@ -633,23 +673,39 @@ This generates `.sqlx/` directory with query metadata. Commit `.sqlx/` to git (i
 sqlx migrate run
 # REQUIRED: exits 0
 
-# Gate 2: SSR compiles
+# Gate 2: All 4 Postgres enum types exist
+psql $DATABASE_URL -c "\dT+" | grep -E "season_phase|user_role|user_status|receipt_status"
+# REQUIRED: 4 lines, one per enum type
+
+# Gate 3: No tables from old schema
+psql $DATABASE_URL -c "\dt" | grep -E "receipts|past_pairings"
+# REQUIRED: zero matches
+
+# Gate 4: delivery_addresses table exists
+psql $DATABASE_URL -c "\d delivery_addresses"
+# REQUIRED: shows user_id, nova_poshta_city, nova_poshta_number, updated_at
+
+# Gate 5: No boolean columns where enums should be
+psql $DATABASE_URL -c "\d users" | grep -i "boolean" | grep -v "onboarded"
+# REQUIRED: zero matches (only onboarded is a boolean on users)
+
+# Gate 6: SSR compiles
 cargo build --features ssr
 # REQUIRED: exits 0, zero warnings
 
-# Gate 3: WASM compiles
+# Gate 7: WASM compiles
 cargo build --features hydrate --target wasm32-unknown-unknown
 # REQUIRED: exits 0
 
-# Gate 4: Clippy
+# Gate 8: Clippy
 cargo clippy --features ssr -- -D warnings
 # REQUIRED: exits 0
 
-# Gate 5: Tests
+# Gate 9: Tests
 cargo test
 # REQUIRED: all phase transition tests pass
 
-# Gate 6: No TODO in production code
+# Gate 10: No TODO in production code
 grep -rn "todo!()" src/ --include="*.rs" | grep -v "test" | grep -v "#\[cfg(test)\]"
 # REQUIRED: only phone.rs normalize() has todo!() (to be implemented)
 ```
@@ -710,32 +766,48 @@ SSR-only module. Session and OTP logic. NO server functions here — just helper
 Functions to implement:
 
 ```rust
+use crate::types::{UserRole, UserStatus};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Generate a 6-digit OTP, hash it, store in otp_codes (upsert).
+/// Generate a 6-digit OTP, hash it, INSERT into otp_codes.
+/// Old codes are retained (not upserted) — this enables rate limit counting.
 /// Returns the raw code (for SMS sending).
 pub async fn create_otp(pool: &PgPool, phone: &str) -> Result<String, crate::error::AppError> {
     // 1. Generate 6-digit code: rand::random::<u32>() % 1_000_000, zero-pad
     // 2. SHA-256 hash the code
-    // 3. INSERT INTO otp_codes (phone, code_hash, attempts, created_at, expires_at)
-    //    ON CONFLICT (phone) DO UPDATE — upsert replaces previous code
+    // 3. INSERT INTO otp_codes (phone, code_hash, expires_at)
     //    expires_at = now() + 10 minutes
+    //    DO NOT upsert — old rows are retained for rate limiting
     // 4. Return raw code string
     todo!()
 }
 
+/// Check OTP rate limits by counting existing rows.
+/// Returns Err(RateLimited) if any limit is exceeded.
+pub async fn check_otp_rate_limit(pool: &PgPool, phone: &str) -> Result<(), crate::error::AppError> {
+    // 1. COUNT otp_codes WHERE phone = $1 AND created_at > now() - interval '60 seconds'
+    //    If count >= 1: return Err(RateLimited)
+    // 2. COUNT otp_codes WHERE phone = $1 AND created_at > now() - interval '1 hour'
+    //    If count >= 5: return Err(RateLimited)
+    todo!()
+}
+
 /// Verify an OTP code against stored hash.
+/// Selects the most recent non-expired code for the phone.
 pub async fn verify_otp(pool: &PgPool, phone: &str, code: &str) -> Result<Uuid, crate::error::AppError> {
-    // 1. SELECT from otp_codes WHERE phone = $1 AND expires_at > now()
+    // 1. SELECT id, code_hash, attempts FROM otp_codes
+    //    WHERE phone = $1 AND expires_at > now()
+    //    ORDER BY created_at DESC LIMIT 1
     // 2. If no row: return Err(Unauthorized)
     // 3. If attempts >= 3: DELETE the row, return Err(Unauthorized)
     // 4. SHA-256 hash the submitted code
     // 5. Compare to stored hash
-    // 6. If mismatch: INCREMENT attempts, return Err(Unauthorized)
+    // 6. If mismatch: INCREMENT attempts on that row, return Err(Unauthorized)
     // 7. If match: DELETE the otp_codes row
-    // 8. Look up user by phone: SELECT id FROM users WHERE phone = $1 AND is_active = true
-    // 9. If no user: return Err(Unauthorized) — must be registered
+    // 8. Look up user by phone:
+    //    SELECT id FROM users WHERE phone = $1 AND status = 'active'
+    // 9. If no user: return Err(Unauthorized) — must be registered and active
     // 10. Create session: call create_session(pool, user_id)
     // 11. Return user_id
     todo!()
@@ -769,13 +841,14 @@ pub async fn delete_session(pool: &PgPool, raw_token: &str) -> Result<(), crate:
     todo!()
 }
 
-/// Get current user from request cookies. Returns (user_id, is_admin, onboarded).
+/// Get current user from request cookies.
 /// Used by server functions and route guards.
 pub async fn current_user(pool: &PgPool, parts: &http::request::Parts) -> Result<CurrentUser, crate::error::AppError> {
     // 1. Extract "session" cookie from parts.headers
     // 2. Call validate_session(pool, token)
-    // 3. SELECT is_admin, onboarded, name FROM users WHERE id = $1
-    // 4. Return CurrentUser struct
+    // 3. SELECT role, status, onboarded, name FROM users WHERE id = $1
+    // 4. If status != Active: return Err(Unauthorized)
+    // 5. Return CurrentUser struct
     todo!()
 }
 
@@ -783,12 +856,12 @@ pub async fn current_user(pool: &PgPool, parts: &http::request::Parts) -> Result
 pub struct CurrentUser {
     pub id: Uuid,
     pub name: String,
-    pub is_admin: bool,
+    pub role: UserRole,
     pub onboarded: bool,
 }
 ```
 
-**Rate limiting:** Implement the rate limits from Architecture spec (1 OTP/60s per phone, 5/hour, etc.) by checking timestamps in `otp_codes` and a counter. Use database-level checks — no in-memory state.
+**Rate limiting:** `check_otp_rate_limit` counts rows in `otp_codes` using timestamps. Old rows are retained specifically for this purpose. No in-memory state.
 
 ### 2.3 Login Page (`src/pages/login.rs`) — Stories 1.2
 
@@ -809,9 +882,10 @@ Two-step flow:
 #[server]
 pub async fn request_otp(phone: String) -> Result<(), ServerFnError> {
     // 1. Normalize phone (phone::normalize)
-    // 2. Check user exists and is_active: SELECT FROM users WHERE phone = $1 AND is_active
-    // 3. Check rate limit (1 per 60s, 5 per hour)
-    // 4. Create OTP (auth::create_otp)
+    // 2. Check user exists and is active:
+    //    SELECT id FROM users WHERE phone = $1 AND status = 'active'
+    // 3. Check rate limit: auth::check_otp_rate_limit(pool, &phone)
+    // 4. Create OTP: auth::create_otp(pool, &phone)
     // 5. Send SMS (sms::send_sms) with message "Ваш код: {code}"
     // 6. Return Ok(()) — do NOT reveal whether phone is registered
     todo!()
@@ -834,24 +908,6 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
 
 **Component:** `LoginPage` with two states (phone entry, code entry). Use reactive signals to toggle between states. On successful verification, redirect to `/` (or `/onboarding` if not onboarded).
 
-**Test-support feature:** Add to `Cargo.toml`:
-```toml
-test-support = ["ssr"]
-```
-
-Add a `#[cfg(feature = "test-support")]` server function:
-```rust
-#[cfg(feature = "test-support")]
-#[server]
-pub async fn get_test_otp(phone: String) -> Result<Option<String>, ServerFnError> {
-    // SELECT code_hash FROM otp_codes WHERE phone = $1
-    // This won't return the raw code (it's hashed). Instead:
-    // In test mode, store the raw code in a separate column or use a fixed code.
-    // Decision: Use fixed code "000000" when SAMETE_TEST_MODE=true
-    todo!()
-}
-```
-
 **Simpler test approach:** When `SAMETE_TEST_MODE=true` env var is set, `create_otp` always generates `"000000"`. Log a warning at startup.
 
 ### 2.4 Admin: Register Participant (`src/admin/participants.rs`) — Story 1.1
@@ -867,10 +923,11 @@ pub mod participants;
 ```rust
 #[server]
 pub async fn register_participant(phone: String, name: String) -> Result<(), ServerFnError> {
-    // 1. Validate admin session (current_user must have is_admin = true)
+    // 1. Validate admin session: current_user must have role = Admin
     // 2. Normalize phone
     // 3. Validate name is non-empty, trimmed
     // 4. INSERT INTO users (phone, name) VALUES ($1, $2)
+    //    role defaults to 'participant', status defaults to 'active'
     // 5. Handle unique violation (phone already exists) → InvalidInput
     todo!()
 }
@@ -878,7 +935,8 @@ pub async fn register_participant(phone: String, name: String) -> Result<(), Ser
 #[server]
 pub async fn list_participants() -> Result<Vec<ParticipantSummary>, ServerFnError> {
     // 1. Validate admin session
-    // 2. SELECT id, phone, name, is_active, onboarded FROM users WHERE is_admin = false
+    // 2. SELECT id, phone, name, status, onboarded FROM users
+    //    WHERE role = 'participant'
     //    ORDER BY created_at DESC
     todo!()
 }
@@ -898,15 +956,23 @@ pub mod onboarding;
 **Server function:**
 ```rust
 #[server]
-pub async fn complete_onboarding(nova_poshta_branch: String) -> Result<(), ServerFnError> {
+pub async fn complete_onboarding(
+    nova_poshta_city: String,
+    nova_poshta_number: i32,
+) -> Result<(), ServerFnError> {
     // 1. Validate session (must be authenticated)
-    // 2. Validate nova_poshta_branch is non-empty, trimmed
-    // 3. UPDATE users SET nova_poshta_branch = $1, onboarded = true WHERE id = $2
+    // 2. Validate nova_poshta_city is non-empty, trimmed
+    // 3. Validate nova_poshta_number > 0
+    // 4. INSERT INTO delivery_addresses (user_id, nova_poshta_city, nova_poshta_number)
+    //    VALUES ($1, $2, $3)
+    //    ON CONFLICT (user_id) DO UPDATE
+    //    SET nova_poshta_city = $2, nova_poshta_number = $3, updated_at = now()
+    // 5. UPDATE users SET onboarded = true WHERE id = $1
     todo!()
 }
 ```
 
-**Component:** Single form collecting Nova Poshta branch. On submit, redirect to `/`.
+**Component:** Single form collecting Nova Poshta city and branch number. On submit, redirect to `/`.
 
 ### 2.6 App.rs: Auth Routes + Guard
 
@@ -960,15 +1026,23 @@ cargo clippy --features ssr -- -D warnings
 cargo sqlx prepare --workspace
 # REQUIRED: exits 0, .sqlx/ updated
 
-# Gate 5: No scattered auth checks
-grep -rn "is_admin" src/pages/ --include="*.rs"
+# Gate 5: No role checks in page modules
+grep -rn "role\|UserRole\|Admin" src/pages/ --include="*.rs"
 # REQUIRED: zero matches (admin checks live in admin/ modules and auth.rs only)
 
-# Gate 6: No raw SQL outside sqlx::query!()
-grep -rn "execute\|fetch" src/ --include="*.rs" | grep -v "sqlx::query" | grep -v "test" | grep -v ".execute(pool)"
-# Advisory: review any matches for raw string SQL
+# Gate 6: Onboarding writes to delivery_addresses, not users
+grep -rn "nova_poshta" src/ --include="*.rs" | grep -v "delivery_addresses" | grep -v "test" | grep -v "types"
+# REQUIRED: zero matches (all NP data goes through delivery_addresses table)
 
-# Gate 7: E2E — Epic 1 tests pass
+# Gate 7: OTP codes are inserted, not upserted
+grep -rn "ON CONFLICT.*otp_codes\|UPSERT.*otp_codes" src/ --include="*.rs"
+# REQUIRED: zero matches
+
+# Gate 8: No is_admin or is_active in queries
+grep -rn "is_admin\|is_active" src/ --include="*.rs" | grep -v "test"
+# REQUIRED: zero matches (use role/status enums instead)
+
+# Gate 9: E2E — Epic 1 tests pass
 SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end -- --grep "Epic 1"
 # REQUIRED: all Story 1.1, 1.2, 1.3 tests pass
 ```
@@ -1008,7 +1082,7 @@ pub async fn create_season(
     // 3. Validate signup_deadline < confirm_deadline
     // 4. Validate both deadlines are in the future
     // 5. INSERT INTO seasons (phase, signup_deadline, confirm_deadline, theme)
-    //    VALUES ('signup', $1, $2, $3)
+    //    VALUES ('enrollment', $1, $2, $3)
     // 6. The one_active_season index prevents creating a second active season
     //    Handle unique violation → InvalidInput("an active season already exists")
     todo!()
@@ -1034,7 +1108,7 @@ pub async fn cancel_season() -> Result<(), ServerFnError> {
 }
 ```
 
-**Note on Story 4.2 (Launch):** The Architecture spec says "Season is not open for enrollment until the organizer explicitly launches it." The phase model handles this: a season starts in `signup` phase. The organizer creates it (it exists but could be in a pre-launch state). However, the spec's phase enum starts at `signup` which IS the enrollment-open state. Resolution: creation itself IS the launch. The `create_season` function creates a season in `signup` phase. The SMS notification (Story 5.3) is triggered separately from `admin/sms.rs` in Phase 5. Until Phase 5, the season is visible to participants but they won't receive an SMS about it.
+**Note on Story 4.2 (Launch):** Creation itself IS the launch. `create_season` creates a season in `enrollment` phase — enrollment is immediately open. The SMS notification (Story 5.3) is triggered separately from `admin/sms.rs` in Phase 5.
 
 ### 3.2 Season Enrollment (`src/pages/season.rs`) — Story 2.1
 
@@ -1055,24 +1129,28 @@ pub async fn get_season_info() -> Result<Option<SeasonInfo>, ServerFnError> {
     // 2. SELECT from seasons WHERE phase NOT IN ('complete', 'cancelled')
     // 3. If no active season: return None
     // 4. Check enrollment status for current user:
-    //    SELECT FROM enrollments WHERE user_id = $1 AND season_id = $2
+    //    SELECT confirmed_ready_at FROM enrollments
+    //    WHERE user_id = $1 AND season_id = $2
     // 5. Return SeasonInfo { phase, signup_deadline, confirm_deadline, theme,
-    //    is_enrolled, is_confirmed, assignment (if released) }
+    //    is_enrolled, confirmed_ready_at, assignment (if phase is Delivery) }
     todo!()
 }
 
 #[server]
-pub async fn enroll_in_season(nova_poshta_branch: String) -> Result<(), ServerFnError> {
+pub async fn enroll_in_season() -> Result<(), ServerFnError> {
     // 1. Validate session
-    // 2. Get active season, verify phase is Signup
+    // 2. Get active season, verify phase is Enrollment
     // 3. Verify signup_deadline > now()
-    // 4. Validate nova_poshta_branch non-empty
-    // 5. UPDATE users SET nova_poshta_branch = $1 WHERE id = $2 (update their default)
-    // 6. INSERT INTO enrollments (user_id, season_id, nova_poshta_branch)
+    // 4. Verify user has delivery address:
+    //    SELECT user_id FROM delivery_addresses WHERE user_id = $1
+    //    If no row: return Err(InvalidInput("complete onboarding first"))
+    // 5. INSERT INTO enrollments (user_id, season_id)
     //    Handle duplicate → already enrolled
     todo!()
 }
 ```
+
+**Enrollment does NOT accept or store any Nova Poshta data.** The delivery address is managed separately in `delivery_addresses` and read live when needed.
 
 ### 3.3 Confirm Ready (same file) — Story 2.2
 
@@ -1082,10 +1160,10 @@ pub async fn enroll_in_season(nova_poshta_branch: String) -> Result<(), ServerFn
 #[server]
 pub async fn confirm_ready() -> Result<(), ServerFnError> {
     // 1. Validate session
-    // 2. Get active season, verify phase is Creating or Confirming
+    // 2. Get active season, verify phase is Preparation
     // 3. Verify confirm_deadline > now()
-    // 4. UPDATE enrollments SET confirmed_ready = true
-    //    WHERE user_id = $1 AND season_id = $2 AND confirmed_ready = false
+    // 4. UPDATE enrollments SET confirmed_ready_at = now()
+    //    WHERE user_id = $1 AND season_id = $2 AND confirmed_ready_at IS NULL
     // 5. If no row updated: either not enrolled or already confirmed
     todo!()
 }
@@ -1095,7 +1173,7 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
 
 **Create file:** `src/pages/home.rs`
 
-Single component that shows the right content based on (season phase, participant state). This is the table from Architecture spec's "Home Screen" section.
+Single component that shows the right content based on (season phase, participant state).
 
 **Server function:**
 
@@ -1111,23 +1189,52 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
 }
 ```
 
-`HomeState` is a serializable enum matching the home screen table:
+`HomeState` is a serializable enum:
 ```rust
 #[derive(Clone, Serialize, Deserialize)]
 pub enum HomeState {
     NoSeason,
-    SignupOpen { deadline: String, theme: Option<String> },
-    Enrolled { creation_start: String },
-    Creating { confirm_deadline: String },
-    Confirming { confirm_deadline: String },
-    Confirmed { assignment_eta: String },
+    EnrollmentOpen { deadline: String, theme: Option<String> },
+    Enrolled { confirm_deadline: String },
+    Preparing { confirm_deadline: String },
+    Confirmed,
     Assigning,
-    Assigned { recipient_name: String, recipient_phone: String, recipient_branch: String },
-    Receiving,
+    Assigned {
+        recipient_name: String,
+        recipient_phone: String,
+        recipient_city: String,
+        recipient_branch_number: i32,
+    },
+    AwaitingReceipt,
     ReceiptConfirmed,
     Complete,
 }
 ```
+
+Mapping to (phase, participant state):
+
+| Phase | Participant State | HomeState Variant |
+|-------|------------------|-------------------|
+| No active season | — | `NoSeason` |
+| Enrollment | Not enrolled | `EnrollmentOpen` |
+| Enrollment | Enrolled | `Enrolled` |
+| Preparation | Not confirmed | `Preparing` |
+| Preparation | Confirmed | `Confirmed` |
+| Assignment | — | `Assigning` |
+| Delivery | Assigned, receipt_status = NoResponse | `Assigned` |
+| Delivery | receipt_status = Received or NotReceived | `ReceiptConfirmed` |
+| Complete | — | `Complete` |
+
+The `Assigned` variant's Nova Poshta data comes from `delivery_addresses`:
+```sql
+SELECT u.name, u.phone, da.nova_poshta_city, da.nova_poshta_number
+FROM assignments a
+JOIN users u ON u.id = a.recipient_id
+JOIN delivery_addresses da ON da.user_id = a.recipient_id
+WHERE a.sender_id = $1 AND a.season_id = $2
+```
+
+**Visibility of assignment is gated by season phase = Delivery.** No per-assignment `released` flag to check.
 
 The component matches on this enum and renders the appropriate content. One component, one match, no scattered conditionals.
 
@@ -1135,7 +1242,7 @@ The component matches on this enum and renders the appropriate content. One comp
 
 **Create file:** `src/admin/dashboard.rs`
 
-Shows season health: enrolled count, confirmed count, phase, action buttons. The dashboard table from Architecture spec's "Admin Dashboard" section.
+Shows season health: enrolled count, confirmed count, phase, action buttons.
 
 **Server function:**
 
@@ -1144,7 +1251,7 @@ Shows season health: enrolled count, confirmed count, phase, action buttons. The
 pub async fn get_dashboard() -> Result<DashboardState, ServerFnError> {
     // 1. Validate admin session
     // 2. Get active season (if any)
-    // 3. COUNT enrollments, COUNT confirmed, etc.
+    // 3. COUNT enrollments, COUNT confirmed (confirmed_ready_at IS NOT NULL), etc.
     // 4. Return dashboard state
     todo!()
 }
@@ -1173,15 +1280,23 @@ cargo clippy --features ssr -- -D warnings
 grep -rn "phase" src/ --include="*.rs" | grep -i "update\|set" | grep -v "types.rs" | grep -v "test" | grep -v "admin/season.rs"
 # REQUIRED: no direct phase manipulation outside admin/season.rs (transition logic is in types.rs, DB update is in admin/season.rs)
 
-# Gate 4: SQLx prepare
+# Gate 4: No NP data on enrollments
+grep -rn "nova_poshta" src/ --include="*.rs" | grep -i "enrollment"
+# REQUIRED: zero matches (enrollment has no NP data)
+
+# Gate 5: Confirmation uses timestamp, not boolean
+grep -rn "confirmed_ready" src/ --include="*.rs" | grep -v "confirmed_ready_at" | grep -v "test"
+# REQUIRED: zero matches (no confirmed_ready bool — only confirmed_ready_at timestamp)
+
+# Gate 6: SQLx prepare
 cargo sqlx prepare --workspace
 # REQUIRED: exits 0
 
-# Gate 5: Unit tests
+# Gate 7: Unit tests
 cargo test
 # REQUIRED: all pass
 
-# Gate 6: E2E — Epic 4 and enrollment/confirm tests pass
+# Gate 8: E2E — Epic 4 and enrollment/confirm tests pass
 SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end -- --grep "Epic 4|Story 2.1|Story 2.2"
 # REQUIRED: season creation, enrollment, confirm-ready tests pass
 ```
@@ -1300,9 +1415,15 @@ pub fn validate_cycles(result: &AssignmentResult) -> Result<(), String> {
 ```rust
 /// Build the social weight matrix from DB data.
 /// Called by admin/assignments.rs before running the algorithm.
+///
+/// past_pairings: queried from assignments table joined with completed seasons.
+/// There is NO past_pairings table — the caller queries:
+///   SELECT sender_id, recipient_id FROM assignments a
+///   JOIN seasons s ON s.id = a.season_id
+///   WHERE s.phase IN ('complete', 'cancelled')
 pub fn build_weight_matrix(
     group_memberships: &[(Uuid, Uuid, u32)],  // (user_id, group_id, group_weight)
-    past_pairings: &[(Uuid, Uuid)],            // (sender, recipient) from all past seasons
+    past_pairings: &[(Uuid, Uuid)],            // (sender, recipient) from completed seasons
 ) -> std::collections::HashMap<(Uuid, Uuid), u32> {
     // For each pair of users:
     // - Sum weights of groups they share
@@ -1327,12 +1448,21 @@ pub mod assignments;
 #[server]
 pub async fn generate_assignments() -> Result<AssignmentPreview, ServerFnError> {
     // 1. Validate admin session
-    // 2. Get active season (must be in Assigning phase)
-    // 3. Get confirmed participants: SELECT user_id FROM enrollments
-    //    WHERE season_id = $1 AND confirmed_ready = true
-    // 4. Build social weight matrix from known_groups + past_pairings
+    // 2. Get active season (must be in Assignment phase)
+    // 3. Get confirmed participants:
+    //    SELECT user_id FROM enrollments
+    //    WHERE season_id = $1 AND confirmed_ready_at IS NOT NULL
+    // 4. Build social weight matrix:
+    //    a. Query known_group_members + known_groups for group data
+    //    b. Query past pairings from assignments of completed seasons:
+    //       SELECT sender_id, recipient_id FROM assignments a
+    //       JOIN seasons s ON s.id = a.season_id
+    //       WHERE s.phase IN ('complete', 'cancelled')
+    //    c. Call assignment::build_weight_matrix()
     // 5. Run assignment::generate_assignments()
-    // 6. Store assignments in DB (released = false)
+    // 6. Store assignments in DB:
+    //    INSERT INTO assignments (season_id, sender_id, recipient_id)
+    //    notified_at defaults to NULL, receipt_status defaults to 'no_response'
     // 7. Return preview with cycle visualization data
     todo!()
 }
@@ -1357,9 +1487,11 @@ pub async fn swap_assignment(
 #[server]
 pub async fn release_assignments() -> Result<(), ServerFnError> {
     // 1. Validate admin session
-    // 2. Get active season (must be in Assigning or Sending phase)
-    // 3. UPDATE assignments SET released = true WHERE season_id = $1
-    // 4. Advance phase to Sending if still in Assigning
+    // 2. Get active season (must be in Assignment phase)
+    // 3. Advance phase to Delivery: Phase::try_advance()
+    // 4. UPDATE seasons SET phase = 'delivery' WHERE id = $1
+    // Release IS the phase transition. There is no released flag.
+    // Assignment visibility is gated by season phase = Delivery.
     todo!()
 }
 ```
@@ -1383,11 +1515,19 @@ cargo test -- assignment
 grep -rn "sqlx\|PgPool\|use_context\|leptos" src/assignment.rs
 # REQUIRED: zero matches (algorithm has no framework/DB dependencies)
 
-# Gate 5: SQLx prepare
+# Gate 5: No released flag anywhere
+grep -rn "released" src/ --include="*.rs" | grep -v "test"
+# REQUIRED: zero matches (release is a phase concern, not a column)
+
+# Gate 6: No past_pairings table references
+grep -rn "past_pairings" src/ --include="*.rs" | grep -v "test" | grep -v "comment"
+# REQUIRED: zero matches (past pairings are queried from assignments + seasons)
+
+# Gate 7: SQLx prepare
 cargo sqlx prepare --workspace
 # REQUIRED: exits 0
 
-# Gate 6: E2E — Epic 3 tests pass
+# Gate 8: E2E — Epic 3 tests pass
 SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end -- --grep "Epic 3"
 # REQUIRED: assignment generation, override, release tests pass
 ```
@@ -1407,21 +1547,23 @@ Implements: assignment view, receipt confirmation, all SMS notification batches.
 
 **Update `src/pages/home.rs`** (or `season.rs`):
 
-The `HomeState::Assigned` variant already carries recipient details. The component shows:
+The `HomeState::Assigned` variant carries recipient details. The component shows:
 - Recipient's real name
 - Recipient's phone number
-- Recipient's Nova Poshta branch
+- Recipient's Nova Poshta city and branch number
 
-This data comes from the `get_home_state` server function (Phase 3), which now includes assignment lookup:
+This data comes from the `get_home_state` server function (Phase 3), which includes assignment lookup:
 
 ```rust
-// In get_home_state, when phase is Sending and assignment is released:
-// SELECT u.name, u.phone, e.nova_poshta_branch
+// In get_home_state, when phase is Delivery:
+// SELECT u.name, u.phone, da.nova_poshta_city, da.nova_poshta_number
 // FROM assignments a
 // JOIN users u ON u.id = a.recipient_id
-// JOIN enrollments e ON e.user_id = a.recipient_id AND e.season_id = a.season_id
-// WHERE a.sender_id = $1 AND a.season_id = $2 AND a.released = true
+// JOIN delivery_addresses da ON da.user_id = a.recipient_id
+// WHERE a.sender_id = $1 AND a.season_id = $2
 ```
+
+**No `released = true` check.** Visibility is gated by `phase = Delivery`.
 
 ### 5.2 Stories 2.4 + 5.2: Receipt Confirmation + Nudge SMS
 
@@ -1431,12 +1573,17 @@ This data comes from the `get_home_state` server function (Phase 3), which now i
 #[server]
 pub async fn confirm_receipt(received: bool, note: Option<String>) -> Result<(), ServerFnError> {
     // 1. Validate session → user_id
-    // 2. Get active season (must be in Receiving phase)
+    // 2. Get active season (must be in Delivery phase)
     // 3. Find assignment where user is RECIPIENT:
-    //    SELECT a.id FROM assignments a
+    //    SELECT a.id, a.receipt_status FROM assignments a
     //    WHERE a.recipient_id = $1 AND a.season_id = $2
-    // 4. INSERT INTO receipts (assignment_id, received, note) VALUES ($1, $2, $3)
-    //    Handle duplicate → already confirmed
+    // 4. If receipt_status != NoResponse: return Err (already confirmed)
+    // 5. Map received bool to ReceiptStatus:
+    //    true → ReceiptStatus::Received
+    //    false → ReceiptStatus::NotReceived
+    // 6. UPDATE assignments
+    //    SET receipt_status = $1, receipt_note = $2
+    //    WHERE id = $3
     todo!()
 }
 ```
@@ -1458,21 +1605,24 @@ pub mod sms;
 pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
     // 1. Validate admin session
     // 2. Get active season
-    // 3. SELECT phone FROM users WHERE is_active = true
+    // 3. SELECT phone FROM users WHERE status = 'active'
     // 4. Send SMS to each: "Новий сезон Mail Club відкрито! Зайди в додаток для реєстрації."
     // 5. Return report: sent count, failed count, failed phones
     todo!()
 }
 
-/// Story 5.1: Assignment notification to released participants
+/// Story 5.1: Assignment notification — sets notified_at per-assignment
 #[server]
 pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
     // 1. Validate admin session
-    // 2. Get active season (Sending phase)
-    // 3. SELECT u.phone FROM assignments a JOIN users u ON u.id = a.sender_id
-    //    WHERE a.season_id = $1 AND a.released = true
-    // 4. Send SMS: "Твоє призначення готове! Зайди в додаток щоб побачити адресата."
-    // 5. Return report
+    // 2. Get active season (Delivery phase)
+    // 3. SELECT a.id, u.phone FROM assignments a
+    //    JOIN users u ON u.id = a.sender_id
+    //    WHERE a.season_id = $1 AND a.notified_at IS NULL
+    // 4. For each: send SMS "Твоє призначення готове! Зайди в додаток щоб побачити адресата."
+    // 5. On success: UPDATE assignments SET notified_at = now() WHERE id = $1
+    //    On failure: leave notified_at NULL (organizer sees who wasn't reached)
+    // 6. Return report
     todo!()
 }
 
@@ -1480,9 +1630,9 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
 #[server]
 pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     // 1. Validate admin session
-    // 2. Get active season (Confirming phase)
+    // 2. Get active season (Preparation phase)
     // 3. SELECT u.phone FROM enrollments e JOIN users u ON u.id = e.user_id
-    //    WHERE e.season_id = $1 AND e.confirmed_ready = false
+    //    WHERE e.season_id = $1 AND e.confirmed_ready_at IS NULL
     // 4. Send SMS: "Нагадування: підтверди готовність листа до [deadline]."
     // 5. Return report
     todo!()
@@ -1492,11 +1642,10 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
 #[server]
 pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     // 1. Validate admin session
-    // 2. Get active season (Receiving phase)
+    // 2. Get active season (Delivery phase)
     // 3. SELECT u.phone FROM assignments a
     //    JOIN users u ON u.id = a.recipient_id
-    //    LEFT JOIN receipts r ON r.assignment_id = a.id
-    //    WHERE a.season_id = $1 AND a.released = true AND r.assignment_id IS NULL
+    //    WHERE a.season_id = $1 AND a.receipt_status = 'no_response'
     // 4. Send SMS: "Ти отримав/ла лист? Підтверди в додатку."
     // 5. Return report
     todo!()
@@ -1511,6 +1660,8 @@ pub struct SmsReport {
 ```
 
 **All SMS sends are inline (await per message).** At ≤50 users this is fast enough. The organizer sees a "sending..." state and then the report.
+
+**Assignment SMS sets `notified_at` per-row on success.** This is the per-assignment delivery tracking — organizer sees who hasn't been notified.
 
 ### 5.4 Route Updates
 
@@ -1535,11 +1686,23 @@ grep -rn "send_sms\|Ваш код\|Новий сезон\|Нагадування
 grep -rn "turbosms\|api.turbosms" src/ --include="*.rs" | grep -v "sms.rs"
 # REQUIRED: zero matches (all SMS goes through sms.rs)
 
-# Gate 5: SQLx prepare
+# Gate 5: No receipts table references
+grep -rn "receipts" src/ --include="*.rs" | grep -v "receipt_status\|receipt_note\|ReceiptStatus\|test"
+# REQUIRED: zero matches (no separate receipts table)
+
+# Gate 6: Assignment view uses delivery_addresses, not enrollments for NP
+grep -rn "enrollment.*nova_poshta\|nova_poshta.*enrollment" src/ --include="*.rs"
+# REQUIRED: zero matches
+
+# Gate 7: Receipt nudge checks receipt_status enum, not separate table
+grep -rn "LEFT JOIN receipts\|JOIN receipts" src/ --include="*.rs"
+# REQUIRED: zero matches
+
+# Gate 8: SQLx prepare
 cargo sqlx prepare --workspace
 # REQUIRED: exits 0
 
-# Gate 6: E2E — Epic 2 (assignment/receipt) + Epic 5 tests pass
+# Gate 9: E2E — Epic 2 (assignment/receipt) + Epic 5 tests pass
 SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end -- --grep "Epic 2|Epic 5"
 # REQUIRED: assignment view, receipt, all SMS trigger tests pass
 ```
@@ -1561,22 +1724,23 @@ SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end -- --grep 
 pub async fn deactivate_participant(user_id: String) -> Result<(), ServerFnError> {
     // 1. Validate admin session
     // 2. Parse user_id UUID
-    // 3. UPDATE users SET is_active = false WHERE id = $1
+    // 3. UPDATE users SET status = 'deactivated' WHERE id = $1
     // 4. DELETE FROM sessions WHERE user_id = $1 (revoke all sessions)
     todo!()
 }
 ```
 
 **Effects of deactivation (enforced by existing code, verify):**
-- `is_active = false` → login rejected in `request_otp` (Phase 2)
+- `status = 'deactivated'` → login rejected in `request_otp` (Phase 2: query checks `status = 'active'`)
+- `status = 'deactivated'` → `current_user` returns Unauthorized (Phase 2: checks status)
 - Sessions deleted → existing sessions invalidated
-- `is_active = false` → excluded from `send_season_open_sms` (Phase 5)
-- Cannot enroll: enrollment checks `is_active` (add this check if not present in Phase 3)
+- `status = 'deactivated'` → excluded from `send_season_open_sms` (Phase 5: query checks `status = 'active'`)
+- Cannot enroll: enrollment checks `status = 'active'` (add this check if not present in Phase 3)
 
 **Verification:**
 ```bash
 # Gate: Deactivation blocks all access
-grep -rn "is_active" src/ --include="*.rs"
+grep -rn "status.*active\|Active\|UserStatus" src/ --include="*.rs" | grep -v "test" | grep -v "types.rs"
 # REQUIRED: appears in user lookup queries (auth, enrollment, SMS recipient lists)
 ```
 
@@ -1606,30 +1770,14 @@ SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
 
 ---
 
-## Post-Implementation: Past Pairings
-
-After a season completes, past pairings must be recorded for future social-awareness. Add to the `advance_season` function:
-
-When advancing from `Receiving` → `Complete`:
-```sql
-INSERT INTO past_pairings (sender_id, recipient_id, season_id)
-SELECT sender_id, recipient_id, season_id FROM assignments
-WHERE season_id = $1
-ON CONFLICT DO NOTHING;
-```
-
-This is triggered automatically during phase advancement. No separate action needed.
-
----
-
 ## Forbidden Patterns
 
 ### BANNED: Scattered phase checks
 ```rust
 // BANNED — phase logic must live in Phase::try_advance / Phase::cancel
-if phase == Phase::Signup {
+if phase == Phase::Enrollment {
     // do something
-} else if phase == Phase::Creating {
+} else if phase == Phase::Preparation {
     // ...
 }
 ```
@@ -1638,7 +1786,7 @@ Phase transition logic is in `types.rs`. Server functions call `try_advance()` o
 ### BANNED: Raw SQL strings outside sqlx::query!()
 ```rust
 // BANNED
-pool.execute("UPDATE seasons SET phase = 'creating'").await;
+pool.execute("UPDATE seasons SET phase = 'preparation'").await;
 ```
 All queries use `sqlx::query!()` or `sqlx::query_as!()` for compile-time checking.
 
@@ -1649,14 +1797,64 @@ let uuid = Uuid::parse_str(&input).unwrap();
 ```
 User input parsing returns `Result`. Use `?` with `AppError::InvalidInput`.
 
-### BANNED: Boolean flags for states
+### BANNED: Boolean flags for states with more than two values
 ```rust
-// BANNED — use Phase enum
-struct Season {
-    is_active: bool,
-    is_complete: bool,
-    is_cancelled: bool,
+// BANNED — use enums
+struct User {
+    is_admin: bool,     // Use UserRole enum
+    is_active: bool,    // Use UserStatus enum
 }
+```
+
+### BANNED: `is_admin` or `is_active` anywhere
+```rust
+// BANNED — these columns do not exist
+// Use role = 'admin' and status = 'active' instead
+sqlx::query!("SELECT * FROM users WHERE is_admin = true")
+sqlx::query!("SELECT * FROM users WHERE is_active = true")
+```
+
+### BANNED: `released` flag on assignments
+```rust
+// BANNED — release is a phase concern, not a per-assignment flag
+// Assignment visibility is gated by season phase = Delivery
+sqlx::query!("UPDATE assignments SET released = true")
+sqlx::query!("SELECT * FROM assignments WHERE released = true")
+```
+
+### BANNED: Separate receipts table
+```rust
+// BANNED — receipt data lives on assignments table
+// Use receipt_status enum (NoResponse/Received/NotReceived) + receipt_note
+sqlx::query!("INSERT INTO receipts (assignment_id, received, note)")
+sqlx::query!("LEFT JOIN receipts")
+```
+
+### BANNED: past_pairings table
+```rust
+// BANNED — query assignments joined with completed seasons instead
+sqlx::query!("INSERT INTO past_pairings")
+sqlx::query!("SELECT FROM past_pairings")
+```
+
+### BANNED: Nova Poshta data on users or enrollments tables
+```rust
+// BANNED — NP data lives in delivery_addresses table only
+sqlx::query!("UPDATE users SET nova_poshta_branch = $1")
+sqlx::query!("INSERT INTO enrollments (..., nova_poshta_branch)")
+```
+
+### BANNED: OTP upsert (ON CONFLICT on otp_codes)
+```rust
+// BANNED — old codes must be retained for rate limit counting
+sqlx::query!("INSERT INTO otp_codes ... ON CONFLICT (phone) DO UPDATE")
+```
+
+### BANNED: `confirmed_ready` boolean
+```rust
+// BANNED — use confirmed_ready_at TIMESTAMPTZ instead
+// NULL = not confirmed, non-null = confirmed at that time
+sqlx::query!("UPDATE enrollments SET confirmed_ready = true")
 ```
 
 ### BANNED: Auth checks only at route level
@@ -1695,6 +1893,17 @@ fn big_function() { ... }
 fn big_component() -> impl IntoView { ... }
 ```
 
+### BANNED: Old phase names in any context
+```rust
+// BANNED — these phase names do not exist
+Phase::Signup       // use Phase::Enrollment
+Phase::Creating     // use Phase::Preparation
+Phase::Confirming   // use Phase::Preparation (merged)
+Phase::Assigning    // use Phase::Assignment
+Phase::Sending      // use Phase::Delivery
+Phase::Receiving    // use Phase::Delivery (merged)
+```
+
 ---
 
 ## Definition of Done
@@ -1708,12 +1917,15 @@ Every item is binary pass/fail. All must pass.
 5. `cargo sqlx prepare --workspace` exits 0 and `.sqlx/` is committed
 6. `cargo fmt --check` exits 0
 7. All migration files exist and `sqlx migrate run` succeeds on clean database
-8. Phase enum unit tests cover every valid and invalid transition
+8. Phase enum unit tests cover every valid and invalid transition (6 phases, not 8)
 9. Phone normalization tests cover all input formats from spec
 10. Assignment algorithm tests verify cycle validity for N=3, N=15, N=25
 11. No `todo!()` remains in production code (search: `grep -rn "todo!()" src/ | grep -v test`)
 12. Every `#[server]` function validates auth at the top
-13. Every admin server function checks `is_admin`
+13. Every admin server function checks `role = Admin`
 14. All SMS text is in Ukrainian
 15. No in-memory state — all data in Postgres
 16. Pre-commit hooks pass: `pre-commit run --all-files`
+17. `grep -rn "is_admin\|is_active\|released\|past_pairings\|confirmed_ready[^_]" src/ | grep -v test` returns zero matches
+18. `grep -rn "receipts" src/ | grep -v "receipt_status\|receipt_note\|ReceiptStatus\|test"` returns zero matches
+19. All NP data flows through `delivery_addresses` — no NP columns on `users` or `enrollments`

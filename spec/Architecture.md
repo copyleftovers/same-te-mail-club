@@ -34,7 +34,7 @@ This architecture is governed by two manifestos, active for the duration of desi
 | Admin separation | `/admin/*` route tree, same binary | Module-level boundary. Organizer components import shared types but live in their own module tree |
 | Time-triggered SMS | Organizer triggers all SMS batches from admin UI | No cron, no schedulers, no background processing. App is purely request-response |
 | SMS sending | Inline — server function awaits TurboSMS API | Simplest at 50 users. User waits 1-2s for API response |
-| Organizer account | Same account + `is_admin` flag | One login, one session. Organizer enrolls in seasons like anyone else |
+| Organizer account | Same account + `role = Admin` enum | One login, one session. Organizer enrolls in seasons like anyone else |
 | SQL verification | Compile-time checked queries (`sqlx::query!()`) | Correct by construction — wrong column names, type mismatches, bad SQL become compiler errors |
 | Time library | `time` crate (not chrono) | Simpler, no historical soundness issues, native sqlx support. New project, no legacy to carry |
 | Content guidelines | Hardcoded in app | Static text, changes at most once per season. No DB/config indirection for a single string |
@@ -214,28 +214,33 @@ Double Submit Cookie pattern:
 
 ## Data Model
 
+**Authoritative schema is in `spec/Data Model.md`.** This section summarizes the entity relationships and key design decisions. If any conflict exists, Data Model.md wins.
+
 ### Entity Overview
 
 ```
 users ──< enrollments >── seasons
   │                         │
-  │                         │
-  ├──< sessions             ├──< assignments (sender → recipient)
+  ├── delivery_addresses    │
+  │   (1:1)                 ├──< assignments (sender → recipient,
+  ├──< sessions             │     includes receipt_status + receipt_note)
   ├──< otp_codes            │
   │                         │
-  ├──< known_group_members  ├──< receipts
-  │         │
-  │         │
-  └── known_groups
+  ├──< known_group_members  │
+  │         │               │
+  │         │               │
+  └── known_groups          │
 ```
 
 ### Season Phase Enum
 
 ```
-signup → creating → confirming → assigning → sending → receiving → complete
-                                    │
-                                    └→ cancelled (from any pre-complete phase)
+enrollment → preparation → assignment → delivery → complete
+                                          │
+                                          └→ cancelled (from any non-terminal phase)
 ```
+
+Six phases (collapsed from eight). Creating/Confirming merged into Preparation (the confirm deadline gates the end, not a phase transition). Sending/Receiving merged into Delivery (receipt timing is driven by `notified_at` timestamp on assignments, not a phase transition).
 
 The phase is a Postgres enum column mirrored by a Rust enum. Transition logic lives as methods on the Rust enum:
 
@@ -245,85 +250,20 @@ The phase is a Postgres enum column mirrored by a Rust enum. Transition logic li
 
 Invalid transitions return `Err`. No scattered if-checks in server functions — the phase enum is the single source of transition rules.
 
-### Tables
+### Key Design Decisions
 
-**users**
-- `id` — UUID v4, primary key
-- `phone` — text, unique, E.164 format, not null
-- `name` — text, not null (legal name for Nova Poshta pickup)
-- `nova_poshta_branch` — text, nullable (set during onboarding, updatable)
-- `is_admin` — boolean, default false
-- `is_active` — boolean, default true
-- `onboarded` — boolean, default false
-- `created_at` — timestamptz, not null
-
-**sessions**
-- `token_hash` — text, primary key (SHA-256 of raw token)
-- `user_id` — UUID, FK → users, not null
-- `created_at` — timestamptz, not null
-- `expires_at` — timestamptz, not null
-
-**otp_codes**
-- `phone` — text, not null (one active code per phone — upsert on new request)
-- `code_hash` — text, not null (SHA-256)
-- `attempts` — integer, default 0
-- `created_at` — timestamptz, not null
-- `expires_at` — timestamptz, not null
-
-**seasons**
-- `id` — UUID v4, primary key
-- `phase` — enum (signup, creating, confirming, assigning, sending, receiving, complete, cancelled)
-- `signup_deadline` — timestamptz, not null
-- `confirm_deadline` — timestamptz, not null
-- `theme` — text, nullable
-- `created_at` — timestamptz, not null
-
-Constraint: at most one season in a non-terminal phase (`complete` or `cancelled`). Enforced with a partial unique index:
-`CREATE UNIQUE INDEX one_active_season ON seasons ((true)) WHERE phase NOT IN ('complete', 'cancelled');`
-
-**enrollments**
-- `user_id` — UUID, FK → users
-- `season_id` — UUID, FK → seasons
-- `nova_poshta_branch` — text, not null (snapshot at enrollment time)
-- `confirmed_ready` — boolean, default false
-- `created_at` — timestamptz, not null
-- Primary key: (user_id, season_id)
-
-**assignments**
-- `id` — UUID v4, primary key
-- `season_id` — UUID, FK → seasons, not null
-- `sender_id` — UUID, FK → users, not null
-- `recipient_id` — UUID, FK → users, not null
-- `released` — boolean, default false
-- `created_at` — timestamptz, not null
-- Unique: (season_id, sender_id)
-- Unique: (season_id, recipient_id)
-
-**receipts**
-- `assignment_id` — UUID, FK → assignments, primary key
-- `received` — boolean, not null
-- `note` — text, nullable (organizer-only visibility: "Anything the organizer should know?")
-- `created_at` — timestamptz, not null
-
-**known_groups**
-- `id` — UUID v4, primary key
-- `name` — text, not null
-- `weight` — integer, not null, default 1 (higher = stronger connection. Team members > social groups)
-
-**known_group_members**
-- `group_id` — UUID, FK → known_groups
-- `user_id` — UUID, FK → users
-- Primary key: (group_id, user_id)
-
-**past_pairings** (derived from assignments, retained across seasons for social awareness)
-- `sender_id` — UUID, FK → users
-- `recipient_id` — UUID, FK → users
-- `season_id` — UUID, FK → seasons
-- Primary key: (sender_id, recipient_id, season_id)
+- **Enums over bools** for expandable axes: `user_role` (Participant, Admin), `user_status` (Active, Deactivated), `receipt_status` (NoResponse, Received, NotReceived)
+- **Separate table for delivery logistics:** `delivery_addresses` (1:1 with users) keeps Nova Poshta data out of the user identity table
+- **No NP data on enrollments:** enrollment means "I'm in this season." Delivery address is read live from `delivery_addresses`
+- **Nullable timestamps as one-way latches:** `confirmed_ready_at` (null = not confirmed), `notified_at` (null = SMS not delivered)
+- **No `released` flag:** assignment visibility gated by season phase = Delivery
+- **No `receipts` table:** receipt data (`receipt_status` enum + `receipt_note`) lives on assignments
+- **No `past_pairings` table:** past pairings queried from assignments joined with completed seasons
+- **OTP codes retained, not upserted:** enables rate limit counting from existing rows
 
 ### Social Graph
 
-Season 1: organizer manages known_groups and known_group_members directly in the database. No in-app UI. The assignment algorithm reads this data plus past_pairings to score candidate cycles.
+Season 1: organizer manages known_groups and known_group_members directly in the database. No in-app UI. The assignment algorithm reads this data plus past pairings (queried from assignments of completed seasons) to score candidate cycles.
 
 The social graph is not a graph traversal problem. It is a weight lookup: "how strongly connected are participants A and B?" Computed as the sum of group weights for groups containing both A and B, plus a bonus for each past pairing. Representable as a simple weight matrix — no graph library needed.
 
@@ -334,7 +274,7 @@ The social graph is not a graph traversal problem. It is a weight lookup: "how s
 ### Input
 
 - Set of confirmed participants (N ≥ 3)
-- Social weight matrix (from known_groups + past_pairings)
+- Social weight matrix (from known_groups + past pairings queried from assignments of completed seasons)
 - Target cohort size: 11-15
 
 ### Cohort Splitting
@@ -369,7 +309,7 @@ The algorithm minimizes total cycle score. The constraint is soft — at small p
 
 After generation, the organizer sees the full cycle(s) and can swap individual pairings. Swaps must preserve single-loop topology — the app validates this before accepting the swap.
 
-Assignments are not released to participants until the organizer explicitly confirms.
+Assignments are not visible to participants until the organizer advances the season to Delivery phase.
 
 ---
 
@@ -411,11 +351,11 @@ src/
   error.rs             — AppError enum (thiserror + IntoResponse + FromServerFnError)
   phone.rs             — Phone number normalization and validation
   db.rs                — PgPool setup, migration, shared query helpers
-  types.rs             — Shared domain types (Phase enum, newtypes)
+  types.rs             — Shared domain types (Phase, UserRole, UserStatus, ReceiptStatus enums)
 
   pages/
     login.rs           — Phone input + OTP verification
-    onboarding.rs      — Nova Poshta branch selection
+    onboarding.rs      — Nova Poshta city + branch number selection
     season.rs          — Participant season view (enroll, confirm, assignment, receipt)
     home.rs            — Landing / current state
 
@@ -471,7 +411,7 @@ All routes use `SsrMode::Async` — server resolves all data (including auth sta
 
 Two layers:
 
-1. **Route level:** `<ProtectedRoute>` with `condition=move || auth_resource.get().map(|r| r.unwrap_or(false))`. Redirects to `/login` if unauthenticated. Admin routes additionally check `is_admin`.
+1. **Route level:** `<ProtectedRoute>` with `condition=move || auth_resource.get().map(|r| r.unwrap_or(false))`. Redirects to `/login` if unauthenticated. Admin routes additionally check `role = Admin`.
 
 2. **Server function level:** Every protected server function calls `validate_session()` at the top. This is defense-in-depth — the route guard handles the common case, the server function guard prevents direct API calls from bypassing it.
 
@@ -487,7 +427,8 @@ AppError
   ├── Unauthorized
   ├── Forbidden
   ├── InvalidInput(String)
-  ├── InvalidTransition { from: Phase, attempted: Phase }
+  ├── InvalidTransition { from: Phase }
+  ├── RateLimited
   ├── SmsFailed(String)
   ├── Database(sqlx::Error)
   └── Internal(anyhow::Error)
@@ -544,15 +485,13 @@ The participant sees exactly one thing based on the current season phase and the
 | Season Phase | Participant State | Home Screen Shows |
 |-------------|-------------------|-------------------|
 | No active season | — | "No season running. We'll SMS you when one opens." |
-| signup | Not enrolled | Enroll button + season timeline + theme (if any) + content guidelines |
-| signup | Enrolled | "You're in. Creation period starts [date]." |
-| creating | Enrolled, not confirmed | "Create your mail. Confirm ready by [deadline]." + countdown |
-| confirming | Enrolled, not confirmed | "Confirm your mail is ready." + confirm button + countdown |
-| confirming | Confirmed | "You're confirmed. Assignments coming after [deadline]." |
-| assigning | Confirmed | "Organizer is preparing assignments." |
-| sending | Assigned, released | Recipient's name, phone, Nova Poshta branch |
-| receiving | — | "Mail should be arriving. Confirm when you receive it." + confirm buttons |
-| receiving | Receipt confirmed | "Thanks. Meetup details coming soon." |
+| enrollment | Not enrolled | Enroll button + season timeline + theme (if any) + content guidelines |
+| enrollment | Enrolled | "You're in. Creation period starts after signup deadline." |
+| preparation | Enrolled, not confirmed | "Create your mail. Confirm ready by [deadline]." + confirm button + countdown |
+| preparation | Confirmed | "You're confirmed. Assignments coming after [deadline]." |
+| assignment | Confirmed | "Organizer is preparing assignments." |
+| delivery | Assigned, receipt_status = NoResponse | Recipient's name, phone, Nova Poshta city + branch number. Receipt buttons. |
+| delivery | Receipt confirmed | "Thanks. Meetup details coming soon." |
 | complete | — | "Season complete." |
 
 This is a single component with a match on (phase, participant_state). Not multiple pages — one page that shows the right content.
@@ -564,13 +503,11 @@ The organizer sees:
 | Season Phase | Dashboard Shows |
 |-------------|-----------------|
 | No active season | "Create new season" button |
-| signup | Enrolled count. "Launch" was already done (signup is open). Deadline countdown |
-| creating | Enrolled count. Deadline countdown. No actions needed |
-| confirming | Confirmed count / enrolled count. "Advance to assigning" button (disabled until deadline passes). Pre-deadline SMS nudge button |
-| assigning | "Generate assignments" button. After generation: cycle visualization, override controls, "Release assignments" button, assignment SMS button |
-| sending | Assignment list. "Advance to receiving" button. Deadline info |
-| receiving | Receipt status (received / not received / no response per participant). "Not received" alerts. "Advance to complete" button. Receipt nudge SMS button |
-| complete | Season summary. "Create new season" button |
+| enrollment | Enrolled count. Deadline countdown. |
+| preparation | Enrolled count. Confirmed count / enrolled count. "Advance to assignment" button (disabled until confirm deadline passes). Pre-deadline SMS nudge button. |
+| assignment | "Generate assignments" button. After generation: cycle visualization, override controls, "Release assignments" button (advances phase to delivery + triggers assignment SMS). |
+| delivery | Assignment list. Notification status (notified_at null/set per assignment). Receipt status per participant (NoResponse / Received / NotReceived). Receipt nudge SMS button. "Advance to complete" button. |
+| complete | Season summary. "Create new season" button. |
 
 ---
 
@@ -660,7 +597,7 @@ end2end-dir = "end2end"
 
 **Page Object Model:** `MailClubPage` class with methods mapping to user actions:
 - `login(phone)` — enter phone, submit, enter OTP, submit
-- `completeOnboarding(branch)` — set Nova Poshta branch
+- `completeOnboarding(city, branchNumber)` — set Nova Poshta city + branch number
 - `enrollInSeason()` — click enroll
 - `confirmReady()` — click confirm
 - `viewAssignment()` — read recipient details
