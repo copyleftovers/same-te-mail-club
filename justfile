@@ -16,8 +16,8 @@ clippy:
     cargo clippy --all-targets
 
 # Run E2E tests via cargo-leptos + Playwright
-e2e:
-    cargo leptos end-to-end
+e2e: db-reset db-seed
+    SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
 
 # Build release
 build:
@@ -26,6 +26,10 @@ build:
 # Reset database (drop, create, migrate)
 db-reset:
     sqlx database drop -y && sqlx database create && sqlx migrate run
+
+# Seed test admin (for E2E)
+db-seed:
+    psql $DATABASE_URL -f seed/test_admin.sql
 
 # Run pending migrations
 db-migrate:

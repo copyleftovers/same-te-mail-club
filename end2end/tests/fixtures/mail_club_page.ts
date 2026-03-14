@@ -4,7 +4,7 @@ import { type Page, expect } from "@playwright/test";
  * Page Object Model for The Mail Club.
  *
  * Centralizes all selectors and user-action methods.
- * If a selector changes during implementation, update it here — not in every test.
+ * The selector contract is defined in spec/E2E Test Blueprint.md.
  *
  * Requires:
  *   SAMETE_TEST_MODE=true  (fixed OTP "000000")
@@ -29,7 +29,6 @@ export class MailClubPage {
   }
 
   async expectLoggedIn() {
-    // After login, should NOT be on /login
     await expect(this.page).not.toHaveURL(/\/login/);
   }
 
@@ -49,6 +48,16 @@ export class MailClubPage {
     await this.page.waitForURL("/");
   }
 
+  // ── Home Screen ──
+
+  async goHome() {
+    await this.page.goto("/");
+  }
+
+  async expectHomeContent(text: string | RegExp) {
+    await expect(this.page.locator("main")).toContainText(text);
+  }
+
   // ── Season enrollment (Story 2.1) ──
 
   async enrollInSeason(branch?: string) {
@@ -59,7 +68,14 @@ export class MailClubPage {
   }
 
   async expectEnrolled() {
-    // After enrollment, the enroll button should be gone
+    await expect(this.page.getByTestId("enroll-button")).not.toBeVisible();
+  }
+
+  async expectEnrollAvailable() {
+    await expect(this.page.getByTestId("enroll-button")).toBeVisible();
+  }
+
+  async expectEnrollNotAvailable() {
     await expect(this.page.getByTestId("enroll-button")).not.toBeVisible();
   }
 
@@ -115,6 +131,12 @@ export class MailClubPage {
     await expect(this.page.getByText(name)).toBeVisible();
   }
 
+  async deactivateParticipant(name: string) {
+    await this.page.goto("/admin/participants");
+    const row = this.page.getByRole("row").filter({ hasText: name });
+    await row.getByTestId("deactivate-button").click();
+  }
+
   // ── Admin: season management (Stories 4.1, 4.2) ──
 
   async createSeason(
@@ -129,6 +151,11 @@ export class MailClubPage {
       await this.page.getByLabel(/theme/i).fill(theme);
     }
     await this.page.getByTestId("create-season-button").click();
+  }
+
+  async launchSeason() {
+    await this.page.goto("/admin/season");
+    await this.page.getByTestId("launch-button").click();
   }
 
   async advanceSeason() {
@@ -169,23 +196,13 @@ export class MailClubPage {
     await expect(this.page.getByTestId("sms-report")).toBeVisible();
   }
 
-  // ── Admin: account management (Story 6.1) ──
-
-  async deactivateParticipant(name: string) {
-    await this.page.goto("/admin/participants");
-    const row = this.page.getByRole("row").filter({ hasText: name });
-    await row.getByTestId("deactivate-button").click();
-  }
-
   // ── Admin: dashboard ──
 
   async goToDashboard() {
     await this.page.goto("/admin");
   }
 
-  async expectDashboardShowsCount(label: string, count: number) {
-    await expect(
-      this.page.getByText(new RegExp(`${label}.*${count}|${count}.*${label}`, "i")),
-    ).toBeVisible();
+  async expectDashboardContent(text: string | RegExp) {
+    await expect(this.page.locator("main")).toContainText(text);
   }
 }
