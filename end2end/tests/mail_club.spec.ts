@@ -282,14 +282,14 @@ test.describe.serial("The Mail Club", () => {
   // ════════════════════════════════════════════
 
   test.describe("Story 2.2: Confirm Ready", () => {
-    // Phase advancement: signup → creating → confirming
+    // Phase advancement: enrollment → preparation
     // In test mode, advancement bypasses deadline gates.
-    test("phase — advance signup → creating", async ({ page }) => {
+    test("phase — advance enrollment → preparation", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
       await app.advanceSeason();
       await app.goToDashboard();
-      await app.expectDashboardContent(/creating|створення/i);
+      await app.expectDashboardContent(/preparation|підготовка/i);
     });
 
     // Architecture Home Screen: creating phase, enrolled not confirmed
@@ -299,14 +299,6 @@ test.describe.serial("The Mail Club", () => {
       await app.goHome();
       // "Create your mail. Confirm ready by [deadline]." + countdown
       await app.expectHomeContent(/create|створ/i);
-    });
-
-    test("phase — advance creating → confirming", async ({ page }) => {
-      const app = new MailClubPage(page);
-      await app.login(ADMIN_PHONE);
-      await app.advanceSeason();
-      await app.goToDashboard();
-      await app.expectDashboardContent(/confirming|підтвердження/i);
     });
 
     // Story 5.4: Pre-deadline nudge SMS
@@ -376,16 +368,16 @@ test.describe.serial("The Mail Club", () => {
 
   test.describe("Epic 3: Assignment", () => {
     // Phase advancement: confirming → assigning
-    test("phase — advance confirming → assigning", async ({ page }) => {
+    test("phase — advance preparation → assignment", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
       await app.advanceSeason();
       await app.goToDashboard();
-      await app.expectDashboardContent(/assigning|розподіл/i);
+      await app.expectDashboardContent(/assignment|розподіл/i);
     });
 
     // Architecture Home Screen: assigning phase
-    test("home screen — participant sees 'preparing' during assigning", async ({ page }) => {
+    test("home screen — participant sees 'preparing' during assignment", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.goHome();
@@ -449,13 +441,13 @@ test.describe.serial("The Mail Club", () => {
   // ════════════════════════════════════════════
 
   test.describe("Stories 2.3–2.4: Delivery & Receipt", () => {
-    // Phase advancement: assigning → sending
-    test("phase — advance assigning → sending", async ({ page }) => {
+    // Phase advancement: assignment → delivery
+    test("phase — advance assignment → delivery", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
       await app.advanceSeason();
       await app.goToDashboard();
-      await app.expectDashboardContent(/sending|відправлення/i);
+      await app.expectDashboardContent(/delivery|відправлення/i);
     });
 
     // Story 2.3: Participant sees assignment
@@ -479,15 +471,6 @@ test.describe.serial("The Mail Club", () => {
       expect(count).toBe(1);
     });
 
-    // Phase advancement: sending → receiving
-    test("phase — advance sending → receiving", async ({ page }) => {
-      const app = new MailClubPage(page);
-      await app.login(ADMIN_PHONE);
-      await app.advanceSeason();
-      await app.goToDashboard();
-      await app.expectDashboardContent(/receiving|отримання/i);
-    });
-
     // Story 5.2: Receipt nudge SMS
     test("5.2 — admin triggers receipt-nudge SMS", async ({ page }) => {
       const app = new MailClubPage(page);
@@ -497,7 +480,7 @@ test.describe.serial("The Mail Club", () => {
     });
 
     // Architecture Home Screen: receiving phase
-    test("home screen — receiving phase prompt shown", async ({ page }) => {
+    test("home screen — delivery phase prompt shown", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.goHome();
@@ -537,7 +520,7 @@ test.describe.serial("The Mail Club", () => {
   // ════════════════════════════════════════════
 
   test.describe("Season Complete", () => {
-    test("phase — advance receiving → complete", async ({ page }) => {
+    test("phase — advance delivery → complete", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
       await app.advanceSeason();
