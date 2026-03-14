@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "72b3f9086e9aec2cabd22432401c379fe624159ecbd5adffdee70203276d4ce3"
+}
