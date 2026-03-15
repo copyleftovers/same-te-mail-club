@@ -77,12 +77,29 @@ pub fn App() -> impl IntoView {
                     <Route path=StaticSegment("") view=move || {
                         view! { <AuthGuard require_onboarded=true><HomePage/></AuthGuard> }
                     }/>
-                    <Route path=StaticSegment("admin/participants") view=move || {
+                    <Route path=(StaticSegment("admin"), StaticSegment("participants")) view=move || {
                         view! { <AdminGuard><ParticipantsPage/></AdminGuard> }
                     }/>
                 </Routes>
             </main>
         </Router>
+    }
+}
+
+// ── Navigation helper ─────────────────────────────────────────────────────────
+
+/// Redirect that works during both SSR and client-side hydration.
+///
+/// On the server: sets a 302 Location header via `leptos_axum::redirect`.
+/// On the client: uses the router's `use_navigate` for SPA navigation.
+fn isomorphic_redirect(path: &str) {
+    #[cfg(feature = "ssr")]
+    leptos_axum::redirect(path);
+
+    #[cfg(not(feature = "ssr"))]
+    {
+        let navigate = leptos_router::hooks::use_navigate();
+        navigate(path, leptos_router::NavigateOptions::default());
     }
 }
 
@@ -97,8 +114,6 @@ fn AuthGuard(require_onboarded: bool, children: ChildrenFn) -> impl IntoView {
         use_context::<Resource<Result<Option<crate::types::CurrentUser>, ServerFnError>>>()
             .expect("CurrentUser resource must be provided");
 
-    let navigate = leptos_router::hooks::use_navigate();
-
     view! {
         <Suspense fallback=|| ()>
             {move || {
@@ -106,16 +121,15 @@ fn AuthGuard(require_onboarded: bool, children: ChildrenFn) -> impl IntoView {
                 current_user.get().map(|result| {
                     match result {
                         Ok(None) | Err(_) => {
-                            navigate("/login", leptos_router::NavigateOptions::default());
+                            isomorphic_redirect("/login");
                             ().into_any()
                         }
-                        Ok(Some(user)) if require_onboarded && !user.onboarded => {
-                            navigate("/onboarding", leptos_router::NavigateOptions::default());
+                        Ok(Some(ref user)) if require_onboarded && !user.onboarded => {
+                            isomorphic_redirect("/onboarding");
                             ().into_any()
                         }
-                        Ok(Some(user)) if !require_onboarded && user.onboarded => {
-                            // Already onboarded — skip onboarding page
-                            navigate("/", leptos_router::NavigateOptions::default());
+                        Ok(Some(ref user)) if !require_onboarded && user.onboarded => {
+                            isomorphic_redirect("/");
                             ().into_any()
                         }
                         Ok(Some(_)) => children().into_any(),
@@ -135,8 +149,6 @@ fn AdminGuard(children: ChildrenFn) -> impl IntoView {
         use_context::<Resource<Result<Option<crate::types::CurrentUser>, ServerFnError>>>()
             .expect("CurrentUser resource must be provided");
 
-    let navigate = leptos_router::hooks::use_navigate();
-
     view! {
         <Suspense fallback=|| ()>
             {move || {
@@ -144,14 +156,14 @@ fn AdminGuard(children: ChildrenFn) -> impl IntoView {
                 current_user.get().map(|result| {
                     match result {
                         Ok(None) | Err(_) => {
-                            navigate("/login", leptos_router::NavigateOptions::default());
+                            isomorphic_redirect("/login");
                             ().into_any()
                         }
-                        Ok(Some(user)) if user.role == UserRole::Admin => {
+                        Ok(Some(ref user)) if user.role == UserRole::Admin => {
                             children().into_any()
                         }
                         Ok(Some(_)) => {
-                            navigate("/", leptos_router::NavigateOptions::default());
+                            isomorphic_redirect("/");
                             ().into_any()
                         }
                     }

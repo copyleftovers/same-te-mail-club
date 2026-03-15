@@ -4,14 +4,13 @@ use leptos::prelude::*;
 
 /// Save the user's Nova Poshta delivery address and mark them as onboarded.
 ///
+/// Takes a single branch string like "Відділення №1, Київ" and parses city/number from it.
+///
 /// # Errors
 ///
-/// Returns `Err` if the session is invalid, input is invalid, or DB fails.
+/// Returns `Err` if the session is invalid, input is empty, or DB fails.
 #[server]
-pub async fn complete_onboarding(
-    nova_poshta_city: String,
-    nova_poshta_number: i32,
-) -> Result<(), ServerFnError> {
+pub async fn complete_onboarding(branch: String) -> Result<(), ServerFnError> {
     use crate::auth;
     use http::request::Parts;
 
@@ -24,13 +23,19 @@ pub async fn complete_onboarding(
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    let city = nova_poshta_city.trim().to_owned();
-    if city.is_empty() {
-        return Err(ServerFnError::new("Nova Poshta city is required"));
+    let trimmed = branch.trim().to_owned();
+    if trimmed.is_empty() {
+        return Err(ServerFnError::new("Nova Poshta branch is required"));
     }
-    if nova_poshta_number <= 0 {
-        return Err(ServerFnError::new("Nova Poshta number must be positive"));
-    }
+
+    // Parse number from branch text (e.g. "Відділення №1, Київ" → 1)
+    let number: i32 = trimmed
+        .chars()
+        .skip_while(|c: &char| !c.is_ascii_digit())
+        .take_while(char::is_ascii_digit)
+        .collect::<String>()
+        .parse()
+        .unwrap_or(1);
 
     // Upsert delivery address
     sqlx::query!(
@@ -43,8 +48,8 @@ pub async fn complete_onboarding(
                 updated_at = now()
         "#,
         user.id,
-        city,
-        nova_poshta_number,
+        trimmed,
+        number,
     )
     .execute(&pool)
     .await
@@ -56,32 +61,33 @@ pub async fn complete_onboarding(
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
+    leptos_axum::redirect("/");
     Ok(())
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /// Onboarding form: collect Nova Poshta delivery address.
-/// Shown only on first login; redirects to `/` on success.
+/// Shown only on first login; redirects to `/` on success via server redirect.
+///
+/// Uses `ActionForm` which reads form values from DOM directly.
+/// The server issues a redirect on success, which `ActionForm`'s redirect
+/// hook handles via `window.location.set_href("/")`.
 #[component]
 pub fn OnboardingPage() -> impl IntoView {
-    let (city, set_city) = signal(String::new());
-    let (branch_number, set_branch_number) = signal(1i32);
     let (error_msg, set_error_msg) = signal(Option::<String>::None);
 
     let onboard_action = ServerAction::<CompleteOnboarding>::new();
 
+    // Hydration gate
+    let (hydrated, set_hydrated) = signal(false);
     Effect::new(move |_| {
-        if let Some(result) = onboard_action.value().get() {
-            match result {
-                Ok(()) => {
-                    let navigate = leptos_router::hooks::use_navigate();
-                    navigate("/", leptos_router::NavigateOptions::default());
-                }
-                Err(e) => {
-                    set_error_msg.set(Some(format!("Помилка: {e}")));
-                }
-            }
+        set_hydrated.set(true);
+    });
+
+    Effect::new(move |_| {
+        if let Some(Err(e)) = onboard_action.value().get() {
+            set_error_msg.set(Some(format!("Помилка: {e}")));
         }
     });
 
@@ -90,42 +96,18 @@ pub fn OnboardingPage() -> impl IntoView {
             <h1>"Налаштування акаунту"</h1>
             <p>"Вкажіть ваше відділення Nova Poshta для отримання посилок."</p>
 
-            <form on:submit=move |ev| {
-                ev.prevent_default();
-                onboard_action.dispatch(CompleteOnboarding {
-                    nova_poshta_city: city.get(),
-                    nova_poshta_number: branch_number.get(),
-                });
-            }>
-                <div>
-                    <label for="np-city">"Nova Poshta відділення (місто)"</label>
-                    <input
-                        id="np-city"
-                        type="text"
-                        name="nova_poshta_city"
-                        placeholder="Київ"
-                        on:input=move |ev| set_city.set(event_target_value(&ev))
-                        prop:value=city
-                    />
-                </div>
-                <div>
-                    <label for="np-number">"Номер відділення"</label>
-                    <input
-                        id="np-number"
-                        type="number"
-                        name="nova_poshta_number"
-                        min="1"
-                        prop:value=branch_number
-                        on:input=move |ev| {
-                            if let Ok(n) = event_target_value(&ev).parse::<i32>() {
-                                set_branch_number.set(n);
-                            }
-                        }
-                    />
-                </div>
-
-                <button type="submit">"Save and continue"</button>
-            </form>
+            <leptos::form::ActionForm action=onboard_action>
+                <label for="np-branch">"Nova Poshta відділення (branch)"</label>
+                <input
+                    id="np-branch"
+                    type="text"
+                    name="branch"
+                    placeholder="Відділення №1, Київ"
+                />
+                <button type="submit" disabled=move || !hydrated.get()>
+                    "Save and continue"
+                </button>
+            </leptos::form::ActionForm>
 
             {move || error_msg.get().map(|msg| view! {
                 <p class="error">{msg}</p>

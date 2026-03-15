@@ -164,23 +164,20 @@ pub async fn deactivate_participant(user_id: uuid::Uuid) -> Result<(), ServerFnE
 
 // ── Component helpers ─────────────────────────────────────────────────────────
 
-/// Registration form sub-component.
+/// Registration form sub-component using `ActionForm`.
+///
+/// Reads form values from `FormData` at submit time (DOM-direct),
+/// bypassing reactive signals for input values.
 #[component]
-fn RegisterForm(
-    phone: ReadSignal<String>,
-    set_phone: WriteSignal<String>,
-    name: ReadSignal<String>,
-    set_name: WriteSignal<String>,
-    register_action: ServerAction<RegisterParticipant>,
-) -> impl IntoView {
+fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl IntoView {
+    // Hydration gate — prevent native form POST before WASM hydrates.
+    let (hydrated, set_hydrated) = signal(false);
+    Effect::new(move |_| {
+        set_hydrated.set(true);
+    });
+
     view! {
-        <form on:submit=move |ev| {
-            ev.prevent_default();
-            register_action.dispatch(RegisterParticipant {
-                phone: phone.get(),
-                name: name.get(),
-            });
-        }>
+        <leptos::form::ActionForm action=register_action>
             <div>
                 <label for="reg-phone">"Phone number (номер телефону)"</label>
                 <input
@@ -188,8 +185,6 @@ fn RegisterForm(
                     type="tel"
                     name="phone"
                     placeholder="+380XXXXXXXXX"
-                    on:input=move |ev| set_phone.set(event_target_value(&ev))
-                    prop:value=phone
                 />
             </div>
             <div>
@@ -199,12 +194,12 @@ fn RegisterForm(
                     type="text"
                     name="name"
                     placeholder="Іваненко Іван Іванович"
-                    on:input=move |ev| set_name.set(event_target_value(&ev))
-                    prop:value=name
                 />
             </div>
-            <button type="submit" data-testid="register-button">"Зареєструвати"</button>
-        </form>
+            <button type="submit" data-testid="register-button" disabled=move || !hydrated.get()>
+                "Зареєструвати"
+            </button>
+        </leptos::form::ActionForm>
     }
 }
 
@@ -290,8 +285,6 @@ fn ParticipantList(
 /// Admin participants management page (Story 1.1).
 #[component]
 pub fn ParticipantsPage() -> impl IntoView {
-    let (phone, set_phone) = signal(String::new());
-    let (name, set_name) = signal(String::new());
     let (error_msg, set_error_msg) = signal(Option::<String>::None);
 
     let register_action = ServerAction::<RegisterParticipant>::new();
@@ -311,8 +304,6 @@ pub fn ParticipantsPage() -> impl IntoView {
         if let Some(result) = register_action.value().get() {
             match result {
                 Ok(()) => {
-                    set_phone.set(String::new());
-                    set_name.set(String::new());
                     set_error_msg.set(None);
                 }
                 Err(e) => {
@@ -329,10 +320,6 @@ pub fn ParticipantsPage() -> impl IntoView {
             <section>
                 <h2>"Зареєструвати учасника"</h2>
                 <RegisterForm
-                    phone=phone
-                    set_phone=set_phone
-                    name=name
-                    set_name=set_name
                     register_action=register_action
                 />
                 {move || error_msg.get().map(|msg| view! {

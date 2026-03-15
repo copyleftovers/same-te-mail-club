@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos::server_fn::ServerFn;
 
 // ── Server functions ──────────────────────────────────────────────────────────
 
@@ -57,8 +58,13 @@ pub async fn request_otp(phone: String) -> Result<(), ServerFnError> {
 
 /// Verify an OTP code and set a session cookie on success.
 ///
-/// Returns `true` on successful authentication, `false` on failure.
-/// Does NOT return `Err` for wrong code — that is a normal flow.
+/// On success: sets a session cookie and redirects to `/`.
+/// On failure: redirects back to `/login` — the error is intentionally vague
+/// to prevent phone enumeration.
+///
+/// Uses `leptos_axum::redirect` so the browser follows the 302 — this works
+/// for both native form POST (before WASM) and `ActionForm` (after WASM,
+/// via `server_fn::redirect` hook).
 #[server]
 pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, ServerFnError> {
     use crate::{auth, phone as phone_mod};
@@ -67,117 +73,103 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
         .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
 
     let Ok(normalized) = phone_mod::normalize(&phone) else {
+        leptos_axum::redirect("/login");
         return Ok(false);
     };
 
-    match auth::verify_otp(&pool, &normalized, &code).await {
-        Ok((_user_id, raw_token)) => {
-            // Set session cookie
-            let response_options =
-                leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
-            let cookie =
-                format!("session={raw_token}; HttpOnly; SameSite=Strict; Max-Age=7776000; Path=/");
-            response_options.append_header(
-                axum::http::header::SET_COOKIE,
-                axum::http::HeaderValue::from_str(&cookie)
-                    .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
-            );
-            Ok(true)
-        }
-        Err(_) => Ok(false),
+    if let Ok((_user_id, raw_token)) = auth::verify_otp(&pool, &normalized, &code).await {
+        // Set session cookie
+        let response_options = leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
+        let cookie =
+            format!("session={raw_token}; HttpOnly; SameSite=Strict; Max-Age=7776000; Path=/");
+        response_options.append_header(
+            axum::http::header::SET_COOKIE,
+            axum::http::HeaderValue::from_str(&cookie)
+                .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
+        );
+        leptos_axum::redirect("/");
+        Ok(true)
+    } else {
+        leptos_axum::redirect("/login");
+        Ok(false)
     }
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /// Two-step login: phone input → OTP input.
+///
+/// Both steps use `ActionForm` which reads form values directly from the DOM
+/// at submit time (via `FormData`), bypassing reactive signals entirely.
+/// This ensures correct data flow regardless of Leptos hydration timing.
+///
+/// Before WASM loads: forms submit as native HTML POSTs (progressive enhancement).
+/// After WASM hydrates: `ActionForm` intercepts submit and dispatches the action.
 #[component]
 pub fn LoginPage() -> impl IntoView {
-    // Step: false = phone entry, true = OTP entry
-    let (otp_step, set_otp_step) = signal(false);
-    let (phone, set_phone) = signal(String::new());
-    let (code, set_code) = signal(String::new());
-    let (error_msg, set_error_msg) = signal(Option::<String>::None);
-
     let request_action = ServerAction::<RequestOtp>::new();
-    let verify_action = ServerAction::<VerifyOtpCode>::new();
 
-    // When request completes, advance to OTP step
+    // Hydration gate — phone form button stays disabled until WASM hydrates.
+    // Prevents native form POST (which would show raw JSON) before
+    // `ActionForm`'s JS handler is attached.
+    let (hydrated, set_hydrated) = signal(false);
     Effect::new(move |_| {
-        if let Some(Ok(())) = request_action.value().get() {
-            set_otp_step.set(true);
-            set_error_msg.set(None);
+        set_hydrated.set(true);
+    });
+
+    // Store the phone when it's submitted — capture from the pending input
+    // before the action completes and clears `input()`.
+    let (submitted_phone, set_submitted_phone) = signal(String::new());
+    Effect::new(move |_| {
+        if let Some(req) = request_action.input().get() {
+            set_submitted_phone.set(req.phone.clone());
         }
     });
 
-    // When verify completes, redirect or show error
-    Effect::new(move |_| {
-        if let Some(result) = verify_action.value().get() {
-            match result {
-                Ok(true) => {
-                    // Redirect — navigate to / and let app guard decide
-                    let navigate = leptos_router::hooks::use_navigate();
-                    navigate("/", leptos_router::NavigateOptions::default());
-                }
-                Ok(false) => {
-                    set_error_msg.set(Some("Невірний код або код застарів.".to_owned()));
-                }
-                Err(e) => {
-                    set_error_msg.set(Some(format!("Помилка: {e}")));
-                }
-            }
-        }
-    });
+    // Show OTP step once request succeeds
+    let otp_step = Memo::new(move |_| matches!(request_action.value().get(), Some(Ok(()))));
 
     view! {
         <div class="login-page">
             <h1>"The Mail Club"</h1>
 
-            {move || if otp_step.get() {
-                view! {
-                    <form on:submit=move |ev| {
-                        ev.prevent_default();
-                        verify_action.dispatch(VerifyOtpCode {
-                            phone: phone.get(),
-                            code: code.get(),
-                        });
-                    }>
-                        <label for="code-input">"SMS code (код з SMS)"</label>
-                        <input
-                            id="code-input"
-                            type="text"
-                            name="code"
-                            placeholder="000000"
-                            maxlength="6"
-                            on:input=move |ev| set_code.set(event_target_value(&ev))
-                            prop:value=code
-                        />
-                        <button type="submit">"Verify code (підтвердити)"</button>
-                    </form>
-                }.into_any()
-            } else {
-                view! {
-                    <form on:submit=move |ev| {
-                        ev.prevent_default();
-                        request_action.dispatch(RequestOtp { phone: phone.get() });
-                    }>
-                        <label for="phone-input">"Phone number (номер телефону)"</label>
-                        <input
-                            id="phone-input"
-                            type="tel"
-                            name="phone"
-                            placeholder="+380XXXXXXXXX"
-                            on:input=move |ev| set_phone.set(event_target_value(&ev))
-                            prop:value=phone
-                        />
-                        <button type="submit">"Send code (надіслати)"</button>
-                    </form>
-                }.into_any()
-            }}
+            // Phone step — hidden once OTP step activates.
+            // Uses ActionForm: reads phone from FormData (DOM) at submit time.
+            <div style:display=move || if otp_step.get() { "none" } else { "" }>
+                <leptos::form::ActionForm action=request_action>
+                    <label for="phone-input">"Phone number (номер телефону)"</label>
+                    <input
+                        id="phone-input"
+                        type="tel"
+                        name="phone"
+                        placeholder="+380XXXXXXXXX"
+                    />
+                    <button type="submit" disabled=move || !hydrated.get()>
+                        "Send code (надіслати)"
+                    </button>
+                </leptos::form::ActionForm>
+            </div>
 
-            {move || error_msg.get().map(|msg| view! {
-                <p class="error">{msg}</p>
-            })}
+            // OTP step — hidden until request succeeds.
+            // Uses native form POST: the server sets a cookie and issues a 302
+            // redirect. The browser follows the redirect, Playwright waits for
+            // the navigation to complete. No WASM involvement needed.
+            <div style:display=move || if otp_step.get() { "" } else { "none" }>
+                <form method="post" action=VerifyOtpCode::url()>
+                    <input type="hidden" name="phone" prop:value=submitted_phone/>
+                    <label for="code-input">"SMS code (код з SMS)"</label>
+                    <input
+                        id="code-input"
+                        type="text"
+                        name="code"
+                        placeholder="000000"
+                        maxlength="6"
+                    />
+                    <button type="submit">
+                        "Verify code (підтвердити)"
+                    </button>
+                </form>
+            </div>
         </div>
     }
 }
