@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            s.phase AS \"phase: Phase\",\n            s.theme,\n            (s.launched_at IS NOT NULL) AS \"launched!: bool\",\n            COUNT(DISTINCT e.user_id) AS \"enrolled_count!: i64\",\n            COUNT(DISTINCT e.user_id) FILTER (WHERE e.confirmed_ready_at IS NOT NULL)\n                AS \"confirmed_count!: i64\",\n            COUNT(DISTINCT a.id) FILTER (WHERE a.receipt_status = 'not_received')\n                AS \"not_received_count!: i64\"\n        FROM seasons s\n        LEFT JOIN enrollments e ON e.season_id = s.id\n        LEFT JOIN assignments a ON a.season_id = s.id\n        WHERE s.phase NOT IN ('complete', 'cancelled')\n        GROUP BY s.id\n        ",
+  "query": "\n        SELECT\n            s.phase AS \"phase: Phase\",\n            s.theme,\n            (s.launched_at IS NOT NULL) AS \"launched!: bool\",\n            COUNT(DISTINCT e.user_id) AS \"enrolled_count!: i64\",\n            COUNT(DISTINCT e.user_id) FILTER (WHERE e.confirmed_ready_at IS NOT NULL)\n                AS \"confirmed_count!: i64\",\n            COUNT(DISTINCT a.id) FILTER (WHERE a.receipt_status = 'not_received')\n                AS \"not_received_count!: i64\"\n        FROM seasons s\n        LEFT JOIN enrollments e ON e.season_id = s.id\n        LEFT JOIN assignments a ON a.season_id = s.id\n        GROUP BY s.id\n        ORDER BY s.created_at DESC\n        LIMIT 1\n        ",
   "describe": {
     "columns": [
       {
@@ -60,5 +60,5 @@
       null
     ]
   },
-  "hash": "d0c00fddd2d8eeb9748d37d67babc1fec055abe1d0483d0ed534a1add1f6f714"
+  "hash": "49ba34df9e9e89721c1b9b61f21a90d545b96deb67edcfa7926b33de190a8bbb"
 }

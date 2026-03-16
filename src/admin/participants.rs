@@ -159,6 +159,13 @@ pub async fn deactivate_participant(user_id: uuid::Uuid) -> Result<(), ServerFnE
     .await
     .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
+    // Revoke all active sessions immediately — deactivated user cannot continue
+    // using existing browser sessions on the next request.
+    sqlx::query!("DELETE FROM sessions WHERE user_id = $1", user_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+
     Ok(())
 }
 
@@ -209,6 +216,12 @@ fn ParticipantList(
     participants: Resource<Result<Vec<ParticipantSummary>, ServerFnError>>,
     deactivate_action: ServerAction<DeactivateParticipant>,
 ) -> impl IntoView {
+    // Hydration gate — deactivate buttons disabled until WASM is live.
+    let (hydrated, set_hydrated) = signal(false);
+    Effect::new(move |_| {
+        set_hydrated.set(true);
+    });
+
     view! {
         <Suspense fallback=|| view! { <p>"Завантаження..."</p> }>
             {move || participants.get().map(|result| match result {
@@ -228,7 +241,7 @@ fn ParticipantList(
                                 each=move || list.clone()
                                 key=|p| p.id
                                 children=move |p| {
-                                    let uid = p.id;
+                                    let uid_str = p.id.to_string();
                                     let active = matches!(
                                         p.status,
                                         crate::types::UserStatus::Active
@@ -247,18 +260,22 @@ fn ParticipantList(
                                             <td>
                                                 {if active {
                                                     view! {
-                                                        <button
-                                                            data-testid="deactivate-button"
-                                                            on:click=move |_| {
-                                                                deactivate_action.dispatch(
-                                                                    DeactivateParticipant {
-                                                                        user_id: uid,
-                                                                    }
-                                                                );
-                                                            }
+                                                        <leptos::form::ActionForm
+                                                            action=deactivate_action
                                                         >
-                                                            "Деактивувати"
-                                                        </button>
+                                                            <input
+                                                                type="hidden"
+                                                                name="user_id"
+                                                                value=uid_str
+                                                            />
+                                                            <button
+                                                                type="submit"
+                                                                data-testid="deactivate-button"
+                                                                disabled=move || !hydrated.get()
+                                                            >
+                                                                "Деактивувати"
+                                                            </button>
+                                                        </leptos::form::ActionForm>
                                                     }.into_any()
                                                 } else {
                                                     view! {

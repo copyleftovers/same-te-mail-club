@@ -247,17 +247,24 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
     .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
     let Some(season) = season else {
-        let has_complete = sqlx::query_scalar!(
-            r#"SELECT EXISTS(SELECT 1 FROM seasons WHERE phase = 'complete') AS "exists!""#,
+        // Show Complete only when the most recently created season is Complete.
+        // A Cancelled season means the organizer abandoned it — the participant
+        // should see "no season / SMS pending", not the completion message.
+        let most_recent_phase = sqlx::query_scalar!(
+            r#"
+            SELECT phase AS "phase: Phase"
+            FROM seasons
+            ORDER BY created_at DESC
+            LIMIT 1
+            "#,
         )
-        .fetch_one(&pool)
+        .fetch_optional(&pool)
         .await
         .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
-        return if has_complete {
-            Ok(HomeState::Complete)
-        } else {
-            Ok(HomeState::NoSeason)
+        return match most_recent_phase {
+            Some(Phase::Complete) => Ok(HomeState::Complete),
+            _ => Ok(HomeState::NoSeason),
         };
     };
 

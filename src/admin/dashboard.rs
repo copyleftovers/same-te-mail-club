@@ -76,8 +76,9 @@ pub async fn get_dashboard() -> Result<DashboardState, ServerFnError> {
         FROM seasons s
         LEFT JOIN enrollments e ON e.season_id = s.id
         LEFT JOIN assignments a ON a.season_id = s.id
-        WHERE s.phase NOT IN ('complete', 'cancelled')
         GROUP BY s.id
+        ORDER BY s.created_at DESC
+        LIMIT 1
         "#,
     )
     .fetch_optional(&pool)
@@ -120,6 +121,11 @@ pub fn DashboardPage() -> impl IntoView {
                             </p>
                         }.into_any(),
                         Some(s) => {
+                            let is_terminal = matches!(
+                                s.phase,
+                                crate::types::Phase::Complete | crate::types::Phase::Cancelled
+                            );
+
                             let phase_display = if s.launched {
                                 match s.phase {
                                     crate::types::Phase::Enrollment =>
@@ -150,11 +156,17 @@ pub fn DashboardPage() -> impl IntoView {
                                             <dd>{t.clone()}</dd>
                                         })}
 
-                                        <dt>"Зареєстровано / Enrolled"</dt>
-                                        <dd>{s.enrolled_count}</dd>
+                                        {if is_terminal {
+                                            ().into_any()
+                                        } else {
+                                            view! {
+                                                <dt>"Зареєстровано / Enrolled"</dt>
+                                                <dd>{s.enrolled_count}</dd>
 
-                                        <dt>"Підтверджено / Confirmed"</dt>
-                                        <dd>{s.confirmed_count}</dd>
+                                                <dt>"Підтверджено / Confirmed"</dt>
+                                                <dd>{s.confirmed_count}</dd>
+                                            }.into_any()
+                                        }}
                                     </dl>
 
                                     {if s.not_received_count > 0 {
@@ -165,6 +177,16 @@ pub fn DashboardPage() -> impl IntoView {
                                                     {s.not_received_count}
                                                 </strong>
                                             </div>
+                                        }.into_any()
+                                    } else {
+                                        ().into_any()
+                                    }}
+
+                                    {if is_terminal {
+                                        view! {
+                                            <p>
+                                                <a href="/admin/season">"Створити сезон / Create season"</a>
+                                            </p>
                                         }.into_any()
                                     } else {
                                         ().into_any()
