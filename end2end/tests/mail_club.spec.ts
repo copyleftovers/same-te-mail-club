@@ -498,7 +498,7 @@ test.describe.serial("The Mail Club", () => {
       await app.login(PHONES.A);
       await app.goHome();
       await app.confirmReceipt(true);
-      await expect(page.getByText(/дякуємо|thanks|confirmed/i)).toBeVisible();
+      await expect(page.getByText(/дякуємо|thanks|confirmed/i).first()).toBeVisible();
     });
 
     // Story 2.4: Confirm receipt — not received, with note
