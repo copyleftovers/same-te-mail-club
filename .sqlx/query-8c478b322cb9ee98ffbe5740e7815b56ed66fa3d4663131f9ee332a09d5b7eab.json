@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT receipt_status AS \"receipt_status: ReceiptStatus\"\n        FROM assignments\n        WHERE recipient_id = $1 AND season_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "receipt_status: ReceiptStatus",
+        "type_info": {
+          "Custom": {
+            "name": "receipt_status",
+            "kind": {
+              "Enum": [
+                "no_response",
+                "received",
+                "not_received"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8c478b322cb9ee98ffbe5740e7815b56ed66fa3d4663131f9ee332a09d5b7eab"
+}

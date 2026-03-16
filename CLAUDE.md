@@ -32,13 +32,34 @@ Interplay: First Principles sits above as meta-cognitive arbiter — it question
 
 ## Project Phase
 
-**Implementation in progress.** Phases 1-2 committed and green (Epic 1 E2E passes). Phase 3 (Season Lifecycle) is next.
+**Implementation in progress.** Phases 1-4 committed and green. Phase 5 (Delivery + SMS) in progress.
 
 Delegation model: sequential agents, one per phase. Model selection:
 - Phases 1-3, 5-6: **sonnet** (prescriptive scaffolding, well-specified)
 - Phase 4: **opus** (algorithmic — backtracking DFS, graph cycle generation, cohort splitting)
 
 Delegation artifacts live in `ops/`: playbook, per-phase briefs, leptos idioms.
+
+## E2E Debugging: Delegation Policy
+
+**The orchestrator NEVER debugs E2E failures directly.** This is a hard rule.
+
+E2E failures are fiddly, time-consuming, and context-hungry. Every phase has hit them. The pattern is always the same: a small issue (missing wait, wrong selector, form data serialization) that requires reading test output, checking screenshots, reading component code, tweaking, re-running. This burns orchestrator context for zero strategic value.
+
+**When E2E fails:**
+1. Delegate to a sonnet agent with: the failure output, the screenshot path, the relevant source files, and the fix instructions.
+2. The agent reads `end2end/README.md`, diagnoses, fixes, and re-runs.
+3. Orchestrator reviews the result when the agent is done.
+
+**Never:**
+- Read E2E screenshots in orchestrator context
+- Manually trace through server function logic to debug a test failure
+- Run multiple E2E cycles yourself — each run is 2-3 minutes and burns context on waiting
+
+**Long-running commands:**
+- ALWAYS redirect to file (`> /tmp/output.log 2>&1`), NEVER pipe through `| tail` or `| head` (pipes buffer and make processes appear hung).
+- Use `run_in_background` for anything over 30 seconds.
+- Check results by reading the output file with `tail`, not by polling.
 
 ## Authoritative Documents (read in this order)
 

@@ -8,7 +8,7 @@ use leptos_router::{
 use crate::{
     admin::{
         assignments::AssignmentsPage, dashboard::DashboardPage, participants::ParticipantsPage,
-        season::SeasonManagePage,
+        season::SeasonManagePage, sms::SmsPage,
     },
     pages::{home::HomePage, login::LoginPage, onboarding::OnboardingPage},
 };
@@ -94,6 +94,9 @@ pub fn App() -> impl IntoView {
                     }/>
                     <Route path=(StaticSegment("admin"), StaticSegment("assignments")) view=move || {
                         view! { <AdminGuard><AssignmentsPage/></AdminGuard> }
+                    }/>
+                    <Route path=(StaticSegment("admin"), StaticSegment("sms")) view=move || {
+                        view! { <AdminGuard><SmsPage/></AdminGuard> }
                     }/>
                 </Routes>
             </main>

@@ -388,14 +388,19 @@ pub async fn swap_assignment(
     Ok(())
 }
 
-/// Release assignments by advancing the season from Assignment to Delivery (admin only).
+/// Confirm and lock assignments (admin only).
 ///
-/// Release IS the phase transition. There is no per-assignment released flag.
+/// Validates that assignments exist for the active season in Assignment phase.
+/// Does NOT advance the phase — the organizer uses `advance_season` to move to
+/// Delivery, which is what makes assignments visible to participants.
+///
+/// This function is a pre-flight check: call it to confirm the assignment set
+/// is ready before hitting "Advance" to release it to participants.
 ///
 /// # Errors
 ///
 /// Returns `Err` if caller is not admin, no active season in Assignment phase,
-/// or phase transition fails.
+/// or no assignments generated yet.
 #[server(ReleaseAssignments)]
 pub async fn release_assignments() -> Result<(), ServerFnError> {
     use crate::{
@@ -453,20 +458,8 @@ pub async fn release_assignments() -> Result<(), ServerFnError> {
         ));
     }
 
-    let next_phase = season
-        .phase
-        .try_advance()
-        .map_err(|e| AppError::from(e).into_server_fn_error())?;
-
-    sqlx::query!(
-        r#"UPDATE seasons SET phase = $1 WHERE id = $2"#,
-        next_phase as Phase,
-        season.id,
-    )
-    .execute(&pool)
-    .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
-
+    // Assignments are confirmed/locked. Phase advance (Assignment → Delivery)
+    // happens separately via advance_season, which is what makes them visible.
     Ok(())
 }
 
@@ -660,6 +653,13 @@ pub fn AssignmentsPage() -> impl IntoView {
                 })
             }}
 
+            // Release confirmation — shown after successful release_assignments() call
+            {move || {
+                release_action.value().get().and_then(Result::ok).map(|()| view! {
+                    <p>"Опубліковано / Released — assignments confirmed. Advance season to Delivery to make them visible."</p>
+                })
+            }}
+
             // Confirmed count.
             <Suspense fallback=|| view! { <p>"Завантаження..."</p> }>
                 {move || confirmed_count.get().map(|result| match result {
@@ -815,7 +815,7 @@ fn SwapForm(
     view! {
         <section>
             <h3>"Swap / Обмін"</h3>
-            <p>"Swap two senders' recipients. Enter their names or IDs."</p>
+            <p>"Enter two sender UUIDs to exchange their recipients."</p>
             <leptos::form::ActionForm action=swap_action>
                 <input type="hidden" name="season_id" value=season_id />
                 <div>
@@ -831,7 +831,7 @@ fn SwapForm(
                     data-testid="swap-button"
                     disabled=move || !hydrated.get()
                 >
-                    "Обміняти / Swap"
+                    "Застосувати / Apply"
                 </button>
             </leptos::form::ActionForm>
         </section>

@@ -73,7 +73,6 @@ struct AssignmentRow {
     recipient_phone: String,
     nova_poshta_city: String,
     nova_poshta_number: i32,
-    receipt_status: crate::types::ReceiptStatus,
 }
 
 // ── SSR helpers ────────────────────────────────────────────────────────────────
@@ -146,6 +145,11 @@ async fn resolve_preparation_state(
 }
 
 /// Resolve home state for the Delivery phase.
+///
+/// Two independent queries:
+/// 1. Outgoing assignment (`sender_id` = user) — provides recipient details to display.
+/// 2. Incoming assignment (`recipient_id` = user) — tracks whether the user has confirmed
+///    their own receipt. These are different rows and must not be conflated.
 #[cfg(feature = "ssr")]
 async fn resolve_delivery_state(
     pool: &sqlx::PgPool,
@@ -154,15 +158,15 @@ async fn resolve_delivery_state(
 ) -> Result<HomeState, ServerFnError> {
     use crate::types::ReceiptStatus;
 
-    let assignment = sqlx::query_as!(
+    // Outgoing assignment: who does this user need to send to?
+    let outgoing = sqlx::query_as!(
         AssignmentRow,
         r#"
         SELECT
             u.name AS recipient_name,
             u.phone AS recipient_phone,
             da.nova_poshta_city,
-            da.nova_poshta_number,
-            a.receipt_status AS "receipt_status: ReceiptStatus"
+            da.nova_poshta_number
         FROM assignments a
         JOIN users u ON u.id = a.recipient_id
         JOIN delivery_addresses da ON da.user_id = a.recipient_id
@@ -175,18 +179,35 @@ async fn resolve_delivery_state(
     .await
     .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
-    let Some(a) = assignment else {
+    // No outgoing assignment yet — organizer is still in the assignment phase.
+    let Some(a) = outgoing else {
         return Ok(HomeState::Assigning);
     };
 
-    match a.receipt_status {
-        ReceiptStatus::NoResponse => Ok(HomeState::Assigned {
+    // Incoming assignment: has this user confirmed receiving their own mail?
+    let incoming_status = sqlx::query_scalar!(
+        r#"
+        SELECT receipt_status AS "receipt_status: ReceiptStatus"
+        FROM assignments
+        WHERE recipient_id = $1 AND season_id = $2
+        "#,
+        user_id,
+        season_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+
+    match incoming_status {
+        Some(ReceiptStatus::Received | ReceiptStatus::NotReceived) => {
+            Ok(HomeState::ReceiptConfirmed)
+        }
+        _ => Ok(HomeState::Assigned {
             recipient_name: a.recipient_name,
             recipient_phone: a.recipient_phone,
             recipient_city: a.nova_poshta_city,
             recipient_branch_number: a.nova_poshta_number,
         }),
-        ReceiptStatus::Received | ReceiptStatus::NotReceived => Ok(HomeState::ReceiptConfirmed),
     }
 }
 
@@ -421,6 +442,99 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
     Ok(())
 }
 
+/// Confirm the participant has received (or not received) their mail.
+///
+/// `received` is passed as a string "true"/"false" from the HTML form (submit button value).
+/// One-way latch: once confirmed, cannot be changed.
+/// The participant is the RECIPIENT — this query uses `recipient_id`.
+///
+/// # Errors
+///
+/// Returns `Err` if not logged in, season not in Delivery phase, or already confirmed.
+#[server]
+pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(), ServerFnError> {
+    use crate::{auth, error::AppError, types::ReceiptStatus};
+    use http::request::Parts;
+
+    let pool = leptos::context::use_context::<sqlx::PgPool>()
+        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
+    let parts = leptos::context::use_context::<Parts>()
+        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
+
+    let user = auth::current_user(&pool, &parts)
+        .await
+        .map_err(AppError::into_server_fn_error)?;
+
+    // Parse received from "true"/"false" string (HTML form submit button value)
+    let received_bool = match received.as_str() {
+        "true" => true,
+        "false" => false,
+        other => {
+            return Err(ServerFnError::new(format!(
+                "invalid received value: {other}"
+            )));
+        }
+    };
+
+    // Get active season in Delivery phase
+    let season_id = sqlx::query_scalar!(
+        r#"
+        SELECT id
+        FROM seasons
+        WHERE phase = 'delivery'
+          AND launched_at IS NOT NULL
+        "#,
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .ok_or_else(|| ServerFnError::new("no active delivery season"))?;
+
+    // Find assignment where this user is the RECIPIENT
+    let assignment_id = sqlx::query_scalar!(
+        r#"
+        SELECT id
+        FROM assignments
+        WHERE recipient_id = $1 AND season_id = $2
+          AND receipt_status = 'no_response'
+        "#,
+        user.id,
+        season_id,
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .ok_or_else(|| ServerFnError::new("already confirmed or no assignment found"))?;
+
+    let new_status = if received_bool {
+        ReceiptStatus::Received
+    } else {
+        ReceiptStatus::NotReceived
+    };
+
+    // Normalize empty string to None
+    let note = note.and_then(|n| {
+        let t = n.trim().to_owned();
+        if t.is_empty() { None } else { Some(t) }
+    });
+
+    sqlx::query!(
+        r#"
+        UPDATE assignments
+        SET receipt_status = $1, receipt_note = $2
+        WHERE id = $3
+        "#,
+        new_status as ReceiptStatus,
+        note,
+        assignment_id,
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+
+    Ok(())
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /// Home page for authenticated, onboarded participants.
@@ -430,6 +544,7 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
 pub fn HomePage() -> impl IntoView {
     let enroll_action = ServerAction::<EnrollInSeason>::new();
     let confirm_action = ServerAction::<ConfirmReady>::new();
+    let receipt_action = ServerAction::<ConfirmReceipt>::new();
 
     // Refetch home state after any action
     let home_state = Resource::new(
@@ -437,6 +552,7 @@ pub fn HomePage() -> impl IntoView {
             (
                 enroll_action.version().get(),
                 confirm_action.version().get(),
+                receipt_action.version().get(),
             )
         },
         |_| get_home_state(),
@@ -453,7 +569,8 @@ pub fn HomePage() -> impl IntoView {
             // Action error display
             {move || {
                 let err = enroll_action.value().get().and_then(Result::err)
-                    .or_else(|| confirm_action.value().get().and_then(Result::err));
+                    .or_else(|| confirm_action.value().get().and_then(Result::err))
+                    .or_else(|| receipt_action.value().get().and_then(Result::err));
                 err.map(|e| view! {
                     <p class="error">{e.to_string()}</p>
                 })
@@ -462,7 +579,7 @@ pub fn HomePage() -> impl IntoView {
             <Suspense fallback=|| view! { <p>"Завантаження..."</p> }>
                 {move || home_state.get().map(|result| match result {
                     Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
-                    Ok(state) => render_home_state(state, enroll_action, confirm_action, hydrated),
+                    Ok(state) => render_home_state(state, enroll_action, confirm_action, receipt_action, hydrated),
                 })}
             </Suspense>
         </div>
@@ -476,6 +593,7 @@ fn render_home_state(
     state: HomeState,
     enroll_action: ServerAction<EnrollInSeason>,
     confirm_action: ServerAction<ConfirmReady>,
+    receipt_action: ServerAction<ConfirmReceipt>,
     hydrated: ReadSignal<bool>,
 ) -> AnyView {
     match state {
@@ -540,7 +658,7 @@ fn render_home_state(
             <h2>"Підготовка / Preparation"</h2>
             <p>
                 "Create your mail / Створіть свій лист. "
-                "Confirm ready before the deadline / підтвердьте готовність до дедлайну."
+                "Confirm ready before the time runs out / підтвердьте готовність."
             </p>
             <p class="deadline">"Дедлайн / Deadline: " {confirm_deadline}</p>
 
@@ -595,12 +713,49 @@ fn render_home_state(
                     {format!("Відділення №{recipient_branch_number}, {recipient_city}")}
                 </dd>
             </dl>
+
+            <section class="receipt-section">
+                <h3>"Підтвердити отримання / Confirm receipt"</h3>
+
+                <leptos::form::ActionForm action=receipt_action>
+                    <div>
+                        <label for="receipt-note">
+                            "Anything the organizer should know? (optional)"
+                        </label>
+                        <textarea
+                            id="receipt-note"
+                            name="note"
+                            placeholder="Пошкоджена упаковка, неправильний пакет, тощо..."
+                        ></textarea>
+                    </div>
+                    // received=true hidden input for the Received button
+                    <button
+                        type="submit"
+                        name="received"
+                        value="true"
+                        data-testid="received-button"
+                        disabled=move || !hydrated.get()
+                    >
+                        "Отримав(ла) / Received"
+                    </button>
+                    <button
+                        type="submit"
+                        name="received"
+                        value="false"
+                        data-testid="not-received-button"
+                        disabled=move || !hydrated.get()
+                    >
+                        "Не отримав(ла) / Not received"
+                    </button>
+                </leptos::form::ActionForm>
+            </section>
         }
         .into_any(),
 
         HomeState::ReceiptConfirmed => view! {
             <h2>"Дякуємо! / Thanks!"</h2>
             <p>"Receipt confirmed / Отримання підтверджено."</p>
+            <p data-testid="receipt-reported">"Повідомлено / Reported"</p>
         }
         .into_any(),
 
