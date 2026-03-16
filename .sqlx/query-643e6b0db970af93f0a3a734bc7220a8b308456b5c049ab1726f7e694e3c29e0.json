@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE assignments SET recipient_id = $1 WHERE season_id = $2 AND sender_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "643e6b0db970af93f0a3a734bc7220a8b308456b5c049ab1726f7e694e3c29e0"
+}

@@ -18,6 +18,9 @@ pub mod phone;
 #[cfg(feature = "ssr")]
 pub mod sms;
 
+#[cfg(feature = "ssr")]
+pub mod assignment;
+
 pub mod admin;
 
 #[cfg(feature = "hydrate")]
