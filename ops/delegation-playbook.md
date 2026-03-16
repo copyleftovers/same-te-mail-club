@@ -14,8 +14,9 @@ Bootstrap (do these FIRST, before reading any files):
 Then read these files in this order:
 1. `ops/phase-{N}-brief.md` — your operational brief (corrections, traps, entry state)
 2. `ops/leptos-idioms.md` — mandatory Leptos 0.8 patterns AND the MCP tool reference (read the MCP section carefully — it maps sections to tasks)
-3. `spec/Implementation Plan.md` — find "## Phase {N}" and implement everything up to the next phase heading
-4. Any additional spec files referenced in the brief
+3. `end2end/README.md` — **MANDATORY before touching any test or POM file.** E2E testing conventions, wait strategies, POM contract, banned practices. This is the law for all Playwright code.
+4. `spec/Implementation Plan.md` — find "## Phase {N}" and implement everything up to the next phase heading
+5. Any additional spec files referenced in the brief
 
 Constitutional constraints (active for all implementation):
 - **Correct By Construction**: Make invalid states unrepresentable. Model in types first. Trust the compiler. Compiler-driven development.
@@ -33,6 +34,15 @@ Development protocol:
 8. Run verification gates from the plan before declaring done
 9. Run `cargo sqlx prepare --workspace` if any sqlx::query!() calls were added or changed
 
+E2E testing protocol (for phases with E2E targets):
+1. Read `end2end/README.md` — the three rules, POM contract, and banned practices are non-negotiable
+2. Use the POM (`end2end/tests/fixtures/mail_club_page.ts`) for all test interactions — never raw selectors in test files
+3. Every ActionForm button in Rust components MUST have the `disabled=move || !hydrated.get()` hydration gate
+4. Every actionable element that tests interact with MUST have a `data-testid` attribute
+5. When adding new POM methods, use `clickAndWaitForResponse()` for every ActionForm submit. Never `waitForTimeout`. Never `networkidle`.
+6. Run `just e2e` for the full pipeline (kills stale processes, resets DB, seeds, builds, tests)
+7. If E2E fails: check for stale processes (`lsof -i :3000`), hydration mismatches (browser console), and missing waits (see README § Debugging Failures)
+
 Do NOT:
 - Add features not in the plan
 - Add abstractions for one-time operations
@@ -40,6 +50,8 @@ Do NOT:
 - Use `#[allow(clippy::...)]` without a comment justifying why the lint is wrong for this case
 - Leave `todo!()` in production code (unless the plan explicitly marks it as deferred)
 - **NEVER guess at Leptos 0.8 APIs** — query MCP docs first (`get-documentation`), then verify via LSP. Guessing wastes cycles and introduces bugs that compile but break at runtime or in E2E.
+- **NEVER use `waitForTimeout()` or `networkidle` in Playwright** — these are banned. See `end2end/README.md` § Banned Practices.
+- **NEVER write raw selectors in test files** — all selectors go through the POM.
 ```
 
 ## Phase Sequence
@@ -66,6 +78,14 @@ All E2E tests are in ONE file: `end2end/tests/mail_club.spec.ts` (serial executi
 POM fixture: `end2end/tests/fixtures/mail_club_page.ts`.
 Tests updated for the 6-phase model (2 advance calls removed, phase names aligned).
 Target specific blocks via playwright `--grep` on test description text.
+
+**Read `end2end/README.md` before writing ANY Playwright code.** It documents:
+- The hydration gate pattern and why tests don't need explicit hydration waits for buttons
+- `clickAndWaitForResponse()` — the only correct way to click ActionForm submit buttons
+- POM contract: which methods are self-contained vs assertion-separated
+- Selector contract: testids > roles/labels > text content
+- Banned practices that cause flaky tests (waitForTimeout, networkidle, non-retrying assertions)
+- Debugging guide for when tests fail
 
 ## Failure Protocol
 

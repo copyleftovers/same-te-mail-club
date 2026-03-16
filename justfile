@@ -15,8 +15,12 @@ test:
 clippy:
     cargo clippy --all-targets
 
+# Kill stale server processes on port 3000
+_kill-stale:
+    -lsof -i :3000 -t | xargs kill 2>/dev/null || true
+
 # Run E2E tests via cargo-leptos + Playwright
-e2e: db-reset db-seed
+e2e: _kill-stale db-reset db-seed
     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
 
 # Build release

@@ -53,9 +53,19 @@ This phase is small but the final gate is FULL regression — if any previous co
 
 ## E2E Tests
 
+**Read `end2end/README.md` first** — it is the law for all Playwright code.
+
 Target: `end2end/tests/mail_club.spec.ts` — `"Epic 6: Account Management"` block AND `"Cancel Season"` block AND `"Season Complete"` block.
 
 This phase runs FULL REGRESSION: all E2E tests must pass. This is the final phase.
+
+POM methods you'll exercise:
+- `deactivateParticipant(name)` — uses `clickAndWaitForResponse()`, assertion-separated
+
+Expected `data-testid`:
+- `deactivate-button` — within a participant table row
+
+This phase is small but the final E2E gate catches latent issues from ALL previous phases. If any test fails, consult `end2end/README.md` § Debugging Failures before spending time on it. Common causes: missing hydration gates, missing `data-testid`, stale processes on port 3000.
 
 ## Exit
 

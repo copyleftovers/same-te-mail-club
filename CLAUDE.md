@@ -94,12 +94,20 @@ Five-layer feedback loop. ALL layers are BLOCKING — nothing moves forward whil
 
 ## E2E Tests
 
+**Read `end2end/README.md` before writing any Playwright code.** It is the authoritative guide for test conventions, wait strategies, POM contract, and banned practices.
+
 E2E test stubs exist in `end2end/tests/` and encode user stories as executable specifications. They are FAILING by design — make them pass story by story.
+
+Three non-negotiable rules:
+1. Wait for hydration via the `disabled` gate on ActionForm buttons (Playwright auto-waits for `enabled`)
+2. Use `clickAndWaitForResponse()` for every ActionForm submit — never `waitForTimeout`
+3. Assert on concrete UI signals, not time — never `networkidle`
 
 Test environment requires:
 - `SAMETE_TEST_MODE=true` — fixed OTP code "000000"
 - `SAMETE_SMS_DRY_RUN=true` — log SMS instead of sending
 - Postgres running with migrated DB (`just db-reset`)
+- Run via `just e2e` (kills stale processes, resets DB, seeds admin, builds, tests)
 
 ## Key Commands
 

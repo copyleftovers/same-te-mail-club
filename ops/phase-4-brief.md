@@ -52,8 +52,22 @@ Key project rules (from idioms file):
 
 ## E2E Tests
 
+**Read `end2end/README.md` first** — it is the law for all Playwright code.
+
 Target: `end2end/tests/mail_club.spec.ts` — `"Epic 3: Assignment"` block.
 Tests: generate assignments, cycle visualization, swap UI, release, assignment not visible before release.
+
+POM methods you'll exercise:
+- `advanceSeason()` — uses `clickAndWaitForResponse()`, no timeout
+- `generateAssignments()` — assertion-separated, caller checks `expectCycleVisualization()`
+- `releaseAssignments()` — assertion-separated, caller checks for released text
+
+Expected `data-testid` values for assignment components (check POM for full list):
+- `generate-button`, `release-button` — admin action buttons
+- `cycle-visualization` — the cycle display container
+- `recipient-name`, `recipient-phone`, `recipient-branch` — participant assignment view
+
+Every ActionForm button in your Rust components needs the hydration gate pattern and a `data-testid`.
 
 ## Exit
 

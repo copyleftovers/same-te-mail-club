@@ -58,9 +58,24 @@ Key project rules (from idioms file):
 
 ## E2E Tests
 
+**Read `end2end/README.md` first** — it is the law for all Playwright code.
+
 Target: `end2end/tests/mail_club.spec.ts`
 - `"Stories 2.3–2.4: Delivery & Receipt"` block
 - SMS trigger tests are interspersed: story 5.3 is in Epic 4 block, stories 5.1/5.2/5.4 are in their respective blocks.
+
+POM methods you'll exercise:
+- `advanceSeason()` — uses `clickAndWaitForResponse()`, no timeout
+- `expectAssignmentVisible()`, `getAssignment()` — participant sees their recipient
+- `confirmReceipt(received, note?)` — uses `clickAndWaitForResponse()`, assertion-separated
+- `triggerSms(type)` — uses `clickAndWaitForResponse()`, caller checks `expectSmsReport()`
+
+Expected `data-testid` values for delivery/receipt/SMS components (check POM):
+- `received-button`, `not-received-button` — receipt confirmation buttons
+- `send-season-open-button`, `send-assignment-button`, `send-confirm-nudge-button`, `send-receipt-nudge-button` — SMS trigger buttons
+- `sms-report` — SMS delivery report container
+
+Every ActionForm button needs the hydration gate pattern and a `data-testid`.
 
 ## Exit
 

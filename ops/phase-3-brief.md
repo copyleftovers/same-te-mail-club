@@ -77,10 +77,29 @@ Key project rules (from idioms file):
 
 ## E2E Tests
 
+**Read `end2end/README.md` first** — it is the law for all Playwright code.
+
 Target: `end2end/tests/mail_club.spec.ts`
 - `"Epic 4: Season Management"` block (stories 4.1, 4.2)
 - `"Story 2.1: Enrollment"` block
 - `"Story 2.2: Confirm Ready"` block
+
+POM methods you'll exercise (already implemented in `end2end/tests/fixtures/mail_club_page.ts`):
+- `createSeason()` — self-contained, waits for launch-button to appear
+- `launchSeason()` — self-contained, waits for advance-button to appear
+- `advanceSeason()` — uses `clickAndWaitForResponse()`, no timeout
+- `cancelSeason()` — self-contained, waits for cancel-button to disappear
+- `enrollInSeason()` — assertion-separated, caller checks `expectEnrolled()`
+- `confirmReady()` — assertion-separated, caller checks `expectConfirmed()`
+
+Every Rust component with an ActionForm MUST have the hydration gate:
+```rust
+let (hydrated, set_hydrated) = signal(false);
+Effect::new(move |_| set_hydrated.set(true));
+// button: disabled=move || !hydrated.get()
+```
+
+Every actionable element MUST have `data-testid`. Check the POM for expected testid values.
 
 ## Exit
 
