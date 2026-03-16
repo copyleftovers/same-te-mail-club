@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            u.name AS recipient_name,\n            u.phone AS recipient_phone,\n            da.nova_poshta_city,\n            da.nova_poshta_number,\n            a.receipt_status AS \"receipt_status: ReceiptStatus\"\n        FROM assignments a\n        JOIN users u ON u.id = a.recipient_id\n        JOIN delivery_addresses da ON da.user_id = a.recipient_id\n        WHERE a.sender_id = $1 AND a.season_id = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "recipient_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "recipient_phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "nova_poshta_city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "nova_poshta_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "receipt_status: ReceiptStatus",
+        "type_info": {
+          "Custom": {
+            "name": "receipt_status",
+            "kind": {
+              "Enum": [
+                "no_response",
+                "received",
+                "not_received"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "73828d80437247ea80ac5bc7af84e85b5ec60d199077995c9c534f61b5fe780d"
+}

@@ -177,11 +177,16 @@ test.describe.serial("The Mail Club", () => {
     });
 
     // Story 4.1 AC: cannot create second active season
+    // When an active season exists, the create form is hidden — the page shows
+    // the management panel instead. No second season can be created.
     test("4.1 — second active season is rejected", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await app.createSeason(SIGNUP_DEADLINE, CONFIRM_DEADLINE);
-      await expect(page.getByText(/already|active|існує|активний/i)).toBeVisible();
+      await page.goto("/admin/season");
+      // Create form should NOT be visible (season already exists)
+      await expect(page.getByTestId("create-season-button")).not.toBeVisible();
+      // Management panel should be visible instead
+      await expect(page.getByTestId("launch-button")).toBeVisible();
     });
 
     // Story 4.1 AC: only admin can create seasons

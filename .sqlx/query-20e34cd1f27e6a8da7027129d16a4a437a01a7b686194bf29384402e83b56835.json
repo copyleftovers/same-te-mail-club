@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO seasons (phase, signup_deadline, confirm_deadline, theme, launched_at)\n        VALUES ('enrollment', $1, $2, $3, NULL)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "20e34cd1f27e6a8da7027129d16a4a437a01a7b686194bf29384402e83b56835"
+}

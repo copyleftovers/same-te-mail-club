@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO delivery_addresses (user_id, nova_poshta_city, nova_poshta_number)\n            VALUES ($1, $2, $3)\n            ON CONFLICT (user_id) DO UPDATE\n                SET nova_poshta_city = EXCLUDED.nova_poshta_city,\n                    nova_poshta_number = EXCLUDED.nova_poshta_number,\n                    updated_at = now()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b975f6de21be59d2606e0558350d1672e4d3118e38ad931b70e9094d89ba4bf6"
+}

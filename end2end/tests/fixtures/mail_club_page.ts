@@ -151,21 +151,29 @@ export class MailClubPage {
       await this.page.getByLabel(/theme/i).fill(theme);
     }
     await this.page.getByTestId("create-season-button").click();
+    // Wait for the page to transition from create form to active season panel
+    await expect(this.page.getByTestId("launch-button")).toBeVisible();
   }
 
   async launchSeason() {
     await this.page.goto("/admin/season");
     await this.page.getByTestId("launch-button").click();
+    // Wait for launch to complete — advance button appears after launch
+    await expect(this.page.getByTestId("advance-button")).toBeVisible();
   }
 
   async advanceSeason() {
     await this.page.goto("/admin/season");
     await this.page.getByTestId("advance-button").click();
+    // Wait for phase to advance — page refetches and re-renders
+    await this.page.waitForTimeout(1000);
   }
 
   async cancelSeason() {
     await this.page.goto("/admin/season");
     await this.page.getByTestId("cancel-button").click();
+    // Wait for cancel to complete
+    await expect(this.page.getByTestId("cancel-button")).not.toBeVisible();
   }
 
   // ── Admin: assignments (Stories 3.1, 3.3) ──

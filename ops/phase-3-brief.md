@@ -48,6 +48,26 @@ The POM has `launchSeason()` which navigates to `/admin/season` and clicks `[dat
 - `HomeState` enum is the centerpiece of the home page — one match expression, no scattered conditionals.
 - The `Assigned` variant's NP data comes from `delivery_addresses` JOIN, not enrollments.
 
+## Leptos Patterns & MCP
+
+Read `ops/leptos-idioms.md` before writing any components — especially the **MCP Section Index** at the bottom.
+
+**MCP sections to query for this phase** (via `mcp__plugin_leptos-mcp_leptos__get-documentation`):
+- `mental-model` — **read FIRST** before writing any component
+- `forms-and-actions` — season creation, enrollment, confirm-ready all use ActionForm
+- `server-functions` — all server fns in this phase (create/launch/advance/cancel season, enroll, confirm)
+- `resources` — HomeState, DashboardState load via Resource + Suspense
+- `control-flow` — HomeState enum match rendering (conditional views per variant)
+- `routing` — new admin routes use tuple syntax
+
+**After writing each component**: run `leptos-autofixer` on it before moving on.
+
+Key project rules (from idioms file):
+- **ActionForm** for all server function forms. `name` attrs must match server fn params. No `on:input` → signal → dispatch.
+- **Resource** for data loading. Use `action.version()` as source to refetch after mutations.
+- **Tuple syntax** for nested routes: `(StaticSegment("admin"), StaticSegment("season"))`.
+- **`expect_context::<T>()`** for server-side context (pool, config).
+
 ## Traps
 
 - The plan's `advanceSeason` references E2E test names that used the old 8-phase model. The E2E tests have been updated to match the 6-phase model. Phase transitions are: enrollment → preparation → assignment → delivery → complete.

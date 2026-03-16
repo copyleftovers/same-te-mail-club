@@ -23,15 +23,22 @@ One of the workflows where this pattern lends itself beautifully is objective fa
 
 ## Active Manifestos
 
-Bind to both on session start (treat as unified framework):
+Bind to all three on session start (treat as unified framework):
 1. **Correct By Construction** — fetch from LLM_MANIFESTOS repo: `Manifesto, rust - "correct by construction".md`
 2. **Simple Made Easy** — fetch from LLM_MANIFESTOS repo: `Manifesto, "simple made easy".md`
+3. **First Principles — Break the Mold** — fetch from LLM_MANIFESTOS repo: `Manifesto, first-principles - "break the mold".md`
 
-Tension resolution: type richness warranted when it eliminates entanglement (enum replacing boolean flags). Not warranted when it introduces entanglement (generic trait hierarchies braiding concerns).
+Interplay: First Principles sits above as meta-cognitive arbiter — it questions whether CBC and SME are being applied from axioms or from habit. CBC and SME are peer constitutions. Type richness warranted when it eliminates entanglement (enum replacing boolean flags). Not warranted when it introduces entanglement (generic trait hierarchies braiding concerns). First Principles breaks ties: does this type encode a truth of the domain, or is it just convention?
 
 ## Project Phase
 
-**Implementation.** Scaffold complete. Implementation plan written. E2E test stubs written (failing by design).
+**Implementation in progress.** Phases 1-2 committed and green (Epic 1 E2E passes). Phase 3 (Season Lifecycle) is next.
+
+Delegation model: sequential agents, one per phase. Model selection:
+- Phases 1-3, 5-6: **sonnet** (prescriptive scaffolding, well-specified)
+- Phase 4: **opus** (algorithmic — backtracking DFS, graph cycle generation, cohort splitting)
+
+Delegation artifacts live in `ops/`: playbook, per-phase briefs, leptos idioms.
 
 ## Authoritative Documents (read in this order)
 
@@ -73,6 +80,17 @@ Five-layer feedback loop. ALL layers are BLOCKING — nothing moves forward whil
 | OTP hashing/verification logic | Leptos component rendering |
 | Assignment algorithm (cycle validity, scoring) | Full user flows (login, enroll, confirm) |
 | Session token generation logic | Auth guards and redirects |
+
+## Leptos 0.8 Idioms
+
+**Read `ops/leptos-idioms.md` for the full reference.** Key rules:
+
+- **ActionForm for all server-function forms.** `name` attributes must match server fn params. No signal-driven `on:input` → dispatch pattern — Playwright can't fire those events reliably on hydrated elements.
+- **Resource for data loading.** Separate source (tracked) and fetcher (untracked). Wrap in `<Suspense>`.
+- **Refetch via `action.version()`** as Resource source signal.
+- **Tuple syntax for nested routes:** `(StaticSegment("admin"), StaticSegment("season"))`, not `StaticSegment("admin/season")`.
+- **`expect_context::<T>()`** for server-side context access.
+- **Leptos MCP** available for authoritative docs: `mcp__plugin_leptos-mcp_leptos__get-documentation`. Source at `~/leptos-mcp-server`.
 
 ## E2E Tests
 

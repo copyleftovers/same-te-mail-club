@@ -30,6 +30,23 @@ E2E tests for Epics 1, 3, 4, and Stories 2.1, 2.2 pass.
 - All SMS sends go through `sms::send_sms` (from Phase 2). No direct TurboSMS API calls outside `sms.rs`.
 - All user-facing SMS text is in Ukrainian.
 
+## Leptos Patterns & MCP
+
+Read `ops/leptos-idioms.md` before writing any components — especially the **MCP Section Index** at the bottom.
+
+**MCP sections to query for this phase** (via `mcp__plugin_leptos-mcp_leptos__get-documentation`):
+- `forms-and-actions` — receipt confirmation form, SMS trigger buttons all use ActionForm
+- `server-functions` — SMS batch triggers, receipt confirmation server fns
+- `control-flow` — HomeState match rendering for Assigned/AwaitingReceipt variants
+- `resources` — SMS report display loads asynchronously
+- `error-handling` — SMS delivery failures need proper error surface
+
+**After writing each component**: run `leptos-autofixer` on it before moving on.
+
+Key project rules (from idioms file):
+- **ActionForm** for all server function forms. `name` attrs must match server fn params.
+- **Resource** for data loading. Use `action.version()` as source to refetch after mutations.
+
 ## Traps
 
 - The home page already has `HomeState::Assigned` and `HomeState::AwaitingReceipt` variants from Phase 3. You're completing the `get_home_state` logic to populate these during delivery phase. Don't create new page components — extend the existing home page match.

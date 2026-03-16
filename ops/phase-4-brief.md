@@ -25,6 +25,23 @@ E2E tests for Epic 1, Epic 4, Stories 2.1 and 2.2 pass.
 - `release_assignments` advances the phase to delivery. It does NOT set a per-assignment flag.
 - `validate_cycles` must verify: every participant sends to exactly one, receives from exactly one, each cohort forms a single connected loop.
 
+## Leptos Patterns & MCP
+
+Read `ops/leptos-idioms.md` before writing any components — especially the **MCP Section Index** at the bottom.
+
+**MCP sections to query for this phase** (via `mcp__plugin_leptos-mcp_leptos__get-documentation`):
+- `forms-and-actions` — admin generate/swap/release forms use ActionForm
+- `resources` — cycle visualization loads via Resource + Suspense
+- `control-flow` — conditional rendering of cycle visualization, swap UI
+- `server-functions` — the admin server fns that bridge algorithm → DB
+
+**After writing each component**: run `leptos-autofixer` on it before moving on.
+
+Key project rules (from idioms file):
+- **ActionForm** for all server function forms. `name` attrs must match server fn params.
+- **Resource** for data loading. Use `action.version()` as source to refetch after mutations.
+- **Tuple syntax** for nested routes: `(StaticSegment("admin"), StaticSegment("assignments"))`.
+
 ## Traps
 
 - Cohort splitting: for N <= 15, single cohort. For N > 15, split into groups of 11-15. All groups must be >= 3. The plan says minimize max deviation from mean group size.

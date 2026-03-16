@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            s.id,\n            s.phase AS \"phase: Phase\",\n            s.signup_deadline,\n            s.confirm_deadline,\n            s.theme,\n            (s.launched_at IS NOT NULL) AS \"launched!: bool\",\n            COUNT(e.user_id) AS \"enrolled_count!: i64\",\n            COUNT(e.confirmed_ready_at) AS \"confirmed_count!: i64\"\n        FROM seasons s\n        LEFT JOIN enrollments e ON e.season_id = s.id\n        WHERE s.phase NOT IN ('complete', 'cancelled')\n        GROUP BY s.id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "phase: Phase",
+        "type_info": {
+          "Custom": {
+            "name": "season_phase",
+            "kind": {
+              "Enum": [
+                "enrollment",
+                "preparation",
+                "assignment",
+                "delivery",
+                "complete",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "signup_deadline",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "confirm_deadline",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "theme",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "launched!: bool",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "enrolled_count!: i64",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "confirmed_count!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "5ba0acfd62b4a983e8c709cec7914a53e3b122f55c931732802829935640c4b0"
+}

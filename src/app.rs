@@ -6,8 +6,8 @@ use leptos_router::{
 };
 
 use crate::{
-    admin::participants::ParticipantsPage,
-    pages::{login::LoginPage, onboarding::OnboardingPage},
+    admin::{dashboard::DashboardPage, participants::ParticipantsPage, season::SeasonManagePage},
+    pages::{home::HomePage, login::LoginPage, onboarding::OnboardingPage},
 };
 
 // ── Server function ───────────────────────────────────────────────────────────
@@ -76,6 +76,15 @@ pub fn App() -> impl IntoView {
                     }/>
                     <Route path=StaticSegment("") view=move || {
                         view! { <AuthGuard require_onboarded=true><HomePage/></AuthGuard> }
+                    }/>
+                    // Admin routes — flat list, exact matching.
+                    // Each tuple path matches exactly (no prefix overlap with
+                    // `StaticSegment("admin")`).
+                    <Route path=StaticSegment("admin") view=move || {
+                        view! { <AdminGuard><DashboardPage/></AdminGuard> }
+                    }/>
+                    <Route path=(StaticSegment("admin"), StaticSegment("season")) view=move || {
+                        view! { <AdminGuard><SeasonManagePage/></AdminGuard> }
                     }/>
                     <Route path=(StaticSegment("admin"), StaticSegment("participants")) view=move || {
                         view! { <AdminGuard><ParticipantsPage/></AdminGuard> }
@@ -170,15 +179,5 @@ fn AdminGuard(children: ChildrenFn) -> impl IntoView {
                 })
             }}
         </Suspense>
-    }
-}
-
-// ── Home page ─────────────────────────────────────────────────────────────────
-
-#[component]
-fn HomePage() -> impl IntoView {
-    view! {
-        <h1>"The Mail Club"</h1>
-        <p>"Seasonal self-expression ritual."</p>
     }
 }

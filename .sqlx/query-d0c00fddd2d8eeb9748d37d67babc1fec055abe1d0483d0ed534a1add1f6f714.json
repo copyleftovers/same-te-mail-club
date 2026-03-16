@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            s.phase AS \"phase: Phase\",\n            s.theme,\n            (s.launched_at IS NOT NULL) AS \"launched!: bool\",\n            COUNT(DISTINCT e.user_id) AS \"enrolled_count!: i64\",\n            COUNT(DISTINCT e.user_id) FILTER (WHERE e.confirmed_ready_at IS NOT NULL)\n                AS \"confirmed_count!: i64\",\n            COUNT(DISTINCT a.id) FILTER (WHERE a.receipt_status = 'not_received')\n                AS \"not_received_count!: i64\"\n        FROM seasons s\n        LEFT JOIN enrollments e ON e.season_id = s.id\n        LEFT JOIN assignments a ON a.season_id = s.id\n        WHERE s.phase NOT IN ('complete', 'cancelled')\n        GROUP BY s.id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "phase: Phase",
+        "type_info": {
+          "Custom": {
+            "name": "season_phase",
+            "kind": {
+              "Enum": [
+                "enrollment",
+                "preparation",
+                "assignment",
+                "delivery",
+                "complete",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "theme",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "launched!: bool",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "enrolled_count!: i64",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "confirmed_count!: i64",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "not_received_count!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "d0c00fddd2d8eeb9748d37d67babc1fec055abe1d0483d0ed534a1add1f6f714"
+}

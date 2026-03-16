@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE seasons\n        SET launched_at = now()\n        WHERE phase NOT IN ('complete', 'cancelled')\n          AND launched_at IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "002376e83484b17c9b971e67b486c530b246e7d4827aee9f0c68c62a1836e1a7"
+}

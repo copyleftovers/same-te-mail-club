@@ -32,6 +32,19 @@ Deactivation must cascade correctly through ALL existing code. Verify these chec
 
 If any of these checks are missing from previous phases, ADD them now.
 
+## Leptos Patterns & MCP
+
+Read `ops/leptos-idioms.md` — especially the **MCP Section Index** at the bottom.
+
+**MCP sections to query for this phase** (via `mcp__plugin_leptos-mcp_leptos__get-documentation`):
+- `forms-and-actions` — deactivate button is an ActionForm
+- `components` — ensure participant list re-renders after deactivation
+- `resources` — participant list refetch after mutation
+
+**After writing/modifying any component**: run `leptos-autofixer` on it.
+
+This phase is small but the final gate is FULL regression — if any previous component has latent Leptos issues, now is when they surface. Use the autofixer liberally on any component that fails E2E.
+
 ## Traps
 
 - Do NOT soft-delete. Status changes to 'deactivated', user row remains.

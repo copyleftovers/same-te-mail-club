@@ -19,16 +19,30 @@ pub enum ConfigError {
 impl Config {
     /// Read from environment. Fails fast naming the missing variable.
     ///
+    /// When `SAMETE_SMS_DRY_RUN=true`, TURBOSMS credentials are optional
+    /// (they are never used in dry-run mode, so requiring them would block
+    /// local development and E2E testing without real SMS credentials).
+    ///
     /// # Errors
     ///
     /// Returns `Err` if any required environment variable is absent.
     pub fn from_env() -> Result<Self, ConfigError> {
         let database_url =
             std::env::var("DATABASE_URL").map_err(|_| ConfigError::MissingDatabaseUrl)?;
-        let turbosms_token =
-            std::env::var("TURBOSMS_TOKEN").map_err(|_| ConfigError::MissingTurbosmsToken)?;
-        let turbosms_sender =
-            std::env::var("TURBOSMS_SENDER").map_err(|_| ConfigError::MissingTurbosmsSender)?;
+
+        let dry_run = std::env::var("SAMETE_SMS_DRY_RUN").as_deref() == Ok("true");
+
+        let turbosms_token = if dry_run {
+            std::env::var("TURBOSMS_TOKEN").unwrap_or_default()
+        } else {
+            std::env::var("TURBOSMS_TOKEN").map_err(|_| ConfigError::MissingTurbosmsToken)?
+        };
+
+        let turbosms_sender = if dry_run {
+            std::env::var("TURBOSMS_SENDER").unwrap_or_default()
+        } else {
+            std::env::var("TURBOSMS_SENDER").map_err(|_| ConfigError::MissingTurbosmsSender)?
+        };
 
         let csrf_secret = std::env::var("CSRF_SECRET")
             .ok()
