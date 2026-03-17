@@ -13,6 +13,7 @@ crate-type = ["cdylib", "rlib"]
 leptos = { version = "0.8" }
 leptos_router = { version = "0.8" }
 leptos_meta = { version = "0.8" }
+leptos_i18n = { version = "0.6", features = [] }
 
 # Serialization (shared between server and client)
 serde = { version = "1", features = ["derive"] }
@@ -49,6 +50,7 @@ hydrate = [
     "dep:console_error_panic_hook",
     "dep:wasm-bindgen",
     "uuid/js",
+    "leptos_i18n/hydrate",
 ]
 ssr = [
     "leptos/ssr",
@@ -68,6 +70,8 @@ ssr = [
     "dep:base64",
     "dep:http",
     "dep:anyhow",
+    "leptos_i18n/ssr",
+    "leptos_i18n/axum",
 ]
 
 [lints.rust]
@@ -87,6 +91,10 @@ inherits = "release"
 opt-level = 'z'
 lto = true
 codegen-units = 1
+
+[package.metadata.leptos-i18n]
+default = "uk"
+locales = ["uk"]
 
 [package.metadata.leptos]
 output-name = "samete"

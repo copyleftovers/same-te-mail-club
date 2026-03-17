@@ -60,6 +60,12 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    // provide_i18n_context is deprecated in favour of <I18nContextProvider>
+    // component, but the component pattern requires wrapping App children in the
+    // view macro which restructures the entire routing setup — out of scope for
+    // this i18n pass.
+    #[allow(deprecated)]
+    crate::i18n::i18n::provide_i18n_context();
 
     // Fetch current user once at app load — used for all auth guards
     let current_user = Resource::new(|| (), |()| get_current_user());

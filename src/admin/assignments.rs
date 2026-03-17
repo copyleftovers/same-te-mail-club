@@ -1,3 +1,4 @@
+use crate::i18n::i18n::{t, use_i18n};
 use leptos::prelude::*;
 
 // ── Types (shared between SSR and WASM) ──────────────────────────────────────
@@ -614,6 +615,7 @@ pub async fn get_confirmed_count() -> Result<i64, ServerFnError> {
 /// and release button.
 #[component]
 pub fn AssignmentsPage() -> impl IntoView {
+    let i18n = use_i18n();
     let generate_action = ServerAction::<GenerateAssignments>::new();
     let swap_action = ServerAction::<SwapAssignment>::new();
     let release_action = ServerAction::<ReleaseAssignments>::new();
@@ -641,7 +643,7 @@ pub fn AssignmentsPage() -> impl IntoView {
 
     view! {
         <div class="admin-assignments">
-            <h1>"Розподіл / Assignments"</h1>
+            <h1>{t!(i18n, assignments_page_title)}</h1>
 
             // Error display.
             {move || {
@@ -656,29 +658,29 @@ pub fn AssignmentsPage() -> impl IntoView {
             // Release confirmation — shown after successful release_assignments() call
             {move || {
                 release_action.value().get().and_then(Result::ok).map(|()| view! {
-                    <p data-testid="released-status">"Опубліковано / Released — assignments confirmed. Advance season to Delivery to make them visible."</p>
+                    <p data-testid="released-status">{t!(i18n, assignments_released_advance_note)}</p>
                 })
             }}
 
             // Confirmed count.
-            <Suspense fallback=|| view! { <p>"Завантаження..."</p> }>
+            <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || confirmed_count.get().map(|result| match result {
                     Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
                     Ok(count) => view! {
-                        <p data-testid="confirmed-count">"Підтверджено / Confirmed: " {count}</p>
+                        <p data-testid="confirmed-count">{t!(i18n, assignments_confirmed_label)} {count}</p>
                     }.into_any(),
                 })}
             </Suspense>
 
             // Main content: preview + actions.
-            <Suspense fallback=|| view! { <p>"Завантаження..."</p> }>
+            <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || preview.get().map(|result| match result {
                     Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
                     Ok(None) => view! {
-                        <p>"Немає активного сезону / No active season"</p>
+                        <p>{t!(i18n, assignments_no_season)}</p>
                     }.into_any(),
                     Ok(Some(ref p)) => {
-                        render_preview(p, generate_action, swap_action, release_action, hydrated)
+                        render_preview(p, generate_action, swap_action, release_action, hydrated, i18n)
                     }
                 })}
             </Suspense>
@@ -695,6 +697,7 @@ fn render_preview(
     swap_action: ServerAction<SwapAssignment>,
     release_action: ServerAction<ReleaseAssignments>,
     hydrated: ReadSignal<bool>,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
     let is_assignment_phase = p.phase == crate::types::Phase::Assignment;
     let has_assignments = !p.cohorts.is_empty() && !p.cohorts.iter().all(|c| c.chain.is_empty());
@@ -712,22 +715,22 @@ fn render_preview(
                             disabled=move || !hydrated.get()
                         >
                             {if has_assignments {
-                                "Перегенерувати / Regenerate"
+                                view! { {t!(i18n, assignments_regenerate_button)} }.into_any()
                             } else {
-                                "Згенерувати / Generate"
+                                view! { {t!(i18n, assignments_generate_button)} }.into_any()
                             }}
                         </button>
                     </leptos::form::ActionForm>
                 }.into_any()
             } else {
                 view! {
-                    <p data-testid="released-status">"Опубліковано / Released — assignments are visible to participants."</p>
+                    <p data-testid="released-status">{t!(i18n, assignments_released_note)}</p>
                 }.into_any()
             }}
 
             // Cycle visualization.
             {if has_assignments {
-                render_cycle_visualization(&p.cohorts).into_any()
+                render_cycle_visualization(&p.cohorts, i18n).into_any()
             } else {
                 ().into_any()
             }}
@@ -740,6 +743,7 @@ fn render_preview(
                         swap_action=swap_action
                         season_id=sid
                         hydrated=hydrated
+                        i18n=i18n
                     />
                 }.into_any()
             } else {
@@ -755,7 +759,7 @@ fn render_preview(
                             data-testid="release-button"
                             disabled=move || !hydrated.get()
                         >
-                            "Опублікувати / Release"
+                            {t!(i18n, assignments_release_button)}
                         </button>
                     </leptos::form::ActionForm>
                 }.into_any()
@@ -768,7 +772,10 @@ fn render_preview(
 }
 
 /// Render the cycle visualization section.
-fn render_cycle_visualization(cohorts: &[CohortPreview]) -> impl IntoView {
+fn render_cycle_visualization(
+    cohorts: &[CohortPreview],
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+) -> impl IntoView {
     let cohorts_view = cohorts
         .iter()
         .enumerate()
@@ -789,7 +796,7 @@ fn render_cycle_visualization(cohorts: &[CohortPreview]) -> impl IntoView {
 
             view! {
                 <div class="cohort">
-                    <h3>{format!("Когорта / Cohort {}", idx + 1)}</h3>
+                    <h3>{t!(i18n, assignments_cohort_label)}{idx + 1}</h3>
                     <p>"Score: " {cohort.score}</p>
                     <ol>{chain_items}</ol>
                 </div>
@@ -799,7 +806,7 @@ fn render_cycle_visualization(cohorts: &[CohortPreview]) -> impl IntoView {
 
     view! {
         <div data-testid="cycle-visualization">
-            <h2>"Цикли / Cycles"</h2>
+            <h2>{t!(i18n, assignments_cycles_label)}</h2>
             {cohorts_view}
         </div>
     }
@@ -811,6 +818,7 @@ fn SwapForm(
     swap_action: ServerAction<SwapAssignment>,
     season_id: String,
     hydrated: ReadSignal<bool>,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> impl IntoView {
     view! {
         <section data-testid="override-available">
@@ -831,7 +839,7 @@ fn SwapForm(
                     data-testid="swap-button"
                     disabled=move || !hydrated.get()
                 >
-                    "Застосувати / Apply"
+                    {t!(i18n, assignments_apply_button)}
                 </button>
             </leptos::form::ActionForm>
         </section>

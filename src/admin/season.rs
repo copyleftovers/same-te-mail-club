@@ -1,3 +1,4 @@
+use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -355,13 +356,14 @@ fn CreateSeasonForm(
     create_action: ServerAction<CreateSeason>,
     hydrated: ReadSignal<bool>,
 ) -> impl IntoView {
+    let i18n = use_i18n();
     view! {
         <section>
-            <h2>"Створити новий сезон"</h2>
+            <h2>{t!(i18n, season_create_form_title)}</h2>
             <leptos::form::ActionForm action=create_action>
                 <div>
                     <label for="signup-deadline">
-                        "Дедлайн реєстрації (Signup deadline)"
+                        {t!(i18n, season_signup_deadline_label)}
                     </label>
                     <input
                         id="signup-deadline"
@@ -373,7 +375,7 @@ fn CreateSeasonForm(
                 </div>
                 <div>
                     <label for="confirm-deadline">
-                        "Дедлайн підтвердження (Confirm deadline)"
+                        {t!(i18n, season_confirm_deadline_label)}
                     </label>
                     <input
                         id="confirm-deadline"
@@ -385,13 +387,13 @@ fn CreateSeasonForm(
                 </div>
                 <div>
                     <label for="theme">
-                        "Тема сезону / Theme (необов'язково)"
+                        {t!(i18n, season_theme_label)}
                     </label>
                     <input
                         id="theme"
                         type="text"
                         name="theme"
-                        placeholder="Наприклад: Перший сезон"
+                        placeholder=move || t_string!(i18n, season_theme_placeholder)
                         data-testid="theme-input"
                     />
                 </div>
@@ -400,7 +402,7 @@ fn CreateSeasonForm(
                     data-testid="create-season-button"
                     disabled=move || !hydrated.get()
                 >
-                    "Створити сезон"
+                    {t!(i18n, season_create_button)}
                 </button>
             </leptos::form::ActionForm>
         </section>
@@ -415,6 +417,7 @@ fn ActiveSeasonPanel(
     cancel_action: ServerAction<CancelSeason>,
     hydrated: ReadSignal<bool>,
 ) -> impl IntoView {
+    let i18n = use_i18n();
     let can_advance = status.phase.can_advance();
     let launched = status.launched;
     let phase_label = if launched {
@@ -425,26 +428,26 @@ fn ActiveSeasonPanel(
 
     view! {
         <section>
-            <h2>"Поточний сезон"</h2>
+            <h2>{t!(i18n, season_current_section_title)}</h2>
             <dl>
-                <dt>"Фаза / Phase"</dt>
+                <dt>{t!(i18n, season_phase_label)}</dt>
                 <dd>{phase_label}</dd>
 
-                {status.theme.as_ref().map(|t| view! {
-                    <dt>"Тема"</dt>
-                    <dd data-testid="season-theme">{t.clone()}</dd>
+                {status.theme.as_ref().map(|theme_val| view! {
+                    <dt>{t!(i18n, season_theme_display_label)}</dt>
+                    <dd data-testid="season-theme">{theme_val.clone()}</dd>
                 })}
 
-                <dt>"Реєстрація до"</dt>
+                <dt>{t!(i18n, season_signup_deadline_display)}</dt>
                 <dd data-testid="season-deadline">{status.signup_deadline.clone()}</dd>
 
-                <dt>"Підтвердження до"</dt>
+                <dt>{t!(i18n, season_confirm_deadline_display)}</dt>
                 <dd>{status.confirm_deadline.clone()}</dd>
 
-                <dt>"Зареєстровано / Enrolled"</dt>
+                <dt>{t!(i18n, season_enrolled_label)}</dt>
                 <dd>{status.enrolled_count.to_string()}</dd>
 
-                <dt>"Підтверджено / Confirmed"</dt>
+                <dt>{t!(i18n, season_confirmed_label)}</dt>
                 <dd data-testid="confirmed-count">{status.confirmed_count.to_string()}</dd>
             </dl>
 
@@ -460,7 +463,7 @@ fn ActiveSeasonPanel(
                                 data-testid="launch-button"
                                 disabled=move || !hydrated.get()
                             >
-                                "Запустити сезон / Launch"
+                                {t!(i18n, season_launch_button)}
                             </button>
                         </leptos::form::ActionForm>
                     }.into_any()
@@ -475,7 +478,7 @@ fn ActiveSeasonPanel(
                                 data-testid="advance-button"
                                 disabled=move || !hydrated.get()
                             >
-                                "Перейти до наступної фази / Advance"
+                                {t!(i18n, season_advance_button)}
                             </button>
                         </leptos::form::ActionForm>
                     }.into_any()
@@ -492,7 +495,7 @@ fn ActiveSeasonPanel(
                                 data-testid="cancel-button"
                                 disabled=move || !hydrated.get()
                             >
-                                "Скасувати сезон / Cancel"
+                                {t!(i18n, season_cancel_button)}
                             </button>
                         </leptos::form::ActionForm>
                     }.into_any()
@@ -512,6 +515,7 @@ fn ActiveSeasonPanel(
 /// and control buttons (launch, advance, cancel) for existing seasons.
 #[component]
 pub fn SeasonManagePage() -> impl IntoView {
+    let i18n = use_i18n();
     let create_action = ServerAction::<CreateSeason>::new();
     let launch_action = ServerAction::<LaunchSeason>::new();
     let advance_action = ServerAction::<AdvanceSeason>::new();
@@ -538,7 +542,7 @@ pub fn SeasonManagePage() -> impl IntoView {
 
     view! {
         <div class="admin-season">
-            <h1>"Управління сезоном"</h1>
+            <h1>{t!(i18n, season_page_title)}</h1>
 
             // Error display for any action
             {move || {
@@ -551,7 +555,7 @@ pub fn SeasonManagePage() -> impl IntoView {
                 })
             }}
 
-            <Suspense fallback=|| view! { <p>"Завантаження..."</p> }>
+            <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || status.get().map(|result| match result {
                     Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
                     Ok(None) => {

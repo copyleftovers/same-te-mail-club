@@ -9,7 +9,12 @@ use leptos::server_fn::ServerFn;
 /// Rate limiting and SMS sending happen inside; errors are swallowed to avoid enumeration.
 #[server]
 pub async fn request_otp(phone: String) -> Result<(), ServerFnError> {
-    use crate::{auth, config::Config, phone as phone_mod, sms};
+    use crate::{
+        auth,
+        config::Config,
+        i18n::i18n::{Locale, td_string},
+        phone as phone_mod, sms,
+    };
 
     let pool = leptos::context::use_context::<sqlx::PgPool>()
         .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
@@ -48,7 +53,8 @@ pub async fn request_otp(phone: String) -> Result<(), ServerFnError> {
     };
 
     // Send SMS (dry-run mode logs instead of sending)
-    let message = format!("Ваш код: {code}");
+    let prefix = td_string!(Locale::uk, login_otp_sms_body_prefix);
+    let message = format!("{prefix}{code}");
     if let Err(e) = sms::send_sms(&config, &normalized, &message).await {
         tracing::warn!("SMS send failed for {}: {}", normalized, e);
     }

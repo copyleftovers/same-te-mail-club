@@ -1,3 +1,4 @@
+use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 
 // ── Server function ───────────────────────────────────────────────────────────
@@ -75,6 +76,7 @@ pub async fn complete_onboarding(branch: String) -> Result<(), ServerFnError> {
 /// hook handles via `window.location.set_href("/")`.
 #[component]
 pub fn OnboardingPage() -> impl IntoView {
+    let i18n = use_i18n();
     let (error_msg, set_error_msg) = signal(Option::<String>::None);
 
     let onboard_action = ServerAction::<CompleteOnboarding>::new();
@@ -87,14 +89,17 @@ pub fn OnboardingPage() -> impl IntoView {
 
     Effect::new(move |_| {
         if let Some(Err(e)) = onboard_action.value().get() {
-            set_error_msg.set(Some(format!("Помилка: {e}")));
+            set_error_msg.set(Some(format!(
+                "{}{e}",
+                t_string!(i18n, onboarding_error_prefix)
+            )));
         }
     });
 
     view! {
         <div class="onboarding-page">
-            <h1>"Налаштування акаунту"</h1>
-            <p>"Вкажіть ваше відділення Nova Poshta для отримання посилок."</p>
+            <h1>{t!(i18n, onboarding_page_title)}</h1>
+            <p>{t!(i18n, onboarding_description)}</p>
 
             <leptos::form::ActionForm action=onboard_action>
                 <label for="np-branch">"Nova Poshta відділення (branch)"</label>
@@ -102,7 +107,7 @@ pub fn OnboardingPage() -> impl IntoView {
                     id="np-branch"
                     type="text"
                     name="branch"
-                    placeholder="Відділення №1, Київ"
+                    placeholder=move || t_string!(i18n, onboarding_branch_placeholder)
                     data-testid="branch-input"
                 />
                 <button type="submit" data-testid="save-onboarding-button" disabled=move || !hydrated.get()>

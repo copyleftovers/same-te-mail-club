@@ -2,6 +2,7 @@
 #![allow(clippy::must_use_candidate)]
 
 pub mod app;
+pub mod i18n;
 pub mod pages;
 pub mod types;
 

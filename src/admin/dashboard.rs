@@ -1,3 +1,4 @@
+use crate::i18n::i18n::{t, use_i18n};
 use leptos::prelude::*;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -104,20 +105,21 @@ pub async fn get_dashboard() -> Result<DashboardState, ServerFnError> {
 /// Shows season health at a glance: phase, enrolled/confirmed counts, alerts.
 #[component]
 pub fn DashboardPage() -> impl IntoView {
+    let i18n = use_i18n();
     let dashboard = Resource::new(|| (), |()| get_dashboard());
 
     view! {
         <div class="admin-dashboard">
             <h1>"Dashboard"</h1>
 
-            <Suspense fallback=|| view! { <p>"Завантаження..."</p> }>
+            <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || dashboard.get().map(|result| match result {
                     Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
                     Ok(state) => match state.season {
                         None => view! {
-                            <p>"Немає активного сезону. / No active season."</p>
+                            <p>{t!(i18n, dashboard_no_season)}</p>
                             <p>
-                                <a href="/admin/season">"Створити сезон / Create season"</a>
+                                <a href="/admin/season">{t!(i18n, dashboard_create_season_button)}</a>
                             </p>
                         }.into_any(),
                         Some(s) => {
@@ -148,22 +150,22 @@ pub fn DashboardPage() -> impl IntoView {
                             view! {
                                 <section>
                                     <dl>
-                                        <dt>"Фаза / Phase"</dt>
+                                        <dt>{t!(i18n, dashboard_phase_label)}</dt>
                                         <dd>{phase_display}</dd>
 
-                                        {s.theme.as_ref().map(|t| view! {
-                                            <dt>"Тема"</dt>
-                                            <dd>{t.clone()}</dd>
+                                        {s.theme.as_ref().map(|theme_val| view! {
+                                            <dt>{t!(i18n, dashboard_theme_label)}</dt>
+                                            <dd>{theme_val.clone()}</dd>
                                         })}
 
                                         {if is_terminal {
                                             ().into_any()
                                         } else {
                                             view! {
-                                                <dt>"Зареєстровано / Enrolled"</dt>
+                                                <dt>{t!(i18n, dashboard_enrolled_label)}</dt>
                                                 <dd>{s.enrolled_count}</dd>
 
-                                                <dt>"Підтверджено / Confirmed"</dt>
+                                                <dt>{t!(i18n, dashboard_confirmed_label)}</dt>
                                                 <dd>{s.confirmed_count}</dd>
                                             }.into_any()
                                         }}
@@ -173,7 +175,7 @@ pub fn DashboardPage() -> impl IntoView {
                                         view! {
                                             <div class="alert">
                                                 <strong>
-                                                    "Не отримано / Not received: "
+                                                    {t!(i18n, dashboard_not_received_label)}
                                                     {s.not_received_count}
                                                 </strong>
                                             </div>
@@ -185,7 +187,7 @@ pub fn DashboardPage() -> impl IntoView {
                                     {if is_terminal {
                                         view! {
                                             <p>
-                                                <a href="/admin/season">"Створити сезон / Create season"</a>
+                                                <a href="/admin/season">{t!(i18n, dashboard_create_season_button)}</a>
                                             </p>
                                         }.into_any()
                                     } else {

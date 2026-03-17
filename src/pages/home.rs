@@ -1,3 +1,4 @@
+use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -549,6 +550,7 @@ pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(
 /// Single component, single match on `HomeState`. No scattered conditionals.
 #[component]
 pub fn HomePage() -> impl IntoView {
+    let i18n = use_i18n();
     let enroll_action = ServerAction::<EnrollInSeason>::new();
     let confirm_action = ServerAction::<ConfirmReady>::new();
     let receipt_action = ServerAction::<ConfirmReceipt>::new();
@@ -583,10 +585,10 @@ pub fn HomePage() -> impl IntoView {
                 })
             }}
 
-            <Suspense fallback=|| view! { <p>"Завантаження..."</p> }>
+            <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || home_state.get().map(|result| match result {
                     Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
-                    Ok(state) => render_home_state(state, enroll_action, confirm_action, receipt_action, hydrated),
+                    Ok(state) => render_home_state(state, enroll_action, confirm_action, receipt_action, hydrated, i18n),
                 })}
             </Suspense>
         </div>
@@ -602,6 +604,7 @@ fn render_home_state(
     confirm_action: ServerAction<ConfirmReady>,
     receipt_action: ServerAction<ConfirmReceipt>,
     hydrated: ReadSignal<bool>,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
     match state {
         HomeState::NoSeason => view! {
@@ -613,17 +616,17 @@ fn render_home_state(
         .into_any(),
 
         HomeState::EnrollmentOpen { deadline, theme } => view! {
-            <h2>"Відкрита реєстрація / Enrollment Open"</h2>
+            <h2>{t!(i18n, home_enroll_open_heading)}</h2>
 
-            {theme.as_ref().map(|t| view! {
-                <p class="theme" data-testid="season-theme">"Тема / Theme: " {t.clone()}</p>
+            {theme.as_ref().map(|theme_val| view! {
+                <p class="theme" data-testid="season-theme">{t!(i18n, home_theme_label)} {theme_val.clone()}</p>
             })}
 
-            <p class="deadline">"Реєстрація до / Deadline: " {deadline}</p>
+            <p class="deadline">{t!(i18n, home_signup_deadline_label)} {deadline}</p>
 
             <p class="guideline">
                 "Self-expression / Самовираження: "
-                "Надішліть щось, що відображає вас."
+                {t!(i18n, home_guideline)}
             </p>
 
             <leptos::form::ActionForm action=enroll_action>
@@ -635,7 +638,7 @@ fn render_home_state(
                         id="branch-enroll"
                         type="text"
                         name="branch"
-                        placeholder="Відділення №1, Київ"
+                        placeholder=move || t_string!(i18n, home_enroll_branch_placeholder)
                         data-testid="enroll-branch-input"
                     />
                 </div>
@@ -644,31 +647,31 @@ fn render_home_state(
                     data-testid="enroll-button"
                     disabled=move || !hydrated.get()
                 >
-                    "Зареєструватись / Enroll"
+                    {t!(i18n, home_enroll_button)}
                 </button>
             </leptos::form::ActionForm>
         }
         .into_any(),
 
         HomeState::Enrolled { confirm_deadline } => view! {
-            <h2>"Ви зареєстровані / You are enrolled"</h2>
+            <h2>{t!(i18n, home_enrolled_heading)}</h2>
             <p>
                 "Enrollment confirmed. Create your mail. / "
-                "Реєстрація підтверджена. Створіть свій лист."
+                {t!(i18n, home_enrolled_desc)}
             </p>
-            <p class="deadline">"Дедлайн підтвердження / Confirm deadline: "
+            <p class="deadline">{t!(i18n, home_confirm_deadline_label)}
                 {confirm_deadline}
             </p>
         }
         .into_any(),
 
         HomeState::Preparing { confirm_deadline } => view! {
-            <h2>"Підготовка / Preparation"</h2>
+            <h2>{t!(i18n, home_preparing_heading)}</h2>
             <p>
                 "Create your mail / Створіть свій лист. "
                 "Confirm ready before the time runs out / підтвердьте готовність."
             </p>
-            <p class="deadline" data-testid="season-deadline">"Дедлайн / Deadline: " {confirm_deadline}</p>
+            <p class="deadline" data-testid="season-deadline">{t!(i18n, home_deadline_label)} {confirm_deadline}</p>
 
             <leptos::form::ActionForm action=confirm_action>
                 <button
@@ -676,26 +679,26 @@ fn render_home_state(
                     data-testid="confirm-ready-button"
                     disabled=move || !hydrated.get()
                 >
-                    "Підтвердити готовність / Confirm Ready"
+                    {t!(i18n, home_confirm_ready_button)}
                 </button>
             </leptos::form::ActionForm>
         }
         .into_any(),
 
         HomeState::Confirmed => view! {
-            <h2>"Готовність підтверджена / Ready Confirmed"</h2>
+            <h2>{t!(i18n, home_ready_confirmed_heading)}</h2>
             <p>
                 "Your mail is confirmed. / Ваш лист підтверджено. "
-                "Очікуйте на розподіл."
+                {t!(i18n, home_waiting_assignment)}
             </p>
         }
         .into_any(),
 
         HomeState::Assigning => view! {
-            <h2>"Розподіл / Assignment"</h2>
+            <h2>{t!(i18n, home_assigning_heading)}</h2>
             <p>
                 "The organizer / організатор is preparing assignments. "
-                "Зачекайте — скоро отримаєте повідомлення."
+                {t!(i18n, home_assigning_desc)}
             </p>
         }
         .into_any(),
@@ -706,24 +709,24 @@ fn render_home_state(
             recipient_city,
             recipient_branch_number,
         } => view! {
-            <h2>"Ваш отримувач / Your recipient"</h2>
+            <h2>{t!(i18n, home_assigned_heading)}</h2>
             <p>"Arriving / Отримання: your parcel is on its way. Confirm receipt when it arrives."</p>
 
             <dl>
-                <dt>"Ім'я / Name"</dt>
+                <dt>{t!(i18n, home_name_label)}</dt>
                 <dd data-testid="recipient-name">{recipient_name}</dd>
 
-                <dt>"Телефон / Phone"</dt>
+                <dt>{t!(i18n, home_phone_label)}</dt>
                 <dd data-testid="recipient-phone">{recipient_phone}</dd>
 
                 <dt>"Nova Poshta"</dt>
                 <dd data-testid="recipient-branch">
-                    {format!("Відділення №{recipient_branch_number}, {recipient_city}")}
+                    {t!(i18n, home_recipient_branch, branch_number = recipient_branch_number, city = recipient_city)}
                 </dd>
             </dl>
 
             <section class="receipt-section">
-                <h3>"Підтвердити отримання / Confirm receipt"</h3>
+                <h3>{t!(i18n, home_confirm_receipt_heading)}</h3>
 
                 <leptos::form::ActionForm action=receipt_action>
                     <div>
@@ -733,7 +736,7 @@ fn render_home_state(
                         <textarea
                             id="receipt-note"
                             name="note"
-                            placeholder="Пошкоджена упаковка, неправильний пакет, тощо..."
+                            placeholder=move || t_string!(i18n, home_receipt_note_placeholder)
                             data-testid="receipt-note-input"
                         ></textarea>
                     </div>
@@ -745,7 +748,7 @@ fn render_home_state(
                         data-testid="received-button"
                         disabled=move || !hydrated.get()
                     >
-                        "Отримав(ла) / Received"
+                        {t!(i18n, home_received_button)}
                     </button>
                     <button
                         type="submit"
@@ -754,7 +757,7 @@ fn render_home_state(
                         data-testid="not-received-button"
                         disabled=move || !hydrated.get()
                     >
-                        "Не отримав(ла) / Not received"
+                        {t!(i18n, home_not_received_button)}
                     </button>
                 </leptos::form::ActionForm>
             </section>
@@ -762,17 +765,17 @@ fn render_home_state(
         .into_any(),
 
         HomeState::ReceiptConfirmed => view! {
-            <h2>"Дякуємо! / Thanks!"</h2>
+            <h2>{t!(i18n, home_thanks_heading)}</h2>
             <p data-testid="receipt-thanks">"Receipt confirmed / Отримання підтверджено."</p>
-            <p data-testid="receipt-reported">"Повідомлено / Reported"</p>
+            <p data-testid="receipt-reported">{t!(i18n, home_reported_label)}</p>
         }
         .into_any(),
 
         HomeState::Complete => view! {
-            <h2>"Сезон завершено / Season Complete"</h2>
+            <h2>{t!(i18n, home_complete_heading)}</h2>
             <p>
                 "This season is complete. / Цей сезон завершено. "
-                "Дякуємо за участь!"
+                {t!(i18n, home_thanks_participation)}
             </p>
         }
         .into_any(),

@@ -1,3 +1,4 @@
+use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -177,6 +178,7 @@ pub async fn deactivate_participant(user_id: uuid::Uuid) -> Result<(), ServerFnE
 /// bypassing reactive signals for input values.
 #[component]
 fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl IntoView {
+    let i18n = use_i18n();
     // Hydration gate — prevent native form POST before WASM hydrates.
     let (hydrated, set_hydrated) = signal(false);
     Effect::new(move |_| {
@@ -201,12 +203,12 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
                     id="reg-name"
                     type="text"
                     name="name"
-                    placeholder="Іваненко Іван Іванович"
+                    placeholder=move || t_string!(i18n, participants_name_placeholder)
                     data-testid="reg-name-input"
                 />
             </div>
             <button type="submit" data-testid="register-button" disabled=move || !hydrated.get()>
-                "Зареєструвати"
+                {t!(i18n, participants_register_button)}
             </button>
         </leptos::form::ActionForm>
     }
@@ -218,6 +220,7 @@ fn ParticipantList(
     participants: Resource<Result<Vec<ParticipantSummary>, ServerFnError>>,
     deactivate_action: ServerAction<DeactivateParticipant>,
 ) -> impl IntoView {
+    let i18n = use_i18n();
     // Hydration gate — deactivate buttons disabled until WASM is live.
     let (hydrated, set_hydrated) = signal(false);
     Effect::new(move |_| {
@@ -225,17 +228,17 @@ fn ParticipantList(
     });
 
     view! {
-        <Suspense fallback=|| view! { <p>"Завантаження..."</p> }>
+        <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
             {move || participants.get().map(|result| match result {
                 Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
                 Ok(list) => view! {
                     <table>
                         <thead>
                             <tr>
-                                <th>"Ім'я"</th>
-                                <th>"Телефон"</th>
-                                <th>"Статус"</th>
-                                <th>"Дії"</th>
+                                <th>{t!(i18n, participants_table_name)}</th>
+                                <th>{t!(i18n, participants_table_phone)}</th>
+                                <th>{t!(i18n, participants_table_status)}</th>
+                                <th>{t!(i18n, participants_table_actions)}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -253,10 +256,10 @@ fn ParticipantList(
                                             <td data-testid="participant-name-cell">{p.name.clone()}</td>
                                             <td>{p.phone.clone()}</td>
                                             <td>
-                                                {if active {
-                                                    "Активний"
+                                                {move || if active {
+                                                    view! { {t!(i18n, participants_status_active)} }.into_any()
                                                 } else {
-                                                    "Деактивований"
+                                                    view! { {t!(i18n, participants_status_deactivated)} }.into_any()
                                                 }}
                                             </td>
                                             <td>
@@ -275,14 +278,14 @@ fn ParticipantList(
                                                                 data-testid="deactivate-button"
                                                                 disabled=move || !hydrated.get()
                                                             >
-                                                                "Деактивувати"
+                                                                {t!(i18n, participants_deactivate_button)}
                                                             </button>
                                                         </leptos::form::ActionForm>
                                                     }.into_any()
                                                 } else {
                                                     view! {
                                                         <span class="inactive" data-testid="inactive-status">
-                                                            "Деактивовано"
+                                                            {t!(i18n, participants_deactivated_label)}
                                                         </span>
                                                     }.into_any()
                                                 }}
@@ -304,6 +307,7 @@ fn ParticipantList(
 /// Admin participants management page (Story 1.1).
 #[component]
 pub fn ParticipantsPage() -> impl IntoView {
+    let i18n = use_i18n();
     let (error_msg, set_error_msg) = signal(Option::<String>::None);
 
     let register_action = ServerAction::<RegisterParticipant>::new();
@@ -334,10 +338,10 @@ pub fn ParticipantsPage() -> impl IntoView {
 
     view! {
         <div class="admin-participants">
-            <h1>"Учасники"</h1>
+            <h1>{t!(i18n, participants_page_title)}</h1>
 
             <section>
-                <h2>"Зареєструвати учасника"</h2>
+                <h2>{t!(i18n, participants_register_section_title)}</h2>
                 <RegisterForm
                     register_action=register_action
                 />
@@ -347,7 +351,7 @@ pub fn ParticipantsPage() -> impl IntoView {
             </section>
 
             <section>
-                <h2>"Список учасників"</h2>
+                <h2>{t!(i18n, participants_list_title)}</h2>
                 <ParticipantList
                     participants=participants
                     deactivate_action=deactivate_action

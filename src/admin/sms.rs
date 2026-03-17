@@ -1,3 +1,4 @@
+use crate::i18n::i18n::{t, use_i18n};
 use leptos::prelude::*;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -32,7 +33,14 @@ struct AssignmentTarget {
 /// Returns `Err` if the caller is not admin or DB fails.
 #[server]
 pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
-    use crate::{auth, config::Config, error::AppError, sms, types::UserRole};
+    use crate::{
+        auth,
+        config::Config,
+        error::AppError,
+        i18n::i18n::{Locale, td_string},
+        sms,
+        types::UserRole,
+    };
     use http::request::Parts;
 
     let pool = leptos::context::use_context::<sqlx::PgPool>()
@@ -55,7 +63,7 @@ pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
         .await
         .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
-    let message = "Новий сезон Mail Club відкрито! Зайди в додаток для реєстрації.";
+    let message = td_string!(Locale::uk, sms_season_open_body);
 
     let mut sent: u32 = 0;
     let mut failed_phones: Vec<String> = Vec::new();
@@ -88,7 +96,14 @@ pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
 /// Returns `Err` if the caller is not admin or DB fails.
 #[server]
 pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
-    use crate::{auth, config::Config, error::AppError, sms, types::UserRole};
+    use crate::{
+        auth,
+        config::Config,
+        error::AppError,
+        i18n::i18n::{Locale, td_string},
+        sms,
+        types::UserRole,
+    };
     use http::request::Parts;
 
     let pool = leptos::context::use_context::<sqlx::PgPool>()
@@ -130,7 +145,7 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
     .await
     .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
-    let message = "Твоє призначення готове! Зайди в додаток щоб побачити адресата.";
+    let message = td_string!(Locale::uk, sms_assignment_body);
 
     let mut sent: u32 = 0;
     let mut failed_phones: Vec<String> = Vec::new();
@@ -171,7 +186,14 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
 /// Returns `Err` if the caller is not admin or DB fails.
 #[server]
 pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
-    use crate::{auth, config::Config, error::AppError, sms, types::UserRole};
+    use crate::{
+        auth,
+        config::Config,
+        error::AppError,
+        i18n::i18n::{Locale, td_string},
+        sms,
+        types::UserRole,
+    };
     use http::request::Parts;
 
     let pool = leptos::context::use_context::<sqlx::PgPool>()
@@ -208,7 +230,7 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
 
     let deadline_str = confirm_deadline
         .format(&time::format_description::well_known::Rfc3339)
-        .unwrap_or_else(|_| String::from("невідомо"));
+        .unwrap_or_else(|_| td_string!(Locale::uk, common_unknown).to_owned());
 
     let phones = sqlx::query_scalar!(
         r#"
@@ -223,7 +245,8 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     .await
     .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
-    let message = format!("Нагадування: підтверди готовність листа до {deadline_str}.");
+    let prefix = td_string!(Locale::uk, sms_confirm_nudge_body_prefix);
+    let message = format!("{prefix}{deadline_str}.");
 
     let mut sent: u32 = 0;
     let mut failed_phones: Vec<String> = Vec::new();
@@ -255,7 +278,14 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
 /// Returns `Err` if the caller is not admin or DB fails.
 #[server]
 pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
-    use crate::{auth, config::Config, error::AppError, sms, types::UserRole};
+    use crate::{
+        auth,
+        config::Config,
+        error::AppError,
+        i18n::i18n::{Locale, td_string},
+        sms,
+        types::UserRole,
+    };
     use http::request::Parts;
 
     let pool = leptos::context::use_context::<sqlx::PgPool>()
@@ -295,7 +325,7 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     .await
     .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
-    let message = "Ти отримав/ла лист? Підтверди в додатку.";
+    let message = td_string!(Locale::uk, sms_receipt_nudge_body);
 
     let mut sent: u32 = 0;
     let mut failed_phones: Vec<String> = Vec::new();
@@ -330,6 +360,7 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
 #[allow(clippy::too_many_lines)]
 #[component]
 pub fn SmsPage() -> impl IntoView {
+    let i18n = use_i18n();
     let season_open_action = ServerAction::<SendSeasonOpenSms>::new();
     let assignment_action = ServerAction::<SendAssignmentSms>::new();
     let confirm_nudge_action = ServerAction::<SendConfirmNudgeSms>::new();
@@ -375,13 +406,13 @@ pub fn SmsPage() -> impl IntoView {
             {move || latest_report().map(|report| view! {
                 <div class="sms-report" data-testid="sms-report">
                     <p data-testid="sms-sent-confirmation">
-                        "Надіслано / Sent: "
+                        {t!(i18n, sms_sent_label)}
                         <strong>{report.sent}</strong>
                     </p>
                     {if report.failed > 0 {
                         view! {
                             <p class="error">
-                                "Невдало / Failed: "
+                                {t!(i18n, sms_failed_label)}
                                 <strong>{report.failed}</strong>
                             </p>
                         }.into_any()
@@ -394,60 +425,60 @@ pub fn SmsPage() -> impl IntoView {
             <section class="sms-triggers">
                 // Story 5.3: Season-open — target all active users
                 <div class="sms-trigger">
-                    <h2>"Відкриття сезону / Season Open"</h2>
-                    <p>"Усі активні учасники / All active users"</p>
+                    <h2>{t!(i18n, sms_season_open_section_title)}</h2>
+                    <p>{t!(i18n, sms_season_open_target)}</p>
                     <leptos::form::ActionForm action=season_open_action>
                         <button
                             type="submit"
                             data-testid="send-season-open-button"
                             disabled=move || !hydrated.get()
                         >
-                            "Надіслати / Send"
+                            {t!(i18n, common_send_button)}
                         </button>
                     </leptos::form::ActionForm>
                 </div>
 
                 // Story 5.1: Assignment notification — target senders with notified_at IS NULL
                 <div class="sms-trigger">
-                    <h2>"Призначення / Assignment"</h2>
-                    <p>"Відправники без повідомлення / Senders not yet notified"</p>
+                    <h2>{t!(i18n, sms_assignment_section_title)}</h2>
+                    <p>{t!(i18n, sms_assignment_target)}</p>
                     <leptos::form::ActionForm action=assignment_action>
                         <button
                             type="submit"
                             data-testid="send-assignment-button"
                             disabled=move || !hydrated.get()
                         >
-                            "Надіслати / Send"
+                            {t!(i18n, common_send_button)}
                         </button>
                     </leptos::form::ActionForm>
                 </div>
 
                 // Story 5.4: Pre-deadline nudge — target unconfirmed enrolled
                 <div class="sms-trigger">
-                    <h2>"Нагадування підтвердження / Confirm Nudge"</h2>
-                    <p>"Зареєстровані без підтвердження / Enrolled without confirmation"</p>
+                    <h2>{t!(i18n, sms_confirm_nudge_section_title)}</h2>
+                    <p>{t!(i18n, sms_confirm_nudge_target)}</p>
                     <leptos::form::ActionForm action=confirm_nudge_action>
                         <button
                             type="submit"
                             data-testid="send-confirm-nudge-button"
                             disabled=move || !hydrated.get()
                         >
-                            "Надіслати / Send"
+                            {t!(i18n, common_send_button)}
                         </button>
                     </leptos::form::ActionForm>
                 </div>
 
                 // Story 5.2: Receipt nudge — target recipients with no_response
                 <div class="sms-trigger">
-                    <h2>"Нагадування отримання / Receipt Nudge"</h2>
-                    <p>"Отримувачі без відповіді / Recipients without confirmation"</p>
+                    <h2>{t!(i18n, sms_receipt_nudge_section_title)}</h2>
+                    <p>{t!(i18n, sms_receipt_nudge_target)}</p>
                     <leptos::form::ActionForm action=receipt_nudge_action>
                         <button
                             type="submit"
                             data-testid="send-receipt-nudge-button"
                             disabled=move || !hydrated.get()
                         >
-                            "Надіслати / Send"
+                            {t!(i18n, common_send_button)}
                         </button>
                     </leptos::form::ActionForm>
                 </div>
