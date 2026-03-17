@@ -7,13 +7,16 @@ import { type Page, type Locator, expect } from "@playwright/test";
  * The selector contract is defined in spec/E2E Test Blueprint.md.
  *
  * Conventions (see end2end/README.md for full guide):
- *   - Every ActionForm click uses clickAndWaitForResponse() to ensure the
- *     server function completes before the method returns.
+ *   - Primary pattern: click() + element visibility wait. Playwright auto-waits
+ *     for the button to be enabled (hydration gate), and the visibility assertion
+ *     auto-retries until the Resource refetch completes and the DOM updates.
+ *   - clickAndWaitForResponse() is reserved for cases with no visible DOM change
+ *     after the action (advanceSeason) and for the login flow (native form POST).
  *   - Methods that represent complete actions (login, createSeason, etc.)
  *     are self-contained — they wait for their own completion signals.
  *   - Methods that represent user choices where the test verifies the outcome
- *     (enrollInSeason, confirmReady, etc.) wait for the POST but leave UI
- *     assertion to the caller.
+ *     (enrollInSeason, confirmReady, etc.) self-contain their completion wait
+ *     via element visibility assertions.
  *
  * Requires:
  *   SAMETE_TEST_MODE=true  (fixed OTP "000000")
@@ -28,17 +31,21 @@ export class MailClubPage {
   // ── Core helper ──
 
   /**
-   * Click a locator and wait for the server function POST response.
+   * Click a locator and wait for a POST response.
    *
-   * Every ActionForm submission triggers a POST. This helper ensures the
-   * server has processed the request before the method returns. The listener
-   * is set up BEFORE the click so it cannot miss the response.
+   * Use this only when there is no visible DOM change to wait for after the
+   * action (e.g., advanceSeason navigates away immediately, login uses a native
+   * form POST). For all other cases, prefer click() + element visibility wait.
    *
-   * Use this for every ActionForm submit button. Do NOT use page.waitForTimeout().
+   * The listener is set up BEFORE the click so it cannot miss the response.
+   * The optional urlHint filters to a specific endpoint, preventing the listener
+   * from accidentally matching a concurrent Resource refetch POST.
    */
-  async clickAndWaitForResponse(locator: Locator) {
+  async clickAndWaitForResponse(locator: Locator, urlHint?: string) {
     const responsePromise = this.page.waitForResponse(
-      (resp) => resp.request().method() === "POST",
+      (resp) =>
+        resp.request().method() === "POST" &&
+        (urlHint ? resp.url().includes(urlHint) : true),
     );
     await locator.click();
     await responsePromise;
@@ -92,9 +99,9 @@ export class MailClubPage {
       this.page.getByRole("button", { name: /save|submit|continue/i }),
     ).toBeEnabled();
     await this.page.getByLabel(/nova poshta|branch|відділення/i).fill(branch);
-    await this.page
-      .getByRole("button", { name: /save|submit|continue/i })
-      .click();
+    await this.clickAndWaitForResponse(
+      this.page.getByRole("button", { name: /save|submit|continue/i }),
+    );
     await this.page.waitForURL("/");
   }
 
@@ -114,9 +121,9 @@ export class MailClubPage {
     if (branch) {
       await this.page.getByLabel(/nova poshta|branch|відділення/i).fill(branch);
     }
-    await this.clickAndWaitForResponse(
-      this.page.getByTestId("enroll-button"),
-    );
+    await this.page.getByTestId("enroll-button").click();
+    // Wait for refetch to complete — enroll button disappears when enrolled.
+    await expect(this.page.getByTestId("enroll-button")).not.toBeVisible();
   }
 
   async expectEnrolled() {
@@ -134,9 +141,11 @@ export class MailClubPage {
   // ── Confirm ready (Story 2.2) ──
 
   async confirmReady() {
-    await this.clickAndWaitForResponse(
+    await this.page.getByTestId("confirm-ready-button").click();
+    // Wait for refetch to complete — confirm button disappears when confirmed.
+    await expect(
       this.page.getByTestId("confirm-ready-button"),
-    );
+    ).not.toBeVisible();
   }
 
   async expectConfirmed() {
@@ -168,14 +177,14 @@ export class MailClubPage {
       await this.page.getByLabel(/note|anything|organizer/i).fill(note);
     }
     if (received) {
-      await this.clickAndWaitForResponse(
-        this.page.getByTestId("received-button"),
-      );
+      await this.page.getByTestId("received-button").click();
     } else {
-      await this.clickAndWaitForResponse(
-        this.page.getByTestId("not-received-button"),
-      );
+      await this.page.getByTestId("not-received-button").click();
     }
+    // Wait for refetch to complete — completion signal appears.
+    await expect(
+      this.page.getByText(/дякуємо|thanks|reported|повідомлено/i).first(),
+    ).toBeVisible();
   }
 
   // ── Admin: participants (Story 1.1) ──
@@ -186,9 +195,9 @@ export class MailClubPage {
     await expect(this.page.getByTestId("register-button")).toBeEnabled();
     await this.page.getByLabel(/phone/i).fill(phone);
     await this.page.getByLabel(/name/i).fill(name);
-    await this.clickAndWaitForResponse(
-      this.page.getByTestId("register-button"),
-    );
+    await this.page.getByTestId("register-button").click();
+    // Wait for refetch to complete and the new participant to appear in the list.
+    await expect(this.page.getByText(name)).toBeVisible();
   }
 
   async expectParticipantInList(name: string) {
@@ -198,7 +207,9 @@ export class MailClubPage {
   async deactivateParticipant(name: string) {
     await this.page.goto("/admin/participants");
     const row = this.page.getByRole("row").filter({ hasText: name });
-    await this.clickAndWaitForResponse(row.getByTestId("deactivate-button"));
+    await row.getByTestId("deactivate-button").click();
+    // Wait for refetch to complete — inactive status appears.
+    await expect(this.page.getByText(/inactive|деактивовано/i)).toBeVisible();
   }
 
   // ── Admin: season management (Stories 4.1, 4.2) ──
@@ -234,8 +245,10 @@ export class MailClubPage {
 
   async advanceSeason() {
     await this.page.goto("/admin/season");
+    // No visible DOM change to wait for — use URL-filtered POST wait.
     await this.clickAndWaitForResponse(
       this.page.getByTestId("advance-button"),
+      "advance",
     );
   }
 
@@ -252,15 +265,17 @@ export class MailClubPage {
 
   async generateAssignments() {
     await this.page.goto("/admin/assignments");
-    await this.clickAndWaitForResponse(
-      this.page.getByTestId("generate-button"),
-    );
+    await this.page.getByTestId("generate-button").click();
+    // Wait for refetch to complete — cycle visualization appears.
+    await expect(this.page.getByTestId("cycle-visualization")).toBeVisible();
   }
 
   async releaseAssignments() {
-    await this.clickAndWaitForResponse(
-      this.page.getByTestId("release-button"),
-    );
+    await this.page.getByTestId("release-button").click();
+    // Wait for refetch to complete — released status text appears.
+    await expect(
+      this.page.getByText(/released|опубліковано/i),
+    ).toBeVisible();
   }
 
   async expectCycleVisualization() {
@@ -273,9 +288,9 @@ export class MailClubPage {
     type: "season-open" | "assignment" | "confirm-nudge" | "receipt-nudge",
   ) {
     await this.page.goto("/admin/sms");
-    await this.clickAndWaitForResponse(
-      this.page.getByTestId(`send-${type}-button`),
-    );
+    await this.page.getByTestId(`send-${type}-button`).click();
+    // Wait for refetch to complete — SMS report appears.
+    await expect(this.page.getByTestId("sms-report")).toBeVisible();
   }
 
   async expectSmsReport() {

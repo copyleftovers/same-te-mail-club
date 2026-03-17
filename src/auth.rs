@@ -102,6 +102,10 @@ pub async fn create_otp(pool: &PgPool, phone: &str) -> Result<String, AppError> 
 /// Returns `Err(AppError::RateLimited)` if either limit is exceeded.
 /// Returns `Err(AppError::Database(_))` on DB failure.
 pub async fn check_otp_rate_limit(pool: &PgPool, phone: &str) -> Result<(), AppError> {
+    if std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true") {
+        return Ok(());
+    }
+
     let count_60s = sqlx::query_scalar!(
         r#"
         SELECT COUNT(*) AS "count!"

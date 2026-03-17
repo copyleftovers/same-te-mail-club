@@ -59,13 +59,8 @@ test.describe.serial("The Mail Club", () => {
       await app.login(ADMIN_PHONE);
 
       await app.registerParticipant(PHONES.A, NAMES.A);
-      await app.expectParticipantInList(NAMES.A);
-
       await app.registerParticipant(PHONES.B, NAMES.B);
-      await app.expectParticipantInList(NAMES.B);
-
       await app.registerParticipant(PHONES.C, NAMES.C);
-      await app.expectParticipantInList(NAMES.C);
     });
 
     // Story 1.1 AC: duplicate phone rejected
@@ -87,12 +82,15 @@ test.describe.serial("The Mail Club", () => {
     test("1.2 — unregistered phone is rejected", async ({ page }) => {
       const app = new MailClubPage(page);
       await page.goto("/login");
+      const sendBtn = page.getByRole("button", { name: /send|submit|code/i });
+      await expect(sendBtn).toBeEnabled();
       await page.getByLabel(/phone/i).fill("+380679999999");
-      await page.getByRole("button", { name: /send|submit|code/i }).click();
-
+      await app.clickAndWaitForResponse(sendBtn);
       // The app must NOT reveal whether the phone is registered.
       // Either the OTP step does not appear, or verification silently fails.
       // Assert: user is still on login page after attempting the full flow.
+      // Wait for OTP step to appear before filling.
+      await expect(page.getByLabel(/code/i)).toBeVisible();
       await page.getByLabel(/code/i).fill("000000");
       await page.getByRole("button", { name: /verify|submit|sign/i }).click();
       await expect(page).toHaveURL(/\/login/);
@@ -571,8 +569,12 @@ test.describe.serial("The Mail Club", () => {
     test("6.1 — deactivated participant cannot sign in", async ({ page }) => {
       const app = new MailClubPage(page);
       await page.goto("/login");
+      const sendBtn = page.getByRole("button", { name: /send|submit|code/i });
+      await expect(sendBtn).toBeEnabled();
       await page.getByLabel(/phone/i).fill(DEACTIVATE_PHONE);
-      await page.getByRole("button", { name: /send|submit|code/i }).click();
+      await app.clickAndWaitForResponse(sendBtn);
+      // Wait for OTP step to appear before filling.
+      await expect(page.getByLabel(/code/i)).toBeVisible();
       await page.getByLabel(/code/i).fill("000000");
       await page.getByRole("button", { name: /verify|submit|sign/i }).click();
       // Should remain on login — auth rejected
