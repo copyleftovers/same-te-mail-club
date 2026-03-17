@@ -36,11 +36,11 @@ All 6 implementation phases complete. E2E flakiness root-caused and fixed (2026-
 
 ## Guidance
 
-- `guidance/dev-protocol.md` — feedback loop, compiler rules, LSP, TDD, unit vs E2E boundary (**binding**)
-- `guidance/leptos-idioms.md` — Leptos 0.8 patterns (mandatory for all component work)
-- `guidance/delegation-playbook.md` — agent delegation framework and prompt template
-- `guidance/debugging-policy.md` — E2E failure delegation, long-running command rules
-- `end2end/README.md` — E2E testing guide, POM contract, wait strategies (**binding**)
+- @guidance/dev-protocol.md — feedback loop, compiler rules, LSP, TDD, unit vs E2E boundary (**binding**)
+- @guidance/leptos-idioms.md — Leptos 0.8 patterns (mandatory for all component work)
+- @guidance/delegation-playbook.md — agent delegation framework and prompt template
+- @guidance/debugging-policy.md — E2E failure delegation, long-running command rules
+- @end2end/README.md — E2E testing guide, POM contract, wait strategies (**binding**)
 
 ## Product Design
 
