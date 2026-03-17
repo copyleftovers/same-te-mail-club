@@ -81,18 +81,10 @@ test.describe.serial("The Mail Club", () => {
     // Story 1.2 AC: unregistered phone cannot sign in
     test("1.2 — unregistered phone is rejected", async ({ page }) => {
       const app = new MailClubPage(page);
-      await page.goto("/login");
-      const sendBtn = page.getByRole("button", { name: /send|submit|code/i });
-      await expect(sendBtn).toBeEnabled();
-      await page.getByLabel(/phone/i).fill("+380679999999");
-      await app.clickAndWaitForResponse(sendBtn);
+      await app.attemptLogin("+380679999999");
       // The app must NOT reveal whether the phone is registered.
       // Either the OTP step does not appear, or verification silently fails.
       // Assert: user is still on login page after attempting the full flow.
-      // Wait for OTP step to appear before filling.
-      await expect(page.getByLabel(/code/i)).toBeVisible();
-      await page.getByLabel(/code/i).fill("000000");
-      await page.getByRole("button", { name: /verify|submit|sign/i }).click();
       await expect(page).toHaveURL(/\/login/);
     });
 
@@ -209,7 +201,7 @@ test.describe.serial("The Mail Club", () => {
       await app.login(ADMIN_PHONE);
       await app.triggerSms("season-open");
       await app.expectSmsReport();
-      await expect(page.getByText(/sent|надіслано/i)).toBeVisible();
+      await expect(page.getByTestId("sms-sent-confirmation")).toBeVisible();
     });
 
     // Story 4.2 AC: season visible to participants after launch
@@ -231,7 +223,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.goHome();
-      await expect(page.getByText(/self-expression|самовираження/i)).toBeVisible();
+      await expect(page.getByTestId("season-theme")).toBeVisible();
     });
 
     // Story 2.1 AC: season timeline visible (deadlines, theme)
@@ -317,7 +309,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.goHome();
-      await expect(page.getByText(/deadline|дедлайн|залишилось/i)).toBeVisible();
+      await expect(page.getByTestId("season-deadline")).toBeVisible();
     });
 
     // Story 2.2: Confirm ready
@@ -393,7 +385,7 @@ test.describe.serial("The Mail Club", () => {
       await app.login(ADMIN_PHONE);
       await page.goto("/admin/assignments");
       // Confirmed count should be visible (3 participants)
-      await expect(page.getByText(/3|confirmed|підтверджено/i)).toBeVisible();
+      await expect(page.getByTestId("confirmed-count")).toBeVisible();
     });
 
     // Story 3.1: Generate assignments
@@ -418,7 +410,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
       await page.goto("/admin/assignments");
-      await expect(page.getByText(/swap|обмін|override/i)).toBeVisible();
+      await expect(page.getByTestId("override-available")).toBeVisible();
     });
 
     // Story 3.3: Release assignments
@@ -427,7 +419,7 @@ test.describe.serial("The Mail Club", () => {
       await app.login(ADMIN_PHONE);
       await page.goto("/admin/assignments");
       await app.releaseAssignments();
-      await expect(page.getByText(/released|опубліковано/i)).toBeVisible();
+      await expect(page.getByTestId("released-status")).toBeVisible();
     });
 
     // Story 5.1: Assignment SMS
@@ -496,7 +488,7 @@ test.describe.serial("The Mail Club", () => {
       await app.login(PHONES.A);
       await app.goHome();
       await app.confirmReceipt(true);
-      await expect(page.getByText(/дякуємо|thanks|confirmed/i).first()).toBeVisible();
+      await expect(page.getByTestId("receipt-thanks")).toBeVisible();
     });
 
     // Story 2.4: Confirm receipt — not received, with note
@@ -505,7 +497,7 @@ test.describe.serial("The Mail Club", () => {
       await app.login(PHONES.B);
       await app.goHome();
       await app.confirmReceipt(false, "Пошта не надійшла");
-      await expect(page.getByText(/reported|повідомлено/i)).toBeVisible();
+      await expect(page.getByTestId("receipt-reported")).toBeVisible();
     });
 
     // Story 2.4 AC: "not received" triggers organizer notification
@@ -562,21 +554,13 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
       await app.deactivateParticipant(DEACTIVATE_NAME);
-      await expect(page.getByText(/inactive|деактивовано/i)).toBeVisible();
+      await expect(page.getByTestId("inactive-status")).toBeVisible();
     });
 
     // Story 6.1 AC: deactivated account cannot sign in
     test("6.1 — deactivated participant cannot sign in", async ({ page }) => {
       const app = new MailClubPage(page);
-      await page.goto("/login");
-      const sendBtn = page.getByRole("button", { name: /send|submit|code/i });
-      await expect(sendBtn).toBeEnabled();
-      await page.getByLabel(/phone/i).fill(DEACTIVATE_PHONE);
-      await app.clickAndWaitForResponse(sendBtn);
-      // Wait for OTP step to appear before filling.
-      await expect(page.getByLabel(/code/i)).toBeVisible();
-      await page.getByLabel(/code/i).fill("000000");
-      await page.getByRole("button", { name: /verify|submit|sign/i }).click();
+      await app.attemptLogin(DEACTIVATE_PHONE);
       // Should remain on login — auth rejected
       await expect(page).toHaveURL(/\/login/);
     });

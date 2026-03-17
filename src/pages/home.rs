@@ -616,7 +616,7 @@ fn render_home_state(
             <h2>"Відкрита реєстрація / Enrollment Open"</h2>
 
             {theme.as_ref().map(|t| view! {
-                <p class="theme">"Тема / Theme: " {t.clone()}</p>
+                <p class="theme" data-testid="season-theme">"Тема / Theme: " {t.clone()}</p>
             })}
 
             <p class="deadline">"Реєстрація до / Deadline: " {deadline}</p>
@@ -636,6 +636,7 @@ fn render_home_state(
                         type="text"
                         name="branch"
                         placeholder="Відділення №1, Київ"
+                        data-testid="enroll-branch-input"
                     />
                 </div>
                 <button
@@ -667,7 +668,7 @@ fn render_home_state(
                 "Create your mail / Створіть свій лист. "
                 "Confirm ready before the time runs out / підтвердьте готовність."
             </p>
-            <p class="deadline">"Дедлайн / Deadline: " {confirm_deadline}</p>
+            <p class="deadline" data-testid="season-deadline">"Дедлайн / Deadline: " {confirm_deadline}</p>
 
             <leptos::form::ActionForm action=confirm_action>
                 <button
@@ -733,6 +734,7 @@ fn render_home_state(
                             id="receipt-note"
                             name="note"
                             placeholder="Пошкоджена упаковка, неправильний пакет, тощо..."
+                            data-testid="receipt-note-input"
                         ></textarea>
                     </div>
                     // received=true hidden input for the Received button
@@ -761,7 +763,7 @@ fn render_home_state(
 
         HomeState::ReceiptConfirmed => view! {
             <h2>"Дякуємо! / Thanks!"</h2>
-            <p>"Receipt confirmed / Отримання підтверджено."</p>
+            <p data-testid="receipt-thanks">"Receipt confirmed / Отримання підтверджено."</p>
             <p data-testid="receipt-reported">"Повідомлено / Reported"</p>
         }
         .into_any(),

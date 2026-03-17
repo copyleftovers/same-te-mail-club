@@ -192,6 +192,7 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
                     type="tel"
                     name="phone"
                     placeholder="+380XXXXXXXXX"
+                    data-testid="reg-phone-input"
                 />
             </div>
             <div>
@@ -201,6 +202,7 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
                     type="text"
                     name="name"
                     placeholder="Іваненко Іван Іванович"
+                    data-testid="reg-name-input"
                 />
             </div>
             <button type="submit" data-testid="register-button" disabled=move || !hydrated.get()>
@@ -247,8 +249,8 @@ fn ParticipantList(
                                         crate::types::UserStatus::Active
                                     );
                                     view! {
-                                        <tr>
-                                            <td>{p.name.clone()}</td>
+                                        <tr data-testid="participant-row">
+                                            <td data-testid="participant-name-cell">{p.name.clone()}</td>
                                             <td>{p.phone.clone()}</td>
                                             <td>
                                                 {if active {
@@ -279,7 +281,7 @@ fn ParticipantList(
                                                     }.into_any()
                                                 } else {
                                                     view! {
-                                                        <span class="inactive">
+                                                        <span class="inactive" data-testid="inactive-status">
                                                             "Деактивовано"
                                                         </span>
                                                     }.into_any()

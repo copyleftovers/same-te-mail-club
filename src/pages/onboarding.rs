@@ -103,8 +103,9 @@ pub fn OnboardingPage() -> impl IntoView {
                     type="text"
                     name="branch"
                     placeholder="Відділення №1, Київ"
+                    data-testid="branch-input"
                 />
-                <button type="submit" disabled=move || !hydrated.get()>
+                <button type="submit" data-testid="save-onboarding-button" disabled=move || !hydrated.get()>
                     "Save and continue"
                 </button>
             </leptos::form::ActionForm>

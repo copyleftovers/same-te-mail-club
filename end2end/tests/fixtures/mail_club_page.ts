@@ -53,29 +53,25 @@ export class MailClubPage {
 
   // ── Auth ──
 
-  async login(phone: string) {
+  // Performs the full two-step login flow (request OTP → verify OTP) without
+  // asserting the outcome. The OTP step always appears — the server never reveals
+  // whether a phone is registered (privacy invariant). Rejection happens at the
+  // verify step, after which the caller asserts the expected URL.
+  async attemptLogin(phone: string) {
     await this.page.goto("/login");
-
-    // Wait for hydration — submit button starts disabled, becomes enabled after WASM loads.
-    const sendBtn = this.page.getByRole("button", {
-      name: /send|submit|code/i,
-    });
+    const sendBtn = this.page.getByTestId("send-otp-button");
     await expect(sendBtn).toBeEnabled();
-
-    await this.page.getByLabel(/phone/i).fill(phone);
-    await this.clickAndWaitForResponse(sendBtn);
-
-    // Wait for OTP step to appear before filling.
-    const codeInput = this.page.getByLabel(/code/i);
+    await this.page.getByTestId("phone-input").fill(phone);
+    await this.clickAndWaitForResponse(sendBtn, "request_otp");
+    const codeInput = this.page.getByTestId("otp-input");
     await expect(codeInput).toBeVisible();
     await codeInput.fill(TEST_OTP);
+    const verifyBtn = this.page.getByTestId("verify-otp-button");
+    await this.clickAndWaitForResponse(verifyBtn, "verify_otp_code");
+  }
 
-    const verifyBtn = this.page.getByRole("button", {
-      name: /verify|submit|sign/i,
-    });
-    await this.clickAndWaitForResponse(verifyBtn);
-
-    // Wait for navigation away from login.
+  async login(phone: string) {
+    await this.attemptLogin(phone);
     await expect(this.page).not.toHaveURL(/\/login/);
   }
 
@@ -96,11 +92,12 @@ export class MailClubPage {
   async completeOnboarding(branch: string) {
     // Wait for hydration before filling inputs.
     await expect(
-      this.page.getByRole("button", { name: /save|submit|continue/i }),
+      this.page.getByTestId("save-onboarding-button"),
     ).toBeEnabled();
-    await this.page.getByLabel(/nova poshta|branch|відділення/i).fill(branch);
+    await this.page.getByTestId("branch-input").fill(branch);
     await this.clickAndWaitForResponse(
-      this.page.getByRole("button", { name: /save|submit|continue/i }),
+      this.page.getByTestId("save-onboarding-button"),
+      "complete_onboarding",
     );
     await this.page.waitForURL("/");
   }
@@ -125,7 +122,7 @@ export class MailClubPage {
 
   async enrollInSeason(branch?: string) {
     if (branch) {
-      await this.page.getByLabel(/nova poshta|branch|відділення/i).fill(branch);
+      await this.page.getByTestId("enroll-branch-input").fill(branch);
     }
     await this.page.getByTestId("enroll-button").click();
     // Wait for refetch to complete — enroll button disappears when enrolled.
@@ -180,17 +177,17 @@ export class MailClubPage {
 
   async confirmReceipt(received: boolean, note?: string) {
     if (note) {
-      await this.page.getByLabel(/note|anything|organizer/i).fill(note);
+      await this.page.getByTestId("receipt-note-input").fill(note);
     }
     if (received) {
       await this.page.getByTestId("received-button").click();
+      // Wait for refetch to complete — completion signal appears.
+      await expect(this.page.getByTestId("receipt-thanks")).toBeVisible();
     } else {
       await this.page.getByTestId("not-received-button").click();
+      // Wait for refetch to complete — completion signal appears.
+      await expect(this.page.getByTestId("receipt-reported")).toBeVisible();
     }
-    // Wait for refetch to complete — completion signal appears.
-    await expect(
-      this.page.getByText(/дякуємо|thanks|reported|повідомлено/i).first(),
-    ).toBeVisible();
   }
 
   // ── Admin: participants (Story 1.1) ──
@@ -199,27 +196,27 @@ export class MailClubPage {
     await this.page.goto("/admin/participants");
     // Wait for hydration.
     await expect(this.page.getByTestId("register-button")).toBeEnabled();
-    await this.page.getByLabel(/phone/i).fill(phone);
-    await this.page.getByLabel(/name/i).fill(name);
+    await this.page.getByTestId("reg-phone-input").fill(phone);
+    await this.page.getByTestId("reg-name-input").fill(name);
     await this.page.getByTestId("register-button").click();
     // Wait for either success (name appears) or error (error message).
     // Whichever happens first, the action has completed.
     await Promise.race([
-      expect(this.page.getByText(name)).toBeVisible(),
+      expect(this.page.getByTestId("participant-name-cell").filter({hasText: name})).toBeVisible(),
       expect(this.page.locator(".error")).toBeVisible(),
     ]);
   }
 
   async expectParticipantInList(name: string) {
-    await expect(this.page.getByText(name)).toBeVisible();
+    await expect(this.page.getByTestId("participant-name-cell").filter({hasText: name})).toBeVisible();
   }
 
   async deactivateParticipant(name: string) {
     await this.page.goto("/admin/participants");
-    const row = this.page.getByRole("row").filter({ hasText: name });
+    const row = this.page.getByTestId("participant-row").filter({ hasText: name });
     await row.getByTestId("deactivate-button").click();
     // Wait for refetch to complete — inactive status appears.
-    await expect(this.page.getByText(/inactive|деактивовано/i)).toBeVisible();
+    await expect(this.page.getByTestId("inactive-status")).toBeVisible();
   }
 
   // ── Admin: season management (Stories 4.1, 4.2) ──
@@ -232,13 +229,14 @@ export class MailClubPage {
     await this.page.goto("/admin/season");
     // Wait for hydration.
     await expect(this.page.getByTestId("create-season-button")).toBeEnabled();
-    await this.page.getByLabel(/signup.*deadline/i).fill(signupDeadline);
-    await this.page.getByLabel(/confirm.*deadline/i).fill(confirmDeadline);
+    await this.page.getByTestId("signup-deadline-input").fill(signupDeadline);
+    await this.page.getByTestId("confirm-deadline-input").fill(confirmDeadline);
     if (theme) {
-      await this.page.getByLabel(/theme/i).fill(theme);
+      await this.page.getByTestId("theme-input").fill(theme);
     }
     await this.clickAndWaitForResponse(
       this.page.getByTestId("create-season-button"),
+      "create_season",
     );
     // Wait for the page to transition from create form to active season panel.
     await expect(this.page.getByTestId("launch-button")).toBeVisible();
@@ -248,6 +246,7 @@ export class MailClubPage {
     await this.page.goto("/admin/season");
     await this.clickAndWaitForResponse(
       this.page.getByTestId("launch-button"),
+      "launch_season",
     );
     // Wait for launch to complete — advance button appears after launch.
     await expect(this.page.getByTestId("advance-button")).toBeVisible();
@@ -266,6 +265,7 @@ export class MailClubPage {
     await this.page.goto("/admin/season");
     await this.clickAndWaitForResponse(
       this.page.getByTestId("cancel-button"),
+      "cancel_season",
     );
     // Wait for cancel to complete.
     await expect(this.page.getByTestId("cancel-button")).not.toBeVisible();
@@ -284,7 +284,7 @@ export class MailClubPage {
     await this.page.getByTestId("release-button").click();
     // Wait for refetch to complete — released status text appears.
     await expect(
-      this.page.getByText(/released|опубліковано/i),
+      this.page.getByTestId("released-status"),
     ).toBeVisible();
   }
 

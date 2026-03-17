@@ -374,7 +374,7 @@ pub fn SmsPage() -> impl IntoView {
             // SMS report
             {move || latest_report().map(|report| view! {
                 <div class="sms-report" data-testid="sms-report">
-                    <p>
+                    <p data-testid="sms-sent-confirmation">
                         "Надіслано / Sent: "
                         <strong>{report.sent}</strong>
                     </p>

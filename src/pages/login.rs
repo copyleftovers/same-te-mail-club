@@ -143,8 +143,9 @@ pub fn LoginPage() -> impl IntoView {
                         type="tel"
                         name="phone"
                         placeholder="+380XXXXXXXXX"
+                        data-testid="phone-input"
                     />
-                    <button type="submit" disabled=move || !hydrated.get()>
+                    <button type="submit" data-testid="send-otp-button" disabled=move || !hydrated.get()>
                         "Send code (надіслати)"
                     </button>
                 </leptos::form::ActionForm>
@@ -164,8 +165,9 @@ pub fn LoginPage() -> impl IntoView {
                         name="code"
                         placeholder="000000"
                         maxlength="6"
+                        data-testid="otp-input"
                     />
-                    <button type="submit">
+                    <button type="submit" data-testid="verify-otp-button">
                         "Verify code (підтвердити)"
                     </button>
                 </form>

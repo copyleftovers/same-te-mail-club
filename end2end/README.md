@@ -109,7 +109,7 @@ Effects only run client-side after hydration. The button is disabled during SSR 
 ```typescript
 await expect(page.getByTestId("some-submit-button")).toBeEnabled();
 // Now safe to fill inputs
-await page.getByLabel(/phone/i).fill("+380670000001");
+await page.getByTestId("phone-input").fill("+380670000001");
 ```
 
 ---
@@ -212,17 +212,39 @@ These methods only check state. They auto-retry via Playwright's web-first asser
 
 ## Selector Contract
 
-Tests find elements via three mechanisms, in order of preference:
+**`data-testid` attributes are the only permitted selector mechanism.** All elements that tests interact with or assert on must carry a `data-testid` in the Rust component. This is both the current codebase reality and a hard project preference.
 
-1. **`data-testid` attributes** — for elements specific to test interaction. Used via `page.getByTestId("enroll-button")`. The Rust component sets `data-testid="enroll-button"` on the element.
+```typescript
+// Correct
+page.getByTestId("enroll-button")
+page.getByTestId("season-theme")
+page.getByTestId("receipt-thanks")
+```
 
-2. **Accessible roles and labels** — for standard form elements. Used via `page.getByLabel(/phone/i)` or `page.getByRole("button", { name: /send/i })`. The Rust component uses `<label>` elements or `aria-label` attributes.
+### Why testids only
 
-3. **Text content** — for asserting visible content. Used via `page.getByText(/pattern/i)` or `expect(locator).toContainText()`. Patterns are case-insensitive and bilingual (Ukrainian + English) to tolerate i18n changes.
+`getByLabel`, `getByRole`, and `getByText` couple tests to UI copy, element structure, and accessibility markup — all of which can change for legitimate product or i18n reasons and silently break tests. Testids are an explicit, stable contract between the Rust component and the test suite. They change only when product intent changes.
 
-**Bilingual patterns:** This app uses Ukrainian UI text. All regex patterns must match both Ukrainian and English variants: `/enrolled|зареєстровано/i`. This prevents tests from breaking when translations change.
+### Banned selector mechanisms
 
-**Adding new test IDs:** When implementing a Rust component that tests will interact with, add `data-testid="descriptive-name"` to actionable elements (buttons, links) and key display elements (status text, data fields).
+| Mechanism | Example | Why banned |
+|-----------|---------|------------|
+| `getByLabel` | `getByLabel(/phone/i)` | Coupled to label text |
+| `getByRole` with name | `getByRole("button", { name: /send/i })` | Coupled to button copy |
+| `getByText` | `getByText(/дякуємо\|thanks/i)` | Coupled to UI copy |
+| CSS class selectors | `locator(".error")` | Coupled to styling |
+
+Permitted exceptions: `locator("main")` for broad page-level containment checks, `page.waitForURL()` for navigation assertions, `toContainText()` when asserting the text value of an already-located testid element.
+
+### Adding testids to Rust components
+
+Every element a test interacts with or asserts on needs a `data-testid`. When adding a new component:
+
+- Actionable elements (buttons, inputs, links): always add `data-testid`
+- Status and result display elements: always add `data-testid`
+- Leptos `view!` syntax: `data-testid="descriptive-name"` directly on the element
+
+If the element is inside a conditional branch (`match`, `<Show>`, `<For>`), the testid only exists in the DOM when that branch is active. Ensure the test navigates to the page state where the branch renders before asserting visibility.
 
 ---
 
@@ -265,7 +287,7 @@ async doSomething() {
     // Wait for hydration if filling inputs before the first click.
     await expect(this.page.getByTestId("submit-button")).toBeEnabled();
     // Fill form fields.
-    await this.page.getByLabel(/field/i).fill("value");
+    await this.page.getByTestId("field-input").fill("value");
     // Click — Playwright auto-waits for enabled (hydration gate).
     await this.page.getByTestId("submit-button").click();
     // Wait for the DOM to reflect the completed action (covers action POST + Resource refetch).
@@ -463,12 +485,13 @@ A flaky test is a test with a missing wait. Find the missing synchronization poi
 
 - [ ] No `waitForTimeout` calls anywhere in POM or tests
 - [ ] No `networkidle` waits
-- [ ] Every ActionForm click uses `clickAndWaitForResponse()`
+- [ ] Every ActionForm click uses `clickAndWaitForResponse()` with a `urlHint`
 - [ ] Every assertion uses web-first form (`await expect(locator).toX()`)
 - [ ] New POM methods wait for hydration where needed
-- [ ] Selectors use testids/roles/labels, not CSS classes
+- [ ] **All selectors use `getByTestId()` — no `getByLabel`, `getByRole` with name, or `getByText`**
+- [ ] Every new element interacted with or asserted on has `data-testid` in the Rust component
+- [ ] Conditional elements: testid is in the right branch for the page state the test navigates to
 - [ ] Test names trace to story numbers
-- [ ] Bilingual regex patterns for all text assertions
 - [ ] Tests pass 3 times in a row locally before claiming stable
 
 ---

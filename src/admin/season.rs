@@ -368,6 +368,7 @@ fn CreateSeasonForm(
                         type="datetime-local"
                         name="signup_deadline"
                         required=true
+                        data-testid="signup-deadline-input"
                     />
                 </div>
                 <div>
@@ -379,6 +380,7 @@ fn CreateSeasonForm(
                         type="datetime-local"
                         name="confirm_deadline"
                         required=true
+                        data-testid="confirm-deadline-input"
                     />
                 </div>
                 <div>
@@ -390,6 +392,7 @@ fn CreateSeasonForm(
                         type="text"
                         name="theme"
                         placeholder="Наприклад: Перший сезон"
+                        data-testid="theme-input"
                     />
                 </div>
                 <button
@@ -429,11 +432,11 @@ fn ActiveSeasonPanel(
 
                 {status.theme.as_ref().map(|t| view! {
                     <dt>"Тема"</dt>
-                    <dd>{t.clone()}</dd>
+                    <dd data-testid="season-theme">{t.clone()}</dd>
                 })}
 
                 <dt>"Реєстрація до"</dt>
-                <dd>{status.signup_deadline.clone()}</dd>
+                <dd data-testid="season-deadline">{status.signup_deadline.clone()}</dd>
 
                 <dt>"Підтвердження до"</dt>
                 <dd>{status.confirm_deadline.clone()}</dd>
@@ -442,7 +445,7 @@ fn ActiveSeasonPanel(
                 <dd>{status.enrolled_count.to_string()}</dd>
 
                 <dt>"Підтверджено / Confirmed"</dt>
-                <dd>{status.confirmed_count.to_string()}</dd>
+                <dd data-testid="confirmed-count">{status.confirmed_count.to_string()}</dd>
             </dl>
 
             <div class="season-actions">

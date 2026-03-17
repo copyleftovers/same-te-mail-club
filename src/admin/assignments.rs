@@ -656,7 +656,7 @@ pub fn AssignmentsPage() -> impl IntoView {
             // Release confirmation — shown after successful release_assignments() call
             {move || {
                 release_action.value().get().and_then(Result::ok).map(|()| view! {
-                    <p>"Опубліковано / Released — assignments confirmed. Advance season to Delivery to make them visible."</p>
+                    <p data-testid="released-status">"Опубліковано / Released — assignments confirmed. Advance season to Delivery to make them visible."</p>
                 })
             }}
 
@@ -665,7 +665,7 @@ pub fn AssignmentsPage() -> impl IntoView {
                 {move || confirmed_count.get().map(|result| match result {
                     Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
                     Ok(count) => view! {
-                        <p>"Підтверджено / Confirmed: " {count}</p>
+                        <p data-testid="confirmed-count">"Підтверджено / Confirmed: " {count}</p>
                     }.into_any(),
                 })}
             </Suspense>
@@ -721,7 +721,7 @@ fn render_preview(
                 }.into_any()
             } else {
                 view! {
-                    <p>"Опубліковано / Released — assignments are visible to participants."</p>
+                    <p data-testid="released-status">"Опубліковано / Released — assignments are visible to participants."</p>
                 }.into_any()
             }}
 
@@ -813,7 +813,7 @@ fn SwapForm(
     hydrated: ReadSignal<bool>,
 ) -> impl IntoView {
     view! {
-        <section>
+        <section data-testid="override-available">
             <h3>"Swap / Обмін"</h3>
             <p>"Enter two sender UUIDs to exchange their recipients."</p>
             <leptos::form::ActionForm action=swap_action>
