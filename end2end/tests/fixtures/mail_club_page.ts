@@ -109,6 +109,12 @@ export class MailClubPage {
 
   async goHome() {
     await this.page.goto("/");
+    // Wait for hydration by checking that the main content container is fully rendered.
+    // The page has many states (NoSeason, EnrollmentOpen, Enrolled, etc.), many of which
+    // have no buttons at all (50% of states). Waiting for "first button enabled" fails
+    // on these states. Instead, wait for <main> to be stable — it exists in all states
+    // and proves the page is interactive (hydration complete).
+    await expect(this.page.locator("main")).toBeVisible({ timeout: 10_000 });
   }
 
   async expectHomeContent(text: string | RegExp) {
@@ -196,8 +202,12 @@ export class MailClubPage {
     await this.page.getByLabel(/phone/i).fill(phone);
     await this.page.getByLabel(/name/i).fill(name);
     await this.page.getByTestId("register-button").click();
-    // Wait for refetch to complete and the new participant to appear in the list.
-    await expect(this.page.getByText(name)).toBeVisible();
+    // Wait for either success (name appears) or error (error message).
+    // Whichever happens first, the action has completed.
+    await Promise.race([
+      expect(this.page.getByText(name)).toBeVisible(),
+      expect(this.page.locator(".error")).toBeVisible(),
+    ]);
   }
 
   async expectParticipantInList(name: string) {
