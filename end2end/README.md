@@ -2,7 +2,7 @@
 
 Authoritative reference for writing, maintaining, and debugging Playwright E2E tests in this Leptos 0.8 project. Read this before touching any test file.
 
-For deep-dive research and alternative patterns, see `ops/e2e-research.md`.
+For deep-dive research and alternative patterns, see `end2end/e2e-research.md`.
 
 ---
 
@@ -31,7 +31,7 @@ Every E2E pattern in this project reduces to three rules:
 
 1. **Wait for hydration before interacting.** Playwright's auto-wait handles this because all ActionForm buttons start `disabled` and become enabled only after WASM hydrates.
 
-2. **Wait for the server function to complete after every ActionForm click.** Use `clickAndWaitForResponse()` — it sets up a POST response listener before clicking, so it cannot miss the response.
+2. **Wait for the server function to complete after every ActionForm click.** Use element visibility waits — `expect(locator).toBeVisible()` or `not.toBeVisible()` — after clicking. These auto-retry until the Resource refetch completes and the DOM updates. Use `clickAndWaitForResponse()` only when there is no visible DOM change (e.g., `advanceSeason`).
 
 3. **Assert on concrete UI signals, not time.** Use `expect(locator).toBeVisible()`, `expect(page).toHaveURL()`, element appearance/disappearance. Never `waitForTimeout`. Never `networkidle`.
 
@@ -116,25 +116,40 @@ await page.getByLabel(/phone/i).fill("+380670000001");
 
 ## Wait Strategies
 
-### After ActionForm Click → `clickAndWaitForResponse()`
+### After ActionForm Click → Element Visibility Wait (primary pattern)
 
-The POM provides this helper. It is the **only** correct way to click an ActionForm submit button:
+The primary pattern after clicking an ActionForm button is to assert on a visible DOM change. Playwright's `click()` already auto-waits for `enabled` (the hydration gate). The visibility assertion auto-retries until the Resource refetch completes and the DOM updates:
 
 ```typescript
-async clickAndWaitForResponse(locator: Locator) {
+await this.page.getByTestId("submit-button").click();
+// Wait for the result of the action to appear
+await expect(this.page.getByTestId("result-element")).toBeVisible();
+// — or for an element to disappear —
+await expect(this.page.getByTestId("submit-button")).not.toBeVisible();
+```
+
+### After ActionForm Click → `clickAndWaitForResponse()` (fallback for no DOM change)
+
+Use this helper only when there is no visible DOM change to wait for after the action (e.g., `advanceSeason` navigates away immediately, `login` uses a native form POST):
+
+```typescript
+async clickAndWaitForResponse(locator: Locator, urlHint?: string) {
     const responsePromise = this.page.waitForResponse(
-        (resp) => resp.request().method() === "POST",
+        (resp) => resp.request().method() === "POST" &&
+                  (urlHint ? resp.url().includes(urlHint) : true),
     );
     await locator.click();
     await responsePromise;
 }
 ```
 
-The listener is created **before** the click. This is critical — if you await the click first, the response may fire and be missed before you start listening.
+The listener is created **before** the click — this is critical. The optional `urlHint` filters to a specific endpoint, preventing the listener from accidentally matching a concurrent Resource refetch POST.
+
+**Warning:** Using `clickAndWaitForResponse()` without a `urlHint` for actions that trigger Resource refetches is discouraged. The refetch POST may arrive before the test sets up its next listener, causing the wrong response to be matched.
 
 ### After Action Completes → Assert on UI
 
-After `clickAndWaitForResponse`, the POST is done but the Resource refetch may still be in flight. Choose the right wait:
+After clicking, the action POST and Resource refetch may still be in flight. Choose the right wait:
 
 | Scenario | Wait Pattern |
 |----------|-------------|
@@ -169,23 +184,23 @@ These methods wait for their own completion. The test can proceed immediately af
 | `completeOnboarding(branch)` | Navigates to `/` |
 | `createSeason(signup, confirm, theme?)` | `launch-button` becomes visible |
 | `launchSeason()` | `advance-button` becomes visible |
-| `advanceSeason()` | POST response received |
+| `advanceSeason()` | POST response received (no DOM change — uses `clickAndWaitForResponse`) |
 | `cancelSeason()` | `cancel-button` disappears |
-| `registerParticipant(phone, name)` | POST response received |
+| `registerParticipant(phone, name)` | Participant name appears in list |
 
-### Assertion-Separated Actions
+### Self-Contained Actions with Internal Completion Wait
 
-These methods wait for the POST but leave UI verification to the caller. This allows tests to check for both success and failure paths.
+These methods use `click()` + element visibility wait internally. The test can proceed immediately after calling them.
 
-| Method | What it waits for | Caller should assert |
-|--------|------------------|---------------------|
-| `enrollInSeason(branch?)` | POST response | `expectEnrolled()` or error text |
-| `confirmReady()` | POST response | `expectConfirmed()` or error text |
-| `confirmReceipt(received, note?)` | POST response | Thank-you/reported text |
-| `generateAssignments()` | POST response | `expectCycleVisualization()` |
-| `releaseAssignments()` | POST response | Released text |
-| `triggerSms(type)` | POST response | `expectSmsReport()` |
-| `deactivateParticipant(name)` | POST response | Deactivated text |
+| Method | Completion Signal |
+|--------|------------------|
+| `enrollInSeason(branch?)` | `enroll-button` disappears |
+| `confirmReady()` | `confirm-ready-button` disappears |
+| `confirmReceipt(received, note?)` | Thank-you/reported text appears |
+| `generateAssignments()` | `cycle-visualization` appears |
+| `releaseAssignments()` | Released text appears |
+| `triggerSms(type)` | `sms-report` appears |
+| `deactivateParticipant(name)` | Inactive status text appears |
 
 ### Pure Assertions
 
@@ -251,12 +266,21 @@ async doSomething() {
     await expect(this.page.getByTestId("submit-button")).toBeEnabled();
     // Fill form fields.
     await this.page.getByLabel(/field/i).fill("value");
-    // Click and wait for server function.
+    // Click — Playwright auto-waits for enabled (hydration gate).
+    await this.page.getByTestId("submit-button").click();
+    // Wait for the DOM to reflect the completed action (covers action POST + Resource refetch).
+    await expect(this.page.getByTestId("result")).toBeVisible();
+}
+```
+
+If there is no visible DOM change after the action (rare), use `clickAndWaitForResponse()` with a `urlHint`:
+
+```typescript
+async doSomethingWithNoVisibleChange() {
     await this.clickAndWaitForResponse(
         this.page.getByTestId("submit-button"),
+        "action-name",
     );
-    // Optionally wait for a UI completion signal if this is a self-contained action.
-    await expect(this.page.getByTestId("result")).toBeVisible();
 }
 ```
 
@@ -274,7 +298,8 @@ async expectSomeContent(text: string | RegExp) {
 
 ### Checklist for New POM Methods
 
-- [ ] Uses `clickAndWaitForResponse()` for every ActionForm button click
+- [ ] Uses `click()` + element visibility wait for ActionForm button clicks (preferred)
+- [ ] Uses `clickAndWaitForResponse()` with a `urlHint` only when there is no DOM change
 - [ ] Waits for hydration (`toBeEnabled()`) if filling inputs before first click
 - [ ] Self-contained actions wait for their completion signal
 - [ ] Assertion-separated actions document what the caller should assert
@@ -322,10 +347,10 @@ Arbitrary delays are flaky by definition. Too short on slow machines, too slow o
 // WRONG
 await page.waitForTimeout(1000);
 
-// RIGHT
-await this.clickAndWaitForResponse(button);
-// or
+// RIGHT — assert on the DOM change that follows the action
 await expect(locator).toBeVisible();
+// or for element disappearance
+await expect(locator).not.toBeVisible();
 ```
 
 ### `networkidle` — BANNED
@@ -355,6 +380,18 @@ All selectors live in the POM. Tests use POM methods.
 
 Use Playwright's web-first assertions. `page.evaluate` runs once with no retry.
 
+### `waitForResponse(POST)` without URL filtering — DISCOURAGED
+
+After an action POST completes, Leptos fires a Resource refetch POST. An unfiltered `waitForResponse(POST)` may catch the refetch instead of the intended action response, causing the test to proceed before the actual next action completes. Prefer element visibility waits. When `waitForResponse` is unavoidable (no DOM change), always pass a `urlHint`:
+
+```typescript
+// WRONG — may catch a concurrent Resource refetch POST
+await this.clickAndWaitForResponse(button);
+
+// RIGHT — URL-filtered so it only matches the intended endpoint
+await this.clickAndWaitForResponse(button, "advance");
+```
+
 ---
 
 ## Running Tests
@@ -383,6 +420,15 @@ The config uses both `list` (terminal) and `html` (browser) reporters. You alway
 ---
 
 ## Debugging Failures
+
+### Quick Triage
+
+| Symptom | Most likely cause |
+|---------|-------------------|
+| Test **hangs / times out** | WASM didn't hydrate (button stayed disabled), stale process on :3000, or server didn't start |
+| Test **fails on assertion** | Missing wait for Resource refetch — element not updated yet, or wrong selector |
+| Test **flaky** (passes on retry) | Race condition — replace any remaining `waitForResponse(POST)` with element visibility wait |
+| Passes **locally, fails CI** | Slow machine — increase `expect.timeout` in config; or DB state — run `just e2e` not raw `npx playwright test` |
 
 ### Test Hangs or Times Out
 
@@ -446,7 +492,7 @@ A flaky test is a test with a missing wait. Find the missing synchronization poi
 
 ### Project-Specific
 
-- `ops/e2e-research.md` — deep-dive research document with alternative patterns, timeout hierarchy, and Leptos-specific gotchas.
-- `ops/leptos-idioms.md` — Leptos 0.8 patterns used in this codebase, including the hydration gate and ActionForm conventions.
-- `spec/E2E Test Blueprint.md` — the selector contract between Rust components and Playwright tests.
-- `spec/User Stories.md` — acceptance criteria that tests are derived from. Every test traces to a story number.
+- `end2end/e2e-research.md` — deep-dive research document with alternative patterns, timeout hierarchy, and Leptos-specific gotchas.
+- `guidance/leptos-idioms.md` — Leptos 0.8 patterns used in this codebase, including the hydration gate and ActionForm conventions.
+- `archive/spec/E2E Test Blueprint.md` — original prescriptive test design doc (archived; tests are now built).
+- `spec/technical/User Stories.md` — acceptance criteria that tests are derived from. Every test traces to a story number.

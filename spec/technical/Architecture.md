@@ -2,7 +2,9 @@
 
 Technical architecture for the mail club app. Companion to the Product Spec (WHAT), Personas (WHO), and User Stories (VALUE). This document covers HOW.
 
-Written 2026-03-11. Supersedes the Technical Research Brief.
+Written 2026-03-11. Supersedes `archive/spec/Technical Research Brief.md`.
+
+**Authority note:** The §Data Model section in this document is superseded by `spec/technical/Data Model.md`. All other sections are authoritative.
 
 ---
 
@@ -214,7 +216,7 @@ Double Submit Cookie pattern:
 
 ## Data Model
 
-**Authoritative schema is in `spec/Data Model.md`.** This section summarizes the entity relationships and key design decisions. If any conflict exists, Data Model.md wins.
+**Authoritative schema is in `spec/technical/Data Model.md`.** This section summarizes the entity relationships and key design decisions. If any conflict exists, Data Model.md wins.
 
 ### Entity Overview
 
@@ -513,186 +515,25 @@ The organizer sees:
 
 ## Testing Strategy
 
-### The Feedback Loop
+→ **Authoritative guide:** `guidance/dev-protocol.md` (feedback loop, compiler config, LSP, unit vs E2E boundaries, implementation rules).
 
-The compiler is your best friend, forever and always. The feedback loop has five layers, each catching what the inner layers cannot:
+Unit vs E2E boundary:
 
-```
-1. rust-analyzer        (instant — types, borrow checker, inline diagnostics)
-2. bacon clippy         (continuous — pedantic lints, style, correctness hints)
-3. cargo test           (on demand — unit tests, integration tests, business rules)
-4. cargo leptos end-to-end  (on demand — full-stack E2E, user-visible flows)
-5. CI                   (on push — everything, clean environment)
-```
+| Test with `cargo test` | Test with `cargo leptos end-to-end` |
+|------------------------|--------------------------------------|
+| Phase transition logic | Database operations |
+| OTP hashing/verification | SMS delivery (dry-run) |
+| Phone number normalization | Leptos component rendering |
+| Assignment algorithm | Full user flows (login, enroll, confirm) |
+| Session token generation | Auth guards and redirects |
 
-Nothing ships that any layer rejects.
-
-### Compiler Configuration
-
-```toml
-[lints.rust]
-unsafe_code = "forbid"
-
-[lints.clippy]
-all = { level = "deny" }
-pedantic = { level = "deny" }
-```
-
-Pedantic clippy findings are not warnings. They are errors. They are always fixed. No `#[allow(clippy::...)]` without a comment explaining why the lint is wrong for this specific case.
-
-### Development Runner
-
-`bacon clippy` as the continuous background runner. Not `bacon check` — clippy gives the pedantic lints. The developer (or implementing agent) keeps bacon running in a terminal and treats every output line as blocking.
-
-### LSP
-
-rust-analyzer must be active and its diagnostics treated as authoritative. Implementing agents must use LSP tool access to verify type correctness before moving on. Red squiggles are not advisory — they are errors.
-
-### Unit and Integration Tests
-
-**Intelligent TDD based on the spec.** Tests are derived from the product spec's acceptance criteria, not invented. Each test traces back to a story number.
-
-**What to test with `cargo test`:**
-- Phase transition logic: valid transitions succeed, invalid transitions return `Err`
-- OTP generation, hashing, verification, expiry, rate limiting
-- Phone number normalization (various input formats → E.164)
-- Assignment algorithm: cycle validity, social weight minimization, cohort splitting
-- Session creation, validation, expiry, revocation
-
-**What NOT to test with `cargo test`:**
-- Database operations (tested via E2E against real Postgres)
-- SMS delivery (tested via E2E with a mock TurboSMS endpoint or manual verification)
-- Leptos component rendering (tested via E2E in a real browser)
-
-### E2E Tests: Playwright
-
-E2E tests are written as part of the architecture phase, before implementation. They encode the user stories as executable specifications. The implementing agent works story by story, running E2E tests to see progress. Red → green.
-
-**Setup:**
-
-```
-end2end/
-  playwright.config.ts    — baseURL: http://127.0.0.1:3000, workers: 1
-  package.json            — @playwright/test dependency
-  tests/
-    fixtures/
-      mail_club_page.ts   — Page Object Model
-    epic1_join.spec.ts     — Stories 1.1, 1.2, 1.3
-    epic2_season.spec.ts   — Stories 2.1, 2.2, 2.3, 2.4
-    epic3_assign.spec.ts   — Stories 3.1, 3.2, 3.3
-    epic4_manage.spec.ts   — Stories 4.1, 4.2
-    epic5_sms.spec.ts      — Stories 5.1, 5.2, 5.3, 5.4
-    epic6_account.spec.ts  — Story 6.1
-```
-
-**cargo-leptos orchestration:**
-
-```toml
-# Cargo.toml [package.metadata.leptos]
-end2end-cmd = "npx playwright test"
-end2end-dir = "end2end"
-```
-
-`cargo leptos end-to-end` builds the app, starts the server, runs Playwright, tears down. The `webServer` block in `playwright.config.ts` is left commented out — cargo-leptos manages the server lifecycle.
-
-**Page Object Model:** `MailClubPage` class with methods mapping to user actions:
-- `login(phone)` — enter phone, submit, enter OTP, submit
-- `completeOnboarding(city, branchNumber)` — set Nova Poshta city + branch number
-- `enrollInSeason()` — click enroll
-- `confirmReady()` — click confirm
-- `viewAssignment()` — read recipient details
-- `confirmReceipt(received)` — click received/not received
-- Admin methods: `createSeason(...)`, `launchSeason()`, `generateAssignments()`, `releaseAssignments()`, `triggerSms(type)`
-
-**Test traceability:** Each test case comments its story number:
-
-```typescript
-// Story 2.2: Confirm mail is ready
-test('confirmed participant enters assignment graph', async ({ page }) => {
-  // ...
-});
-```
-
-**OTP in tests:** Tests need to verify OTP codes. Options:
-1. Test mode: when `SAMETE_TEST_MODE=true`, the app uses a fixed OTP code (e.g., `000000`). This env var is only set in test environments. The server logs a warning at startup when test mode is active.
-2. Read OTP from DB: Playwright test calls a test-only API endpoint that returns the current OTP for a phone number. This endpoint only exists when compiled with a `test-support` feature.
-
-Option 1 is simpler. Option 2 is more correct (tests the real OTP flow except the SMS delivery). Recommend option 2 with the test-support feature gate — the endpoint cannot exist in production builds.
+E2E conventions, POM contract, and wait strategies: see `end2end/README.md`.
 
 ---
 
 ## Development Protocol
 
-### For the Implementer
-
-The implementer may be a human or an AI agent. These rules apply to both.
-
-**The compiler is your best friend, forever and always.**
-
-1. **Model in types first.** Before writing any logic, define the enums, structs, and newtypes that represent the domain. Make invalid states unrepresentable. Then let the compiler tell you what methods those types need.
-
-2. **Strict pedantic clippy, always.** `clippy::pedantic = deny`. Every finding is fixed. No exceptions without a documented reason. This extends the compiler's feedback loop into style and correctness territory.
-
-3. **TDD from the spec.** User stories have Given/When/Then acceptance criteria. These become tests — unit tests for pure logic, E2E tests for user-visible flows. Write the test, watch it fail, implement until it passes. Tests trace back to story numbers.
-
-4. **Use every feedback channel.** rust-analyzer for instant type feedback. bacon clippy for continuous lint checking. `cargo test` for business rules. `cargo leptos end-to-end` for full-stack verification. Treat output from every channel as blocking.
-
-5. **Agents use LSP.** An implementing agent must leverage rust-analyzer diagnostics. LSP output is not advisory — it is a compiler-equivalent feedback channel. Fix diagnostics before moving on.
-
-6. **One story at a time.** Implement story by story in dependency order. Run the relevant E2E test after each story. Do not move to the next story until the current one passes E2E.
-
-7. **No speculation.** Do not build for imagined futures. Do not add configurability. Do not add abstractions for one-time operations. The spec defines what exists. Build exactly that.
-
-### Implementation Order
-
-Follow the story dependency chain:
-
-```
-Phase 1 — Foundation (no user-visible features yet):
-  DB schema + migrations
-  Config + tracing setup
-  AppError type
-  Phase enum with transition methods
-  Phone number normalization
-
-Phase 2 — Auth (Epic 1):
-  1.1 Organizer registers participant (admin)
-  1.2 SMS OTP sign-in
-  1.3 Onboarding (Nova Poshta branch)
-
-Phase 3 — Season lifecycle (Epics 4, 2):
-  4.1 Create season (admin)
-  4.2 Launch season (admin)
-  2.1 Enroll in season
-  2.2 Confirm ready
-
-Phase 4 — Assignment (Epic 3):
-  3.1 Generate cohort assignments
-  3.2 Social-awareness constraints
-  3.3 Override assignments (admin)
-
-Phase 5 — Delivery (Epics 2, 5):
-  2.3 Receive assignment + 5.1 Assignment SMS
-  2.4 Confirm receipt + 5.2 Receipt nudge SMS
-  5.3 Season-open SMS
-  5.4 Pre-deadline nudge SMS
-
-Phase 6 — Account management (Epic 6):
-  6.1 Deactivate account (admin)
-```
-
-### Justfile
-
-```
-dev:         cargo leptos watch
-test:        cargo test
-clippy:      cargo clippy --all-targets
-e2e:         cargo leptos end-to-end
-build:       cargo leptos build --release
-db-reset:    sqlx database drop && sqlx database create && sqlx migrate run
-db-migrate:  sqlx migrate run
-prepare:     cargo sqlx prepare
-```
+→ **Authoritative guide:** `guidance/dev-protocol.md` (feedback loop, compiler config, LSP, TDD rules, unit vs E2E boundary, story dependency chain).
 
 ---
 

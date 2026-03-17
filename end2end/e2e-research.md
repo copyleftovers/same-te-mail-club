@@ -6,6 +6,7 @@ Authoritative reference for E2E testing patterns in this project. Derived from P
 
 ## Table of Contents
 
+0. [Confirmed Root Causes & Fixes (2026-03-17)](#confirmed-root-causes--fixes)
 1. [Architecture Overview](#architecture-overview)
 2. [Hydration Wait Strategy](#hydration-wait-strategy)
 3. [ActionForm Submission Wait Strategy](#actionform-submission-wait-strategy)
@@ -17,6 +18,87 @@ Authoritative reference for E2E testing patterns in this project. Derived from P
 9. [Anti-Patterns](#anti-patterns)
 10. [Leptos-Specific Gotchas](#leptos-specific-gotchas)
 11. [Timeout Hierarchy](#timeout-hierarchy)
+12. [Community Research Findings](#community-research-findings)
+
+---
+
+## Confirmed Root Causes & Fixes
+
+> Investigation date: 2026-03-17. All fixes are implemented. This section explains *why* the bugs existed.
+
+### Root Cause 1 — `waitForResponse(POST)` catches wrong response (PRIMARY)
+
+**Severity: Critical. Affected: ~80% of POM methods.**
+
+The original `clickAndWaitForResponse` listened for *any* POST:
+
+```typescript
+(resp) => resp.request().method() === "POST"
+```
+
+Leptos server functions all use POST. After an action POST completes, Leptos increments `action.version()`, which triggers a Resource refetch — another POST. If the next test action sets up a new `waitForResponse(POST)` listener *before* the previous refetch's response arrives, the listener catches the refetch response instead of the intended action response. The test proceeds thinking the second action completed, but it hasn't.
+
+**Example sequence that breaks:**
+```
+T=0.00: registerParticipant(A) sets up POST listener
+T=0.01: register_participant POST fires
+T=0.10: register_participant response → listener resolves, method returns
+T=0.11: action.version() increments → list_participants refetch POST fires
+T=0.12: registerParticipant(B) sets up NEW POST listener  ← listener is live
+T=0.15: list_participants refetch response arrives → NEW listener resolves ← WRONG!
+T=0.20: register_participant(B) response arrives → nobody is listening
+```
+Test B's registration is never confirmed to have completed.
+
+**Fix:** Replace `waitForResponse(POST)` with element visibility waits. Instead of waiting for the network, wait for the DOM change that proves both the action POST *and* the Resource refetch completed. For methods where we navigate away immediately (no visible DOM change), keep `waitForResponse` with a URL hint that matches only the specific server function.
+
+---
+
+### Root Cause 2 — `completeOnboarding` navigated without waiting for POST
+
+**Severity: Medium. Affected: all onboarding tests.**
+
+```typescript
+// OLD (broken):
+await button.click();
+await this.page.waitForURL("/");  // waitForURL called before POST might complete
+```
+
+If the server is under load, the ActionForm POST response (which triggers the redirect) might not have arrived when `waitForURL` starts evaluating. The assertion passes briefly at the pre-redirect URL before eventually timing out.
+
+**Fix:** Use `clickAndWaitForResponse` before `waitForURL`.
+
+---
+
+### Root Cause 3 — OTP rate limit not bypassed in test mode
+
+**Severity: Cascade amplifier.**
+
+`check_otp_rate_limit` enforces max 1 OTP per 60 seconds per phone. It has no `SAMETE_TEST_MODE` escape hatch. The happy path is fine: OTP rows are deleted on successful verification, so the counter resets. But if *any* test fails mid-login (for any reason), the OTP row is left unconsumed. For the next 60 seconds, all logins for that phone return `Ok(())` from `request_otp` (no error, no OTP created), then fail at verification. This turns one failure into a 60-second cascade of failures for all tests using the same phone number.
+
+**Fix:** Add `if SAMETE_TEST_MODE { return Ok(()) }` at the top of `check_otp_rate_limit` in `src/auth.rs`.
+
+---
+
+### Root Cause 4 — Rejection tests used raw clicks without response waiting
+
+**Severity: Low. Affected: 2 tests.**
+
+Tests for "unregistered phone rejected" and "deactivated cannot sign in" did raw `button.click()` without waiting for the POST response. They relied on the OTP form appearing within `actionTimeout` (10s). This works usually but is timing-dependent — a race rather than a deterministic wait.
+
+**Fix:** Use `clickAndWaitForResponse` for the send button, then `expect(codeInput).toBeVisible()` before filling.
+
+---
+
+### Canonical Pattern (post-fix)
+
+```
+click() auto-waits for ENABLED (= hydration complete)
+→ element visibility wait auto-retries until Resource refetch completes and DOM updates
+= zero race conditions, tests what the user actually sees
+```
+
+`clickAndWaitForResponse` with URL filtering is kept only for `advanceSeason` (no visible DOM change before navigation) and `login`/`completeOnboarding` (native form + redirect).
 
 ---
 
@@ -484,125 +566,79 @@ This is **not recommended** for serial tests — it adds complexity without solv
 
 ## POM Improvements
 
-### Current POM Analysis
+> **Status:** Applied. The patterns below are implemented in `tests/fixtures/mail_club_page.ts`.
 
-The `MailClubPage` POM is well-structured. Key improvements:
+### The Two-Class System
 
-### 1. Fix `advanceSeason` — Replace `waitForTimeout`
+POM methods fall into two classes based on whether you navigate away after the action:
+
+**Class A — Action + stay on page.** Use `click()` + element visibility wait. The visibility assertion auto-retries until both the action POST *and* the Resource refetch complete, because the element change only happens after the full round-trip.
 
 ```typescript
+// Pattern: click() auto-waits for enabled; visibility assertion waits for refetch
+async enrollInSeason(branch?: string) {
+    if (branch) {
+        await this.page.getByLabel(/nova poshta|branch|відділення/i).fill(branch);
+    }
+    await this.page.getByTestId("enroll-button").click();
+    await expect(this.page.getByTestId("enroll-button")).not.toBeVisible();
+}
+```
+
+Methods in this class: `enrollInSeason`, `confirmReady`, `registerParticipant`, `generateAssignments`, `releaseAssignments`, `triggerSms`, `deactivateParticipant`, `confirmReceipt`. All are self-contained — callers need not assert separately.
+
+**Class B — Action + navigate away immediately.** No visible DOM change on the current page after the action. Use `clickAndWaitForResponse` with a URL hint to ensure the action POST completes before navigation.
+
+```typescript
+// Pattern: URL hint prevents catching a refetch POST from a prior action
 async advanceSeason() {
     await this.page.goto("/admin/season");
     const responsePromise = this.page.waitForResponse(
-        (resp) => resp.request().method() === "POST"
+        (resp) => resp.request().method() === "POST" &&
+                  resp.url().includes("advance"),
     );
     await this.page.getByTestId("advance-button").click();
     await responsePromise;
 }
 ```
 
-### 2. Add Hydration Wait Helper
+Methods in this class: `advanceSeason`, `completeOnboarding` (redirect), `login` (native form redirect).
 
-For pages where you need to ensure hydration before interacting with non-button elements:
+### Why Element Waits Are More Reliable Than `waitForResponse(POST)`
+
+`waitForResponse(POST)` is triggered by the network response, which arrives before WASM has processed it. The sequence after a click is:
+
+```
+1. ActionForm fires POST
+2. POST response arrives at network layer  ← waitForResponse(POST) resolves here
+3. WASM processes response (~0–5ms later)
+4. action.version() increments
+5. Resource refetch fires (another POST)
+6. Refetch response arrives
+7. DOM updates  ← element visibility changes here
+```
+
+`waitForResponse` resolves at step 2. Element visibility waits resolve at step 7. Asserting on data from the Resource refetch after resolving at step 2 is a race.
+
+Furthermore, any other POST in flight (step 5 from a *previous* action) can be caught by a new `waitForResponse(POST)` listener if that response happens to arrive while the listener is active.
+
+Element visibility waits are immune to both issues.
+
+### `clickAndWaitForResponse` Helper (URL-filtered)
 
 ```typescript
 /**
- * Wait for WASM hydration to complete on the current page.
- * Relies on the project convention: ActionForm buttons start disabled
- * and become enabled after hydration.
+ * Click and wait for a specific POST response.
+ * Use ONLY when there is no visible DOM change to assert on (Class B methods).
+ * Always provide urlHint to avoid catching an unrelated Resource refetch POST.
  */
-async waitForHydration() {
-    // Find any submit button — they all use the disabled-until-hydrated pattern
-    const submitBtn = this.page.locator('button[type="submit"]').first();
-    // If there's a submit button, wait for it to be enabled
-    if (await submitBtn.count() > 0) {
-        await expect(submitBtn).toBeEnabled({ timeout: 10_000 });
-    }
-}
-```
-
-### 3. Strengthen `login()` with Explicit Navigation Wait
-
-```typescript
-async login(phone: string) {
-    await this.page.goto("/login");
-
-    // Wait for hydration (submit button becomes enabled)
-    await expect(
-        this.page.getByRole("button", { name: /send|submit|code/i })
-    ).toBeEnabled();
-
-    await this.page.getByLabel(/phone/i).fill(phone);
-    await this.page.getByRole("button", { name: /send|submit|code/i }).click();
-
-    // OTP step — wait for the code input to appear
-    await expect(this.page.getByLabel(/code/i)).toBeVisible();
-    await this.page.getByLabel(/code/i).fill(TEST_OTP);
-    await this.page.getByRole("button", { name: /verify|submit|sign/i }).click();
-
-    // Wait for navigation away from login
-    await expect(this.page).not.toHaveURL(/\/login/);
-}
-```
-
-Key changes:
-- Explicit hydration wait before first fill
-- Explicit wait for OTP step to appear before filling
-- Explicit wait for navigation after verify (already implicit in callers, but better to have in POM)
-
-### 4. Strengthen `registerParticipant()` with Submission Wait
-
-```typescript
-async registerParticipant(phone: string, name: string) {
-    await this.page.goto("/admin/participants");
-    // Wait for hydration
-    await expect(this.page.getByTestId("register-button")).toBeEnabled();
-
-    await this.page.getByLabel(/phone/i).fill(phone);
-    await this.page.getByLabel(/name/i).fill(name);
-
+async clickAndWaitForResponse(locator: Locator, urlHint?: string) {
     const responsePromise = this.page.waitForResponse(
-        (resp) => resp.request().method() === "POST"
-    );
-    await this.page.getByTestId("register-button").click();
-    await responsePromise;
-}
-```
-
-### 5. Add Response-Wait Helper
-
-Factor out the common "click and wait for POST response" pattern:
-
-```typescript
-/**
- * Click an element and wait for the server function response.
- * Use this for ActionForm submissions where you need to ensure
- * the server has processed the request before proceeding.
- */
-async clickAndWaitForResponse(locator: Locator) {
-    const responsePromise = this.page.waitForResponse(
-        (resp) => resp.request().method() === "POST"
+        (resp) => resp.request().method() === "POST" &&
+                  (urlHint ? resp.url().includes(urlHint) : true),
     );
     await locator.click();
     await responsePromise;
-}
-```
-
-Then use it throughout:
-
-```typescript
-async advanceSeason() {
-    await this.page.goto("/admin/season");
-    await this.clickAndWaitForResponse(
-        this.page.getByTestId("advance-button")
-    );
-}
-
-async generateAssignments() {
-    await this.page.goto("/admin/assignments");
-    await this.clickAndWaitForResponse(
-        this.page.getByTestId("generate-button")
-    );
 }
 ```
 
@@ -731,6 +767,19 @@ Timeline:
 
 This means **there are TWO round-trips** after a submit: the action POST and the resource refetch GET. Waiting for only the POST response is not sufficient if you need to assert on the refetched data. In that case, wait for the UI element that appears after the refetch completes.
 
+**Critical detail: `action.version()` increments synchronously.** Leptos's reactive graph propagates updates synchronously with no microtask batching. The moment the action POST response arrives in the browser, `action.version()` increments, which immediately notifies the Resource, which immediately fires its refetch. The refetch POST is in-flight by the time Playwright's `waitForResponse` resolves. This is why a second `waitForResponse(POST)` listener set up milliseconds later may catch the *refetch* response, not the next intended action's response.
+
+```
+T=0 ms:  POST response arrives in browser
+T=0 ms:  action.version() increments  ← synchronous, no delay
+T=0 ms:  Resource source signal notified
+T=0 ms:  Resource refetch POST dispatched  ← already in-flight
+T=0+ ms: Playwright's waitForResponse resolves (caught the action POST)
+T=50 ms: Resource refetch response arrives → DOM updates
+```
+
+**The safe pattern:** Wait for the DOM element that only appears after the refetch resolves (step T=50ms), not for the network response (step T=0ms).
+
 ### 4. Leptos Redirects in Server Functions
 
 When a server function calls `leptos_axum::redirect("/some-path")`:
@@ -754,6 +803,12 @@ When tests fail with "the server seems to ignore the form data," check name attr
 Playwright's `.fill()` does not reliably trigger Leptos `on:input` event handlers on hydrated elements. The synthetic input event doesn't propagate through Leptos's event delegation system the same way real user input does.
 
 **Rule**: All forms tested by E2E must use ActionForm with `name` attributes. Never use `on:input` → signal → `action.dispatch()` for E2E-tested forms.
+
+### 8. OTP Rate Limit Must Be Bypassed in Test Mode
+
+`check_otp_rate_limit` enforces max 1 OTP per 60 seconds per phone number. If `SAMETE_TEST_MODE` is not checked and a test fails mid-login (leaving an unconsumed OTP row in the DB), the next login attempt for the same phone within 60 seconds is silently rate-limited: `request_otp` returns `Ok(())` but creates no OTP. The subsequent `verify_otp_code` finds no valid code and redirects back to `/login`. Every test using that phone fails for the next 60 seconds — a cascade triggered by a single failure.
+
+**Rule**: `check_otp_rate_limit` must return `Ok(())` early when `SAMETE_TEST_MODE=true`. See `src/auth.rs`.
 
 ---
 
@@ -791,12 +846,43 @@ test("slow test", async ({ page }) => {
 
 ---
 
+## Community Research Findings
+
+> Investigated 2026-03-17. Sources: official `leptos-rs/leptos` repo, `leptos-rs/cargo-leptos`, `leptos-rs/start-axum`, `cloud-shuttle/leptos-shadcn-ui`, Playwright issue #27759, SvelteKit hydration docs.
+
+### What Official Leptos Does
+
+The official Leptos examples and starter templates use **zero** explicit hydration synchronization:
+- No `disabled` attributes for hydration gates
+- No `waitForResponse` calls
+- No `data-hydrated` markers
+
+They rely on `Locator.waitFor()` + `Locator.click()` and element-based assertions exclusively. The `webServer` Playwright config block is always commented out — cargo-leptos manages the server.
+
+The **disabled-button hydration gate** used in this project is not in official examples but is explicitly recommended by Playwright's navigation documentation: *"All interactive controls should be disabled until after hydration, when the page is fully functional."* This is the correct approach for forms with server-function round-trips.
+
+### cargo-leptos Has No Readiness Probe
+
+`cargo leptos end-to-end` calls `serve::spawn()` (starts the binary) and then immediately runs `npx playwright test`. There is no TCP probe or health check between the two. This means the first `page.goto()` might hit a connection that's accepting TCP but not yet serving HTTP. Playwright's `navigationTimeout` (15s) provides tolerance, but the window is non-zero. This is a known gap in cargo-leptos — the project's `_kill-stale` + `db-reset` pipeline adds some natural delay that usually covers it.
+
+### SvelteKit's Pattern (for Reference)
+
+SvelteKit documents a global hydration marker via `onMount(() => document.body.classList.add("started"))` + `page.waitForSelector("body.started")`. This is equivalent to this project's per-button `disabled` gate but global. Both are valid; per-button is simpler when every interactive element already has a gate.
+
+### Element Waits vs. Network Waits: Community Consensus
+
+Across 100+ test files in the Leptos ecosystem, zero use `waitForResponse`. The community treats tests as black-box UI checks: *did the right thing appear?* rather than *did the right network call happen?* This is correct and more robust. The project's element-based wait migration aligns with this.
+
+---
+
 ## Checklist: Before Merging New E2E Tests
 
 - [ ] No `waitForTimeout` calls
 - [ ] No `networkidle` waits
-- [ ] Every ActionForm click has a concrete completion wait (element appears/disappears, URL changes, or response received)
+- [ ] No bare `waitForResponse(POST)` without a URL hint
+- [ ] Every ActionForm click uses either: (a) element visibility wait, or (b) `clickAndWaitForResponse` with `urlHint`
 - [ ] Every assertion uses web-first form (`expect(locator).toX()`, not `expect(await locator.x()).toBe()`)
-- [ ] New POM methods include hydration wait where needed (button enabled check before first interaction)
-- [ ] Test names trace to story numbers from `spec/User Stories.md`
+- [ ] New POM methods that stay on page after action: self-contained with element visibility wait
+- [ ] New POM methods that navigate away after action: use `clickAndWaitForResponse` with URL hint
+- [ ] Test names trace to story numbers from `spec/technical/User Stories.md`
 - [ ] Test runs green 3 times in a row locally before claiming stable

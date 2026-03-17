@@ -2,6 +2,8 @@
 
 Orchestrator reference for sequential phase delegation to sonnet agents.
 
+**Status:** Phases 1–6 complete. Phase briefs archived at `archive/phases/phase-{N}-brief.md`. The agent prompt template and phase sequence table below serve as the template for any future phases.
+
 ## Agent Prompt Template
 
 ```
@@ -12,10 +14,10 @@ Bootstrap (do these FIRST, before reading any files):
 2. Call `mcp__plugin_leptos-mcp_leptos__get-documentation` with section `mental-model` — internalize the Leptos 0.8 paradigm.
 
 Then read these files in this order:
-1. `ops/phase-{N}-brief.md` — your operational brief (corrections, traps, entry state)
-2. `ops/leptos-idioms.md` — mandatory Leptos 0.8 patterns AND the MCP tool reference (read the MCP section carefully — it maps sections to tasks)
+1. `archive/phases/phase-{N}-brief.md` — your operational brief (corrections, traps, entry state)
+2. `guidance/leptos-idioms.md` — mandatory Leptos 0.8 patterns AND the MCP tool reference (read the MCP section carefully — it maps sections to tasks)
 3. `end2end/README.md` — **MANDATORY before touching any test or POM file.** E2E testing conventions, wait strategies, POM contract, banned practices. This is the law for all Playwright code.
-4. `spec/Implementation Plan.md` — find "## Phase {N}" and implement everything up to the next phase heading
+4. `archive/spec/Implementation Plan.md` — find "## Phase {N}" and implement everything up to the next phase heading
 5. Any additional spec files referenced in the brief
 
 Constitutional constraints (active for all implementation):
@@ -27,7 +29,7 @@ Development protocol:
 1. Model types first, then implement logic
 2. Use LSP tool — diagnostics are BLOCKING, not advisory. Fix all diagnostics before moving on.
 3. Run `bacon clippy-ssr` in background for continuous linting
-4. **Before writing any Leptos component**: query relevant MCP doc sections (see `ops/leptos-idioms.md` § MCP Section Index for the mapping)
+4. **Before writing any Leptos component**: query relevant MCP doc sections (see `guidance/leptos-idioms.md` § MCP Section Index for the mapping)
 5. **After writing any Leptos component**: run `mcp__plugin_leptos-mcp_leptos__leptos-autofixer` on the code — it catches issues the compiler misses
 6. Run `cargo test` for unit tests after implementing testable logic
 7. Fix ALL warnings and errors before moving on
@@ -56,14 +58,14 @@ Do NOT:
 
 ## Phase Sequence
 
-| Phase | Brief | Key Verification | E2E Target |
-|-------|-------|-----------------|------------|
-| 1 | ops/phase-1-brief.md | migrations + compile + unit tests | None |
-| 2 | ops/phase-2-brief.md | compile + clippy + sqlx prepare | `Epic 1` |
-| 3 | ops/phase-3-brief.md | compile + clippy + sqlx prepare | `Epic 4`, `Story 2.1`, `Story 2.2` |
-| 4 | ops/phase-4-brief.md | algorithm unit tests + compile | `Epic 3` |
-| 5 | ops/phase-5-brief.md | compile + clippy + sqlx prepare | `Stories 2.3`, `Story 5` |
-| 6 | ops/phase-6-brief.md | full regression E2E | ALL |
+| Phase | Brief | Key Verification | E2E Target | Status |
+|-------|-------|-----------------|------------|--------|
+| 1 | archive/phases/phase-1-brief.md | migrations + compile + unit tests | None | ✓ complete |
+| 2 | archive/phases/phase-2-brief.md | compile + clippy + sqlx prepare | `Epic 1` | ✓ complete |
+| 3 | archive/phases/phase-3-brief.md | compile + clippy + sqlx prepare | `Epic 4`, `Story 2.1`, `Story 2.2` | ✓ complete |
+| 4 | archive/phases/phase-4-brief.md | algorithm unit tests + compile | `Epic 3` | ✓ complete |
+| 5 | archive/phases/phase-5-brief.md | compile + clippy + sqlx prepare | `Stories 2.3`, `Story 5` | ✓ complete |
+| 6 | archive/phases/phase-6-brief.md | full regression E2E | ALL | ✓ complete |
 
 ## Between-Phase Protocol
 

@@ -84,7 +84,7 @@ Full product spec, personas, user stories, technical research, and architecture 
 
 ## Configuration Decisions
 
-Choices made during project setup, with rationale. Authoritative source: `spec/Architecture.md`.
+Choices made during project setup, with rationale. Authoritative source: `spec/technical/Architecture.md`.
 
 ### Crate & Toolchain
 
