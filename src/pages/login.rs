@@ -136,22 +136,25 @@ pub fn LoginPage() -> impl IntoView {
     let otp_step = Memo::new(move |_| matches!(request_action.value().get(), Some(Ok(()))));
 
     view! {
-        <div class="login-page">
-            <h1>"The Mail Club"</h1>
+        <div class="prose-page flex flex-col items-center text-center min-h-[80svh] justify-center">
+            <img src="/logo.svg" alt="Саме Те · Поштовий клуб" class="h-20 w-auto mb-8" />
 
             // Phone step — hidden once OTP step activates.
             // Uses ActionForm: reads phone from FormData (DOM) at submit time.
             <div style:display=move || if otp_step.get() { "none" } else { "" }>
                 <leptos::form::ActionForm action=request_action>
-                    <label for="phone-input">"Phone number (номер телефону)"</label>
-                    <input
-                        id="phone-input"
-                        type="tel"
-                        name="phone"
-                        placeholder="+380XXXXXXXXX"
-                        data-testid="phone-input"
-                    />
-                    <button type="submit" data-testid="send-otp-button" disabled=move || !hydrated.get()>
+                    <div class="field">
+                        <label class="field-label" for="phone-input">"Phone number (номер телефону)"</label>
+                        <input
+                            class="field-input"
+                            id="phone-input"
+                            type="tel"
+                            name="phone"
+                            placeholder="+380XXXXXXXXX"
+                            data-testid="phone-input"
+                        />
+                    </div>
+                    <button class="btn" type="submit" data-testid="send-otp-button" disabled=move || !hydrated.get()>
                         "Send code (надіслати)"
                     </button>
                 </leptos::form::ActionForm>
@@ -164,16 +167,20 @@ pub fn LoginPage() -> impl IntoView {
             <div style:display=move || if otp_step.get() { "" } else { "none" }>
                 <form method="post" action=VerifyOtpCode::url()>
                     <input type="hidden" name="phone" prop:value=submitted_phone/>
-                    <label for="code-input">"SMS code (код з SMS)"</label>
-                    <input
-                        id="code-input"
-                        type="text"
-                        name="code"
-                        placeholder="000000"
-                        maxlength="6"
-                        data-testid="otp-input"
-                    />
-                    <button type="submit" data-testid="verify-otp-button">
+                    <div class="field">
+                        <label class="field-label" for="code-input">"SMS code (код з SMS)"</label>
+                        <input
+                            class="field-input"
+                            id="code-input"
+                            type="text"
+                            name="code"
+                            placeholder="000000"
+                            maxlength="6"
+                            data-testid="otp-input"
+                            data-otp
+                        />
+                    </div>
+                    <button class="btn" type="submit" data-testid="verify-otp-button">
                         "Verify code (підтвердити)"
                     </button>
                 </form>

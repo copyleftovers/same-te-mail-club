@@ -361,11 +361,12 @@ fn CreateSeasonForm(
         <section>
             <h2>{t!(i18n, season_create_form_title)}</h2>
             <leptos::form::ActionForm action=create_action>
-                <div>
-                    <label for="signup-deadline">
+                <div class="field">
+                    <label class="field-label" for="signup-deadline">
                         {t!(i18n, season_signup_deadline_label)}
                     </label>
                     <input
+                        class="field-input"
                         id="signup-deadline"
                         type="datetime-local"
                         name="signup_deadline"
@@ -373,11 +374,12 @@ fn CreateSeasonForm(
                         data-testid="signup-deadline-input"
                     />
                 </div>
-                <div>
-                    <label for="confirm-deadline">
+                <div class="field">
+                    <label class="field-label" for="confirm-deadline">
                         {t!(i18n, season_confirm_deadline_label)}
                     </label>
                     <input
+                        class="field-input"
                         id="confirm-deadline"
                         type="datetime-local"
                         name="confirm_deadline"
@@ -385,11 +387,12 @@ fn CreateSeasonForm(
                         data-testid="confirm-deadline-input"
                     />
                 </div>
-                <div>
-                    <label for="theme">
+                <div class="field">
+                    <label class="field-label" for="theme">
                         {t!(i18n, season_theme_label)}
                     </label>
                     <input
+                        class="field-input"
                         id="theme"
                         type="text"
                         name="theme"
@@ -398,6 +401,7 @@ fn CreateSeasonForm(
                     />
                 </div>
                 <button
+                    class="btn"
                     type="submit"
                     data-testid="create-season-button"
                     disabled=move || !hydrated.get()
@@ -451,7 +455,7 @@ fn ActiveSeasonPanel(
                 <dd data-testid="confirmed-count">{status.confirmed_count.to_string()}</dd>
             </dl>
 
-            <div class="season-actions">
+            <div class="flex flex-wrap gap-3 mt-4">
                 // Launch button — only shown when not yet launched
                 {if launched {
                     ().into_any()
@@ -459,6 +463,7 @@ fn ActiveSeasonPanel(
                     view! {
                         <leptos::form::ActionForm action=launch_action>
                             <button
+                                class="btn"
                                 type="submit"
                                 data-testid="launch-button"
                                 disabled=move || !hydrated.get()
@@ -474,6 +479,8 @@ fn ActiveSeasonPanel(
                     view! {
                         <leptos::form::ActionForm action=advance_action>
                             <button
+                                class="btn"
+                                data-variant="secondary"
                                 type="submit"
                                 data-testid="advance-button"
                                 disabled=move || !hydrated.get()
@@ -491,6 +498,8 @@ fn ActiveSeasonPanel(
                     view! {
                         <leptos::form::ActionForm action=cancel_action>
                             <button
+                                class="btn"
+                                data-variant="destructive"
                                 type="submit"
                                 data-testid="cancel-button"
                                 disabled=move || !hydrated.get()
@@ -541,7 +550,14 @@ pub fn SeasonManagePage() -> impl IntoView {
     });
 
     view! {
-        <div class="admin-season">
+        <div class="prose-page">
+            <nav class="admin-nav">
+                <a href="/admin">"Dashboard"</a>
+                <a href="/admin/season">"Season"</a>
+                <a href="/admin/participants">"Participants"</a>
+                <a href="/admin/assignments">"Assignments"</a>
+                <a href="/admin/sms">"SMS"</a>
+            </nav>
             <h1>{t!(i18n, season_page_title)}</h1>
 
             // Error display for any action
@@ -551,13 +567,13 @@ pub fn SeasonManagePage() -> impl IntoView {
                     .or_else(|| advance_action.value().get().and_then(Result::err))
                     .or_else(|| cancel_action.value().get().and_then(Result::err));
                 err.map(|e| view! {
-                    <p class="error">{e.to_string()}</p>
+                    <p class="alert">{e.to_string()}</p>
                 })
             }}
 
             <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || status.get().map(|result| match result {
-                    Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
+                    Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
                     Ok(None) => {
                         view! {
                             <CreateSeasonForm

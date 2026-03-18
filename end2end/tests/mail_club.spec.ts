@@ -68,7 +68,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
       await app.registerParticipant(PHONES.A, "Дублікат");
-      await expect(page.locator(".error")).toContainText(/already exists|існує/i);
+      await expect(page.getByTestId("action-error")).toContainText(/already exists|існує/i);
     });
 
     // Story 1.2: Sign in with phone number

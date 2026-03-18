@@ -109,17 +109,24 @@ pub fn DashboardPage() -> impl IntoView {
     let dashboard = Resource::new(|| (), |()| get_dashboard());
 
     view! {
-        <div class="admin-dashboard">
+        <div class="prose-page">
+            <nav class="admin-nav">
+                <a href="/admin">"Dashboard"</a>
+                <a href="/admin/season">"Season"</a>
+                <a href="/admin/participants">"Participants"</a>
+                <a href="/admin/assignments">"Assignments"</a>
+                <a href="/admin/sms">"SMS"</a>
+            </nav>
             <h1>"Dashboard"</h1>
 
             <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || dashboard.get().map(|result| match result {
-                    Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
+                    Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
                     Ok(state) => match state.season {
                         None => view! {
                             <p>{t!(i18n, dashboard_no_season)}</p>
                             <p>
-                                <a href="/admin/season">{t!(i18n, dashboard_create_season_button)}</a>
+                                <a class="btn" data-size="sm" href="/admin/season">{t!(i18n, dashboard_create_season_button)}</a>
                             </p>
                         }.into_any(),
                         Some(s) => {
@@ -187,7 +194,7 @@ pub fn DashboardPage() -> impl IntoView {
                                     {if is_terminal {
                                         view! {
                                             <p>
-                                                <a href="/admin/season">{t!(i18n, dashboard_create_season_button)}</a>
+                                                <a class="btn" data-size="sm" href="/admin/season">{t!(i18n, dashboard_create_season_button)}</a>
                                             </p>
                                         }.into_any()
                                     } else {

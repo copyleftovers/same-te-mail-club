@@ -232,7 +232,7 @@ page.getByTestId("receipt-thanks")
 | `getByLabel` | `getByLabel(/phone/i)` | Coupled to label text |
 | `getByRole` with name | `getByRole("button", { name: /send/i })` | Coupled to button copy |
 | `getByText` | `getByText(/дякуємо\|thanks/i)` | Coupled to UI copy |
-| CSS class selectors | `locator(".error")` | Coupled to styling |
+| CSS class selectors | `locator(".error")`, `locator(".alert")` | Coupled to styling |
 
 Permitted exceptions: `locator("main")` for broad page-level containment checks, `page.waitForURL()` for navigation assertions, `toContainText()` when asserting the text value of an already-located testid element.
 

@@ -187,9 +187,10 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
 
     view! {
         <leptos::form::ActionForm action=register_action>
-            <div>
-                <label for="reg-phone">"Phone number (номер телефону)"</label>
+            <div class="field">
+                <label class="field-label" for="reg-phone">"Phone number (номер телефону)"</label>
                 <input
+                    class="field-input"
                     id="reg-phone"
                     type="tel"
                     name="phone"
@@ -197,9 +198,10 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
                     data-testid="reg-phone-input"
                 />
             </div>
-            <div>
-                <label for="reg-name">"Name (ім'я для Nova Poshta)"</label>
+            <div class="field">
+                <label class="field-label" for="reg-name">"Name (ім'я для Nova Poshta)"</label>
                 <input
+                    class="field-input"
                     id="reg-name"
                     type="text"
                     name="name"
@@ -207,7 +209,7 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
                     data-testid="reg-name-input"
                 />
             </div>
-            <button type="submit" data-testid="register-button" disabled=move || !hydrated.get()>
+            <button class="btn" type="submit" data-testid="register-button" disabled=move || !hydrated.get()>
                 {t!(i18n, participants_register_button)}
             </button>
         </leptos::form::ActionForm>
@@ -230,9 +232,9 @@ fn ParticipantList(
     view! {
         <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
             {move || participants.get().map(|result| match result {
-                Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
+                Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
                 Ok(list) => view! {
-                    <table>
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>{t!(i18n, participants_table_name)}</th>
@@ -257,9 +259,9 @@ fn ParticipantList(
                                             <td>{p.phone.clone()}</td>
                                             <td>
                                                 {move || if active {
-                                                    view! { {t!(i18n, participants_status_active)} }.into_any()
+                                                    view! { <span class="badge" data-status="active">{t!(i18n, participants_status_active)}</span> }.into_any()
                                                 } else {
-                                                    view! { {t!(i18n, participants_status_deactivated)} }.into_any()
+                                                    view! { <span class="badge" data-status="inactive">{t!(i18n, participants_status_deactivated)}</span> }.into_any()
                                                 }}
                                             </td>
                                             <td>
@@ -274,6 +276,9 @@ fn ParticipantList(
                                                                 value=uid_str
                                                             />
                                                             <button
+                                                                class="btn"
+                                                                data-variant="destructive"
+                                                                data-size="sm"
                                                                 type="submit"
                                                                 data-testid="deactivate-button"
                                                                 disabled=move || !hydrated.get()
@@ -284,7 +289,7 @@ fn ParticipantList(
                                                     }.into_any()
                                                 } else {
                                                     view! {
-                                                        <span class="inactive" data-testid="inactive-status">
+                                                        <span class="badge" data-status="inactive" data-testid="inactive-status">
                                                             {t!(i18n, participants_deactivated_label)}
                                                         </span>
                                                     }.into_any()
@@ -337,7 +342,14 @@ pub fn ParticipantsPage() -> impl IntoView {
     });
 
     view! {
-        <div class="admin-participants">
+        <div class="prose-page">
+            <nav class="admin-nav">
+                <a href="/admin">"Dashboard"</a>
+                <a href="/admin/season">"Season"</a>
+                <a href="/admin/participants">"Participants"</a>
+                <a href="/admin/assignments">"Assignments"</a>
+                <a href="/admin/sms">"SMS"</a>
+            </nav>
             <h1>{t!(i18n, participants_page_title)}</h1>
 
             <section>
@@ -346,7 +358,7 @@ pub fn ParticipantsPage() -> impl IntoView {
                     register_action=register_action
                 />
                 {move || error_msg.get().map(|msg| view! {
-                    <p class="error">{msg}</p>
+                    <p class="alert" data-testid="action-error">{msg}</p>
                 })}
             </section>
 

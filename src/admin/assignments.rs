@@ -642,7 +642,14 @@ pub fn AssignmentsPage() -> impl IntoView {
     });
 
     view! {
-        <div class="admin-assignments">
+        <div class="prose-page">
+            <nav class="admin-nav">
+                <a href="/admin">"Dashboard"</a>
+                <a href="/admin/season">"Season"</a>
+                <a href="/admin/participants">"Participants"</a>
+                <a href="/admin/assignments">"Assignments"</a>
+                <a href="/admin/sms">"SMS"</a>
+            </nav>
             <h1>{t!(i18n, assignments_page_title)}</h1>
 
             // Error display.
@@ -651,7 +658,7 @@ pub fn AssignmentsPage() -> impl IntoView {
                     .or_else(|| swap_action.value().get().and_then(Result::err))
                     .or_else(|| release_action.value().get().and_then(Result::err));
                 err.map(|e| view! {
-                    <p class="error">{e.to_string()}</p>
+                    <p class="alert">{e.to_string()}</p>
                 })
             }}
 
@@ -665,7 +672,7 @@ pub fn AssignmentsPage() -> impl IntoView {
             // Confirmed count.
             <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || confirmed_count.get().map(|result| match result {
-                    Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
+                    Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
                     Ok(count) => view! {
                         <p data-testid="confirmed-count">{t!(i18n, assignments_confirmed_label)} {count}</p>
                     }.into_any(),
@@ -675,7 +682,7 @@ pub fn AssignmentsPage() -> impl IntoView {
             // Main content: preview + actions.
             <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || preview.get().map(|result| match result {
-                    Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
+                    Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
                     Ok(None) => view! {
                         <p>{t!(i18n, assignments_no_season)}</p>
                     }.into_any(),
@@ -710,6 +717,7 @@ fn render_preview(
                 view! {
                     <leptos::form::ActionForm action=generate_action>
                         <button
+                            class="btn"
                             type="submit"
                             data-testid="generate-button"
                             disabled=move || !hydrated.get()
@@ -755,6 +763,7 @@ fn render_preview(
                 view! {
                     <leptos::form::ActionForm action=release_action>
                         <button
+                            class="btn"
                             type="submit"
                             data-testid="release-button"
                             disabled=move || !hydrated.get()
@@ -826,15 +835,17 @@ fn SwapForm(
             <p>"Enter two sender UUIDs to exchange their recipients."</p>
             <leptos::form::ActionForm action=swap_action>
                 <input type="hidden" name="season_id" value=season_id />
-                <div>
-                    <label for="sender-a">"Sender A (UUID)"</label>
-                    <input id="sender-a" type="text" name="sender_a" required=true />
+                <div class="field">
+                    <label class="field-label" for="sender-a">"Sender A (UUID)"</label>
+                    <input class="field-input" id="sender-a" type="text" name="sender_a" required=true />
                 </div>
-                <div>
-                    <label for="sender-b">"Sender B (UUID)"</label>
-                    <input id="sender-b" type="text" name="sender_b" required=true />
+                <div class="field">
+                    <label class="field-label" for="sender-b">"Sender B (UUID)"</label>
+                    <input class="field-input" id="sender-b" type="text" name="sender_b" required=true />
                 </div>
                 <button
+                    class="btn"
+                    data-variant="secondary"
                     type="submit"
                     data-testid="swap-button"
                     disabled=move || !hydrated.get()

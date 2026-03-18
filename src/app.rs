@@ -47,6 +47,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <AutoReload options=options.clone() />
                 <HydrationScripts options/>
                 <MetaTags/>
+                <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
             </head>
             <body>
                 <App/>
@@ -77,6 +78,11 @@ pub fn App() -> impl IntoView {
         <Title text="The Mail Club"/>
 
         <Router>
+            <header class="app-header">
+                <a href="/">
+                    <img src="/logo.svg" alt="Саме Те" />
+                </a>
+            </header>
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=StaticSegment("login") view=LoginPage/>
@@ -184,7 +190,7 @@ fn AdminGuard(children: ChildrenFn) -> impl IntoView {
                             ().into_any()
                         }
                         Ok(Some(ref user)) if user.role == UserRole::Admin => {
-                            children().into_any()
+                            view! { <div data-layout="admin">{children()}</div> }.into_any()
                         }
                         Ok(Some(_)) => {
                             isomorphic_redirect("/");

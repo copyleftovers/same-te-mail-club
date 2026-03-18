@@ -147,7 +147,7 @@ This is the CSS-equivalent of cva. No JS needed.
 ### HTML
 
 - **Steps/sequences as `<div>`.** Use `<ol><li>`. The landing page used divs; the app does not.
-- **Missing `data-testid`.** Every interactive element and every assertable display element gets a `data-testid`. This is the E2E contract (see `end2end/README.md`).
+- **Missing `data-testid`.** Every interactive element and every assertable display element gets a `data-testid`. This is the E2E contract (see `end2end/README.md`). **Error/alert containers that tests assert on MUST have `data-testid="action-error"` or a page-specific testid.** CSS class selectors (`.error`, `.alert`) are banned in tests — they couple tests to styling and break on class renames.
 - **Form inputs without ARIA linkage.** `aria-describedby` for error messages, `aria-invalid` for error state, `aria-live="assertive"` on error containers. See `design-system.md § Form Fields`.
 
 ---

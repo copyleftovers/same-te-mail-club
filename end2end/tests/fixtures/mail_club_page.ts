@@ -203,7 +203,7 @@ export class MailClubPage {
     // Whichever happens first, the action has completed.
     await Promise.race([
       expect(this.page.getByTestId("participant-name-cell").filter({hasText: name})).toBeVisible(),
-      expect(this.page.locator(".error")).toBeVisible(),
+      expect(this.page.getByTestId("action-error")).toBeVisible(),
     ]);
   }
 

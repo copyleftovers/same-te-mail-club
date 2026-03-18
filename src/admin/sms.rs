@@ -394,24 +394,31 @@ pub fn SmsPage() -> impl IntoView {
     });
 
     view! {
-        <div class="admin-sms">
+        <div class="prose-page">
+            <nav class="admin-nav">
+                <a href="/admin">"Dashboard"</a>
+                <a href="/admin/season">"Season"</a>
+                <a href="/admin/participants">"Participants"</a>
+                <a href="/admin/assignments">"Assignments"</a>
+                <a href="/admin/sms">"SMS"</a>
+            </nav>
             <h1>"SMS Розсилки / SMS Batches"</h1>
 
             // Error display
             {move || latest_error().map(|e| view! {
-                <p class="error">{e.to_string()}</p>
+                <p class="alert">{e.to_string()}</p>
             })}
 
             // SMS report
             {move || latest_report().map(|report| view! {
-                <div class="sms-report" data-testid="sms-report">
+                <div class="alert" data-testid="sms-report">
                     <p data-testid="sms-sent-confirmation">
                         {t!(i18n, sms_sent_label)}
                         <strong>{report.sent}</strong>
                     </p>
                     {if report.failed > 0 {
                         view! {
-                            <p class="error">
+                            <p>
                                 {t!(i18n, sms_failed_label)}
                                 <strong>{report.failed}</strong>
                             </p>
@@ -422,13 +429,15 @@ pub fn SmsPage() -> impl IntoView {
                 </div>
             })}
 
-            <section class="sms-triggers">
+            <section class="flex flex-col gap-3">
                 // Story 5.3: Season-open — target all active users
                 <div class="sms-trigger">
                     <h2>{t!(i18n, sms_season_open_section_title)}</h2>
                     <p>{t!(i18n, sms_season_open_target)}</p>
                     <leptos::form::ActionForm action=season_open_action>
                         <button
+                            class="btn"
+                            data-size="sm"
                             type="submit"
                             data-testid="send-season-open-button"
                             disabled=move || !hydrated.get()
@@ -444,6 +453,8 @@ pub fn SmsPage() -> impl IntoView {
                     <p>{t!(i18n, sms_assignment_target)}</p>
                     <leptos::form::ActionForm action=assignment_action>
                         <button
+                            class="btn"
+                            data-size="sm"
                             type="submit"
                             data-testid="send-assignment-button"
                             disabled=move || !hydrated.get()
@@ -459,6 +470,8 @@ pub fn SmsPage() -> impl IntoView {
                     <p>{t!(i18n, sms_confirm_nudge_target)}</p>
                     <leptos::form::ActionForm action=confirm_nudge_action>
                         <button
+                            class="btn"
+                            data-size="sm"
                             type="submit"
                             data-testid="send-confirm-nudge-button"
                             disabled=move || !hydrated.get()
@@ -474,6 +487,8 @@ pub fn SmsPage() -> impl IntoView {
                     <p>{t!(i18n, sms_receipt_nudge_target)}</p>
                     <leptos::form::ActionForm action=receipt_nudge_action>
                         <button
+                            class="btn"
+                            data-size="sm"
                             type="submit"
                             data-testid="send-receipt-nudge-button"
                             disabled=move || !hydrated.get()

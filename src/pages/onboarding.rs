@@ -97,26 +97,29 @@ pub fn OnboardingPage() -> impl IntoView {
     });
 
     view! {
-        <div class="onboarding-page">
+        <div class="prose-page">
             <h1>{t!(i18n, onboarding_page_title)}</h1>
             <p>{t!(i18n, onboarding_description)}</p>
 
             <leptos::form::ActionForm action=onboard_action>
-                <label for="np-branch">"Nova Poshta відділення (branch)"</label>
-                <input
-                    id="np-branch"
-                    type="text"
-                    name="branch"
-                    placeholder=move || t_string!(i18n, onboarding_branch_placeholder)
-                    data-testid="branch-input"
-                />
-                <button type="submit" data-testid="save-onboarding-button" disabled=move || !hydrated.get()>
+                <div class="field">
+                    <label class="field-label" for="np-branch">"Nova Poshta відділення (branch)"</label>
+                    <input
+                        class="field-input"
+                        id="np-branch"
+                        type="text"
+                        name="branch"
+                        placeholder=move || t_string!(i18n, onboarding_branch_placeholder)
+                        data-testid="branch-input"
+                    />
+                </div>
+                <button class="btn" type="submit" data-testid="save-onboarding-button" disabled=move || !hydrated.get()>
                     "Save and continue"
                 </button>
             </leptos::form::ActionForm>
 
             {move || error_msg.get().map(|msg| view! {
-                <p class="error">{msg}</p>
+                <p class="alert">{msg}</p>
             })}
         </div>
     }

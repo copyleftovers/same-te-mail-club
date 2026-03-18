@@ -574,20 +574,20 @@ pub fn HomePage() -> impl IntoView {
     });
 
     view! {
-        <div class="home-page">
+        <div class="prose-page">
             // Action error display
             {move || {
                 let err = enroll_action.value().get().and_then(Result::err)
                     .or_else(|| confirm_action.value().get().and_then(Result::err))
                     .or_else(|| receipt_action.value().get().and_then(Result::err));
                 err.map(|e| view! {
-                    <p class="error">{e.to_string()}</p>
+                    <p class="alert">{e.to_string()}</p>
                 })
             }}
 
             <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || home_state.get().map(|result| match result {
-                    Err(e) => view! { <p class="error">{e.to_string()}</p> }.into_any(),
+                    Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
                     Ok(state) => render_home_state(state, enroll_action, confirm_action, receipt_action, hydrated, i18n),
                 })}
             </Suspense>
@@ -630,11 +630,12 @@ fn render_home_state(
             </p>
 
             <leptos::form::ActionForm action=enroll_action>
-                <div>
-                    <label for="branch-enroll">
+                <div class="field">
+                    <label class="field-label" for="branch-enroll">
                         "Nova Poshta відділення (branch) — оновити при потребі"
                     </label>
                     <input
+                        class="field-input"
                         id="branch-enroll"
                         type="text"
                         name="branch"
@@ -643,6 +644,7 @@ fn render_home_state(
                     />
                 </div>
                 <button
+                    class="btn"
                     type="submit"
                     data-testid="enroll-button"
                     disabled=move || !hydrated.get()
@@ -675,6 +677,7 @@ fn render_home_state(
 
             <leptos::form::ActionForm action=confirm_action>
                 <button
+                    class="btn"
                     type="submit"
                     data-testid="confirm-ready-button"
                     disabled=move || !hydrated.get()
@@ -729,11 +732,12 @@ fn render_home_state(
                 <h3>{t!(i18n, home_confirm_receipt_heading)}</h3>
 
                 <leptos::form::ActionForm action=receipt_action>
-                    <div>
-                        <label for="receipt-note">
+                    <div class="field">
+                        <label class="field-label" for="receipt-note">
                             "Anything the organizer should know? (optional)"
                         </label>
                         <textarea
+                            class="field-input"
                             id="receipt-note"
                             name="note"
                             placeholder=move || t_string!(i18n, home_receipt_note_placeholder)
@@ -742,6 +746,7 @@ fn render_home_state(
                     </div>
                     // received=true hidden input for the Received button
                     <button
+                        class="btn"
                         type="submit"
                         name="received"
                         value="true"
@@ -751,6 +756,8 @@ fn render_home_state(
                         {t!(i18n, home_received_button)}
                     </button>
                     <button
+                        class="btn"
+                        data-variant="secondary"
                         type="submit"
                         name="received"
                         value="false"
