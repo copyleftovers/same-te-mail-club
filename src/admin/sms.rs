@@ -396,13 +396,13 @@ pub fn SmsPage() -> impl IntoView {
     view! {
         <div class="prose-page">
             <nav class="admin-nav">
-                <a href="/admin">"Dashboard"</a>
-                <a href="/admin/season">"Season"</a>
-                <a href="/admin/participants">"Participants"</a>
-                <a href="/admin/assignments">"Assignments"</a>
-                <a href="/admin/sms">"SMS"</a>
+                <a href="/admin">{t!(i18n, admin_nav_dashboard)}</a>
+                <a href="/admin/season">{t!(i18n, admin_nav_season)}</a>
+                <a href="/admin/participants">{t!(i18n, admin_nav_participants)}</a>
+                <a href="/admin/assignments">{t!(i18n, admin_nav_assignments)}</a>
+                <a href="/admin/sms">{t!(i18n, admin_nav_sms)}</a>
             </nav>
-            <h1>"SMS Розсилки / SMS Batches"</h1>
+            <h1>{t!(i18n, sms_page_title)}</h1>
 
             // Error display
             {move || latest_error().map(|e| view! {

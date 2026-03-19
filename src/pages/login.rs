@@ -1,3 +1,4 @@
+use crate::i18n::i18n::{t, use_i18n};
 use leptos::prelude::*;
 use leptos::server_fn::ServerFn;
 
@@ -113,6 +114,7 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
 /// After WASM hydrates: `ActionForm` intercepts submit and dispatches the action.
 #[component]
 pub fn LoginPage() -> impl IntoView {
+    let i18n = use_i18n();
     let request_action = ServerAction::<RequestOtp>::new();
 
     // Hydration gate — phone form button stays disabled until WASM hydrates.
@@ -144,7 +146,7 @@ pub fn LoginPage() -> impl IntoView {
             <div style:display=move || if otp_step.get() { "none" } else { "" }>
                 <leptos::form::ActionForm action=request_action>
                     <div class="field">
-                        <label class="field-label" for="phone-input">"Phone number (номер телефону)"</label>
+                        <label class="field-label" for="phone-input">{t!(i18n, login_phone_label)}</label>
                         <input
                             class="field-input"
                             id="phone-input"
@@ -155,7 +157,7 @@ pub fn LoginPage() -> impl IntoView {
                         />
                     </div>
                     <button class="btn" type="submit" data-testid="send-otp-button" disabled=move || !hydrated.get()>
-                        "Send code (надіслати)"
+                        {t!(i18n, login_send_code_button)}
                     </button>
                 </leptos::form::ActionForm>
             </div>
@@ -168,7 +170,7 @@ pub fn LoginPage() -> impl IntoView {
                 <form method="post" action=VerifyOtpCode::url()>
                     <input type="hidden" name="phone" prop:value=submitted_phone/>
                     <div class="field">
-                        <label class="field-label" for="code-input">"SMS code (код з SMS)"</label>
+                        <label class="field-label" for="code-input">{t!(i18n, login_otp_label)}</label>
                         <input
                             class="field-input"
                             id="code-input"
@@ -181,7 +183,7 @@ pub fn LoginPage() -> impl IntoView {
                         />
                     </div>
                     <button class="btn" type="submit" data-testid="verify-otp-button">
-                        "Verify code (підтвердити)"
+                        {t!(i18n, login_verify_button)}
                     </button>
                 </form>
             </div>

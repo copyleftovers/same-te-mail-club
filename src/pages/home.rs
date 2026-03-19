@@ -608,10 +608,7 @@ fn render_home_state(
 ) -> AnyView {
     match state {
         HomeState::NoSeason => view! {
-            <p>
-                "No season is currently active. / Немає активного сезону. "
-                "You'll receive an SMS when a new season opens."
-            </p>
+            <p>{t!(i18n, home_no_season)}</p>
         }
         .into_any(),
 
@@ -624,15 +621,12 @@ fn render_home_state(
 
             <p class="deadline">{t!(i18n, home_signup_deadline_label)} {deadline}</p>
 
-            <p class="guideline">
-                "Self-expression / Самовираження: "
-                {t!(i18n, home_guideline)}
-            </p>
+            <p class="guideline">{t!(i18n, home_guideline)}</p>
 
             <leptos::form::ActionForm action=enroll_action>
                 <div class="field">
                     <label class="field-label" for="branch-enroll">
-                        "Nova Poshta відділення (branch) — оновити при потребі"
+                        {t!(i18n, home_enroll_branch_label)}
                     </label>
                     <input
                         class="field-input"
@@ -657,10 +651,7 @@ fn render_home_state(
 
         HomeState::Enrolled { confirm_deadline } => view! {
             <h2>{t!(i18n, home_enrolled_heading)}</h2>
-            <p>
-                "Enrollment confirmed. Create your mail. / "
-                {t!(i18n, home_enrolled_desc)}
-            </p>
+            <p>{t!(i18n, home_enrolled_desc)}</p>
             <p class="deadline">{t!(i18n, home_confirm_deadline_label)}
                 {confirm_deadline}
             </p>
@@ -669,10 +660,7 @@ fn render_home_state(
 
         HomeState::Preparing { confirm_deadline } => view! {
             <h2>{t!(i18n, home_preparing_heading)}</h2>
-            <p>
-                "Create your mail / Створіть свій лист. "
-                "Confirm ready before the time runs out / підтвердьте готовність."
-            </p>
+            <p>{t!(i18n, home_preparing_body)}</p>
             <p class="deadline" data-testid="season-deadline">{t!(i18n, home_deadline_label)} {confirm_deadline}</p>
 
             <leptos::form::ActionForm action=confirm_action>
@@ -690,19 +678,13 @@ fn render_home_state(
 
         HomeState::Confirmed => view! {
             <h2>{t!(i18n, home_ready_confirmed_heading)}</h2>
-            <p>
-                "Your mail is confirmed. / Ваш лист підтверджено. "
-                {t!(i18n, home_waiting_assignment)}
-            </p>
+            <p>{t!(i18n, home_waiting_assignment)}</p>
         }
         .into_any(),
 
         HomeState::Assigning => view! {
             <h2>{t!(i18n, home_assigning_heading)}</h2>
-            <p>
-                "The organizer / організатор is preparing assignments. "
-                {t!(i18n, home_assigning_desc)}
-            </p>
+            <p>{t!(i18n, home_assigning_desc)}</p>
         }
         .into_any(),
 
@@ -713,7 +695,7 @@ fn render_home_state(
             recipient_branch_number,
         } => view! {
             <h2>{t!(i18n, home_assigned_heading)}</h2>
-            <p>"Arriving / Отримання: your parcel is on its way. Confirm receipt when it arrives."</p>
+            <p>{t!(i18n, home_send_instructions)}</p>
 
             <dl>
                 <dt>{t!(i18n, home_name_label)}</dt>
@@ -722,7 +704,7 @@ fn render_home_state(
                 <dt>{t!(i18n, home_phone_label)}</dt>
                 <dd data-testid="recipient-phone">{recipient_phone}</dd>
 
-                <dt>"Nova Poshta"</dt>
+                <dt>{t!(i18n, home_enroll_branch_label)}</dt>
                 <dd data-testid="recipient-branch">
                     {t!(i18n, home_recipient_branch, branch_number = recipient_branch_number, city = recipient_city)}
                 </dd>
@@ -734,7 +716,7 @@ fn render_home_state(
                 <leptos::form::ActionForm action=receipt_action>
                     <div class="field">
                         <label class="field-label" for="receipt-note">
-                            "Anything the organizer should know? (optional)"
+                            {t!(i18n, home_receipt_note_label)}
                         </label>
                         <textarea
                             class="field-input"
@@ -773,17 +755,13 @@ fn render_home_state(
 
         HomeState::ReceiptConfirmed => view! {
             <h2>{t!(i18n, home_thanks_heading)}</h2>
-            <p data-testid="receipt-thanks">"Receipt confirmed / Отримання підтверджено."</p>
-            <p data-testid="receipt-reported">{t!(i18n, home_reported_label)}</p>
+            <p data-testid="receipt-thanks">{t!(i18n, home_reported_label)}</p>
         }
         .into_any(),
 
         HomeState::Complete => view! {
             <h2>{t!(i18n, home_complete_heading)}</h2>
-            <p>
-                "This season is complete. / Цей сезон завершено. "
-                {t!(i18n, home_thanks_participation)}
-            </p>
+            <p>{t!(i18n, home_thanks_participation)}</p>
         }
         .into_any(),
     }

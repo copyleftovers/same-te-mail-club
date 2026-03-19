@@ -376,7 +376,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.goHome();
-      await app.expectHomeContent(/preparing|готує|організатор/i);
+      await app.expectHomeContent(/розподіл|хвилин|надіслати/i);
     });
 
     // Story 3.1 AC: organizer sees confirmed count before generating
@@ -442,7 +442,7 @@ test.describe.serial("The Mail Club", () => {
       await app.login(ADMIN_PHONE);
       await app.advanceSeason();
       await app.goToDashboard();
-      await app.expectDashboardContent(/delivery|відправлення/i);
+      await app.expectDashboardContent(/delivery|відправлення|доставка/i);
     });
 
     // Story 2.3: Participant sees assignment
@@ -479,7 +479,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.goHome();
-      await app.expectHomeContent(/arriving|отримання|confirm/i);
+      await app.expectHomeContent(/відправ|отримав/i);
     });
 
     // Story 2.4: Confirm receipt — received
@@ -497,7 +497,7 @@ test.describe.serial("The Mail Club", () => {
       await app.login(PHONES.B);
       await app.goHome();
       await app.confirmReceipt(false, "Пошта не надійшла");
-      await expect(page.getByTestId("receipt-reported")).toBeVisible();
+      await expect(page.getByTestId("receipt-thanks")).toBeVisible();
     });
 
     // Story 2.4 AC: "not received" triggers organizer notification

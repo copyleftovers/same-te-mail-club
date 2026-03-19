@@ -644,11 +644,11 @@ pub fn AssignmentsPage() -> impl IntoView {
     view! {
         <div class="prose-page">
             <nav class="admin-nav">
-                <a href="/admin">"Dashboard"</a>
-                <a href="/admin/season">"Season"</a>
-                <a href="/admin/participants">"Participants"</a>
-                <a href="/admin/assignments">"Assignments"</a>
-                <a href="/admin/sms">"SMS"</a>
+                <a href="/admin">{t!(i18n, admin_nav_dashboard)}</a>
+                <a href="/admin/season">{t!(i18n, admin_nav_season)}</a>
+                <a href="/admin/participants">{t!(i18n, admin_nav_participants)}</a>
+                <a href="/admin/assignments">{t!(i18n, admin_nav_assignments)}</a>
+                <a href="/admin/sms">{t!(i18n, admin_nav_sms)}</a>
             </nav>
             <h1>{t!(i18n, assignments_page_title)}</h1>
 
@@ -806,7 +806,7 @@ fn render_cycle_visualization(
             view! {
                 <div class="cohort">
                     <h3>{t!(i18n, assignments_cohort_label)}{idx + 1}</h3>
-                    <p>"Score: " {cohort.score}</p>
+                    <p>{t!(i18n, assignments_score_label)}{cohort.score}</p>
                     <ol>{chain_items}</ol>
                 </div>
             }
@@ -831,16 +831,16 @@ fn SwapForm(
 ) -> impl IntoView {
     view! {
         <section data-testid="override-available">
-            <h3>"Swap / Обмін"</h3>
-            <p>"Enter two sender UUIDs to exchange their recipients."</p>
+            <h3>{t!(i18n, assignments_swap_title)}</h3>
+            <p>{t!(i18n, assignments_swap_description)}</p>
             <leptos::form::ActionForm action=swap_action>
                 <input type="hidden" name="season_id" value=season_id />
                 <div class="field">
-                    <label class="field-label" for="sender-a">"Sender A (UUID)"</label>
+                    <label class="field-label" for="sender-a">{t!(i18n, assignments_sender_a_label)}</label>
                     <input class="field-input" id="sender-a" type="text" name="sender_a" required=true />
                 </div>
                 <div class="field">
-                    <label class="field-label" for="sender-b">"Sender B (UUID)"</label>
+                    <label class="field-label" for="sender-b">{t!(i18n, assignments_sender_b_label)}</label>
                     <input class="field-input" id="sender-b" type="text" name="sender_b" required=true />
                 </div>
                 <button

@@ -425,9 +425,16 @@ fn ActiveSeasonPanel(
     let can_advance = status.phase.can_advance();
     let launched = status.launched;
     let phase_label = if launched {
-        format!("{}", status.phase)
+        match status.phase {
+            crate::types::Phase::Enrollment => t_string!(i18n, season_phase_enrollment),
+            crate::types::Phase::Preparation => t_string!(i18n, season_phase_preparation),
+            crate::types::Phase::Assignment => t_string!(i18n, season_phase_assignment),
+            crate::types::Phase::Delivery => t_string!(i18n, season_phase_delivery),
+            crate::types::Phase::Complete => t_string!(i18n, season_phase_complete),
+            crate::types::Phase::Cancelled => t_string!(i18n, season_phase_cancelled),
+        }
     } else {
-        "created / створено".to_owned()
+        t_string!(i18n, season_phase_created)
     };
 
     view! {
@@ -552,11 +559,11 @@ pub fn SeasonManagePage() -> impl IntoView {
     view! {
         <div class="prose-page">
             <nav class="admin-nav">
-                <a href="/admin">"Dashboard"</a>
-                <a href="/admin/season">"Season"</a>
-                <a href="/admin/participants">"Participants"</a>
-                <a href="/admin/assignments">"Assignments"</a>
-                <a href="/admin/sms">"SMS"</a>
+                <a href="/admin">{t!(i18n, admin_nav_dashboard)}</a>
+                <a href="/admin/season">{t!(i18n, admin_nav_season)}</a>
+                <a href="/admin/participants">{t!(i18n, admin_nav_participants)}</a>
+                <a href="/admin/assignments">{t!(i18n, admin_nav_assignments)}</a>
+                <a href="/admin/sms">{t!(i18n, admin_nav_sms)}</a>
             </nav>
             <h1>{t!(i18n, season_page_title)}</h1>
 

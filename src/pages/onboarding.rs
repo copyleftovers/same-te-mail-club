@@ -103,7 +103,7 @@ pub fn OnboardingPage() -> impl IntoView {
 
             <leptos::form::ActionForm action=onboard_action>
                 <div class="field">
-                    <label class="field-label" for="np-branch">"Nova Poshta відділення (branch)"</label>
+                    <label class="field-label" for="np-branch">{t!(i18n, onboarding_branch_label)}</label>
                     <input
                         class="field-input"
                         id="np-branch"
@@ -114,7 +114,7 @@ pub fn OnboardingPage() -> impl IntoView {
                     />
                 </div>
                 <button class="btn" type="submit" data-testid="save-onboarding-button" disabled=move || !hydrated.get()>
-                    "Save and continue"
+                    {t!(i18n, onboarding_save_button)}
                 </button>
             </leptos::form::ActionForm>
 

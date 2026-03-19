@@ -1,4 +1,4 @@
-use crate::i18n::i18n::{t, use_i18n};
+use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -111,13 +111,13 @@ pub fn DashboardPage() -> impl IntoView {
     view! {
         <div class="prose-page">
             <nav class="admin-nav">
-                <a href="/admin">"Dashboard"</a>
-                <a href="/admin/season">"Season"</a>
-                <a href="/admin/participants">"Participants"</a>
-                <a href="/admin/assignments">"Assignments"</a>
-                <a href="/admin/sms">"SMS"</a>
+                <a href="/admin">{t!(i18n, admin_nav_dashboard)}</a>
+                <a href="/admin/season">{t!(i18n, admin_nav_season)}</a>
+                <a href="/admin/participants">{t!(i18n, admin_nav_participants)}</a>
+                <a href="/admin/assignments">{t!(i18n, admin_nav_assignments)}</a>
+                <a href="/admin/sms">{t!(i18n, admin_nav_sms)}</a>
             </nav>
-            <h1>"Dashboard"</h1>
+            <h1>{t!(i18n, admin_dashboard_title)}</h1>
 
             <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || dashboard.get().map(|result| match result {
@@ -138,20 +138,20 @@ pub fn DashboardPage() -> impl IntoView {
                             let phase_display = if s.launched {
                                 match s.phase {
                                     crate::types::Phase::Enrollment =>
-                                        "signup / реєстрація".to_owned(),
+                                        t_string!(i18n, season_phase_enrollment),
                                     crate::types::Phase::Preparation =>
-                                        "preparation / підготовка".to_owned(),
+                                        t_string!(i18n, season_phase_preparation),
                                     crate::types::Phase::Assignment =>
-                                        "assignment / розподіл".to_owned(),
+                                        t_string!(i18n, season_phase_assignment),
                                     crate::types::Phase::Delivery =>
-                                        "delivery / відправлення".to_owned(),
+                                        t_string!(i18n, season_phase_delivery),
                                     crate::types::Phase::Complete =>
-                                        "complete / завершено".to_owned(),
+                                        t_string!(i18n, season_phase_complete),
                                     crate::types::Phase::Cancelled =>
-                                        "cancelled / скасовано".to_owned(),
+                                        t_string!(i18n, season_phase_cancelled),
                                 }
                             } else {
-                                "created / створено".to_owned()
+                                t_string!(i18n, season_phase_created)
                             };
 
                             view! {

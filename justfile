@@ -23,6 +23,17 @@ _kill-stale:
 e2e: _kill-stale db-reset db-seed
     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
 
+# Run a single test by grep pattern — includes DB reset and rebuild.
+# Only useful for tests that don't depend on prior DB state (e.g. block 1 tests).
+# For dependent tests: run `just e2e` first, then target with `just e2e-single`.
+e2e-single pattern: _kill-stale db-reset db-seed
+    SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end -- --grep "{{pattern}}"
+
+# Re-run E2E tests without resetting the DB — use when DB is already in correct state.
+# Rebuilds the app. Kills any stale server on :3000 first.
+e2e-rerun: _kill-stale
+    SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
+
 # Build release
 build:
     cargo leptos build --release

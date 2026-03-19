@@ -188,7 +188,7 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
     view! {
         <leptos::form::ActionForm action=register_action>
             <div class="field">
-                <label class="field-label" for="reg-phone">"Phone number (номер телефону)"</label>
+                <label class="field-label" for="reg-phone">{t!(i18n, participants_phone_label)}</label>
                 <input
                     class="field-input"
                     id="reg-phone"
@@ -199,7 +199,7 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
                 />
             </div>
             <div class="field">
-                <label class="field-label" for="reg-name">"Name (ім'я для Nova Poshta)"</label>
+                <label class="field-label" for="reg-name">{t!(i18n, participants_name_label)}</label>
                 <input
                     class="field-input"
                     id="reg-name"
@@ -344,11 +344,11 @@ pub fn ParticipantsPage() -> impl IntoView {
     view! {
         <div class="prose-page">
             <nav class="admin-nav">
-                <a href="/admin">"Dashboard"</a>
-                <a href="/admin/season">"Season"</a>
-                <a href="/admin/participants">"Participants"</a>
-                <a href="/admin/assignments">"Assignments"</a>
-                <a href="/admin/sms">"SMS"</a>
+                <a href="/admin">{t!(i18n, admin_nav_dashboard)}</a>
+                <a href="/admin/season">{t!(i18n, admin_nav_season)}</a>
+                <a href="/admin/participants">{t!(i18n, admin_nav_participants)}</a>
+                <a href="/admin/assignments">{t!(i18n, admin_nav_assignments)}</a>
+                <a href="/admin/sms">{t!(i18n, admin_nav_sms)}</a>
             </nav>
             <h1>{t!(i18n, participants_page_title)}</h1>
 

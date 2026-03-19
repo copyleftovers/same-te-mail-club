@@ -1,3 +1,4 @@
+use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
@@ -67,6 +68,7 @@ pub fn App() -> impl IntoView {
     // this i18n pass.
     #[allow(deprecated)]
     crate::i18n::i18n::provide_i18n_context();
+    let i18n = use_i18n();
 
     // Fetch current user once at app load — used for all auth guards
     let current_user = Resource::new(|| (), |()| get_current_user());
@@ -75,7 +77,7 @@ pub fn App() -> impl IntoView {
 
     view! {
         <Stylesheet id="leptos" href="/pkg/samete.css"/>
-        <Title text="The Mail Club"/>
+        <Title text=t_string!(i18n, app_title)/>
 
         <Router>
             <header class="app-header">
@@ -84,7 +86,7 @@ pub fn App() -> impl IntoView {
                 </a>
             </header>
             <main>
-                <Routes fallback=|| "Page not found.".into_view()>
+                <Routes fallback=move || t!(i18n, app_not_found)>
                     <Route path=StaticSegment("login") view=LoginPage/>
                     <Route path=StaticSegment("onboarding") view=move || {
                         view! { <AuthGuard require_onboarded=false><OnboardingPage/></AuthGuard> }

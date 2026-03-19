@@ -186,7 +186,7 @@ export class MailClubPage {
     } else {
       await this.page.getByTestId("not-received-button").click();
       // Wait for refetch to complete — completion signal appears.
-      await expect(this.page.getByTestId("receipt-reported")).toBeVisible();
+      await expect(this.page.getByTestId("receipt-thanks")).toBeVisible();
     }
   }
 
