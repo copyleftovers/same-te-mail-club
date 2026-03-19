@@ -643,13 +643,6 @@ pub fn AssignmentsPage() -> impl IntoView {
 
     view! {
         <div class="prose-page">
-            <nav class="admin-nav">
-                <a href="/admin">{t!(i18n, admin_nav_dashboard)}</a>
-                <a href="/admin/season">{t!(i18n, admin_nav_season)}</a>
-                <a href="/admin/participants">{t!(i18n, admin_nav_participants)}</a>
-                <a href="/admin/assignments">{t!(i18n, admin_nav_assignments)}</a>
-                <a href="/admin/sms">{t!(i18n, admin_nav_sms)}</a>
-            </nav>
             <h1>{t!(i18n, assignments_page_title)}</h1>
 
             // Error display.

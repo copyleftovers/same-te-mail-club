@@ -38,6 +38,16 @@ pub async fn complete_onboarding(branch: String) -> Result<(), ServerFnError> {
         .parse()
         .unwrap_or(1);
 
+    // Extract city: everything after the first ", " separator
+    // "Відділення №5, Київ" → "Київ"
+    // "№5, Київ" → "Київ"
+    // "Відділення №5" → "" (no city — store empty string)
+    let city = trimmed
+        .split_once(", ")
+        .map_or("", |x| x.1)
+        .trim()
+        .to_owned();
+
     // Upsert delivery address
     sqlx::query!(
         r#"
@@ -49,7 +59,7 @@ pub async fn complete_onboarding(branch: String) -> Result<(), ServerFnError> {
                 updated_at = now()
         "#,
         user.id,
-        trimmed,
+        city,
         number,
     )
     .execute(&pool)
@@ -111,16 +121,17 @@ pub fn OnboardingPage() -> impl IntoView {
                         name="branch"
                         placeholder=move || t_string!(i18n, onboarding_branch_placeholder)
                         data-testid="branch-input"
+                        aria-invalid=move || error_msg.get().is_some()
+                        aria-describedby="np-branch-error"
                     />
+                    <div id="np-branch-error" role="alert" aria-live="assertive" data-testid="action-error">
+                        {move || error_msg.get().map(|msg| view! { <span>{msg}</span> })}
+                    </div>
                 </div>
                 <button class="btn" type="submit" data-testid="save-onboarding-button" disabled=move || !hydrated.get()>
                     {t!(i18n, onboarding_save_button)}
                 </button>
             </leptos::form::ActionForm>
-
-            {move || error_msg.get().map(|msg| view! {
-                <p class="alert">{msg}</p>
-            })}
         </div>
     }
 }

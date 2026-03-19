@@ -22,6 +22,9 @@ pub mod sms;
 #[cfg(feature = "ssr")]
 pub mod assignment;
 
+#[cfg(feature = "ssr")]
+pub mod date_format;
+
 pub mod admin;
 
 #[cfg(feature = "hydrate")]

@@ -196,6 +196,7 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
                     name="phone"
                     placeholder="+380XXXXXXXXX"
                     data-testid="reg-phone-input"
+                    aria-describedby="action-error"
                 />
             </div>
             <div class="field">
@@ -207,6 +208,7 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
                     name="name"
                     placeholder=move || t_string!(i18n, participants_name_placeholder)
                     data-testid="reg-name-input"
+                    aria-describedby="action-error"
                 />
             </div>
             <button class="btn" type="submit" data-testid="register-button" disabled=move || !hydrated.get()>
@@ -343,13 +345,6 @@ pub fn ParticipantsPage() -> impl IntoView {
 
     view! {
         <div class="prose-page">
-            <nav class="admin-nav">
-                <a href="/admin">{t!(i18n, admin_nav_dashboard)}</a>
-                <a href="/admin/season">{t!(i18n, admin_nav_season)}</a>
-                <a href="/admin/participants">{t!(i18n, admin_nav_participants)}</a>
-                <a href="/admin/assignments">{t!(i18n, admin_nav_assignments)}</a>
-                <a href="/admin/sms">{t!(i18n, admin_nav_sms)}</a>
-            </nav>
             <h1>{t!(i18n, participants_page_title)}</h1>
 
             <section>
@@ -357,9 +352,11 @@ pub fn ParticipantsPage() -> impl IntoView {
                 <RegisterForm
                     register_action=register_action
                 />
-                {move || error_msg.get().map(|msg| view! {
-                    <p class="alert" data-testid="action-error">{msg}</p>
-                })}
+                <div id="action-error" role="alert" aria-live="assertive" data-testid="action-error">
+                    {move || error_msg.get().map(|msg| view! {
+                        <p class="alert">{msg}</p>
+                    })}
+                </div>
             </section>
 
             <section>

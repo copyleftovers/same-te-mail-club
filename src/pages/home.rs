@@ -221,9 +221,8 @@ async fn resolve_delivery_state(
 /// Returns `Err` if session is invalid or DB fails.
 #[server]
 pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
-    use crate::{auth, error::AppError, types::Phase};
+    use crate::{auth, date_format::format_date_uk, error::AppError, types::Phase};
     use http::request::Parts;
-    use time::format_description::well_known::Rfc3339;
 
     let pool = leptos::context::use_context::<sqlx::PgPool>()
         .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
@@ -269,8 +268,8 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
         };
     };
 
-    let signup_str = season.signup_deadline.format(&Rfc3339).unwrap_or_default();
-    let confirm_str = season.confirm_deadline.format(&Rfc3339).unwrap_or_default();
+    let signup_str = format_date_uk(season.signup_deadline);
+    let confirm_str = format_date_uk(season.confirm_deadline);
 
     match season.phase {
         Phase::Enrollment => {
@@ -337,6 +336,16 @@ pub async fn enroll_in_season(branch: String) -> Result<(), ServerFnError> {
             .parse()
             .unwrap_or(1);
 
+        // Extract city: everything after the first ", " separator
+        // "Відділення №5, Київ" → "Київ"
+        // "№5, Київ" → "Київ"
+        // "Відділення №5" → "" (no city — store empty string)
+        let city = trimmed
+            .split_once(", ")
+            .map_or("", |x| x.1)
+            .trim()
+            .to_owned();
+
         sqlx::query!(
             r#"
             INSERT INTO delivery_addresses (user_id, nova_poshta_city, nova_poshta_number)
@@ -347,7 +356,7 @@ pub async fn enroll_in_season(branch: String) -> Result<(), ServerFnError> {
                     updated_at = now()
             "#,
             user.id,
-            trimmed,
+            city,
             number,
         )
         .execute(&pool)
@@ -576,14 +585,16 @@ pub fn HomePage() -> impl IntoView {
     view! {
         <div class="prose-page">
             // Action error display
-            {move || {
-                let err = enroll_action.value().get().and_then(Result::err)
-                    .or_else(|| confirm_action.value().get().and_then(Result::err))
-                    .or_else(|| receipt_action.value().get().and_then(Result::err));
-                err.map(|e| view! {
-                    <p class="alert">{e.to_string()}</p>
-                })
-            }}
+            <div role="alert" aria-live="assertive" data-testid="action-error">
+                {move || {
+                    let err = enroll_action.value().get().and_then(Result::err)
+                        .or_else(|| confirm_action.value().get().and_then(Result::err))
+                        .or_else(|| receipt_action.value().get().and_then(Result::err));
+                    err.map(|e| view! {
+                        <p class="alert">{e.to_string()}</p>
+                    })
+                }}
+            </div>
 
             <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || home_state.get().map(|result| match result {
@@ -635,6 +646,8 @@ fn render_home_state(
                         name="branch"
                         placeholder=move || t_string!(i18n, home_enroll_branch_placeholder)
                         data-testid="enroll-branch-input"
+                        aria-invalid=move || enroll_action.value().get().and_then(Result::err).is_some()
+                        aria-describedby="action-error"
                     />
                 </div>
                 <button
@@ -724,6 +737,8 @@ fn render_home_state(
                             name="note"
                             placeholder=move || t_string!(i18n, home_receipt_note_placeholder)
                             data-testid="receipt-note-input"
+                            aria-invalid=move || receipt_action.value().get().and_then(Result::err).is_some()
+                            aria-describedby="action-error"
                         ></textarea>
                     </div>
                     // received=true hidden input for the Received button

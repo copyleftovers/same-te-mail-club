@@ -8,8 +8,8 @@ use leptos_router::{
 
 use crate::{
     admin::{
-        assignments::AssignmentsPage, dashboard::DashboardPage, participants::ParticipantsPage,
-        season::SeasonManagePage, sms::SmsPage,
+        assignments::AssignmentsPage, dashboard::DashboardPage, nav::AdminNav,
+        participants::ParticipantsPage, season::SeasonManagePage, sms::SmsPage,
     },
     pages::{home::HomePage, login::LoginPage, onboarding::OnboardingPage},
 };
@@ -82,8 +82,9 @@ pub fn App() -> impl IntoView {
         <Router>
             <header class="app-header">
                 <a href="/">
-                    <img src="/logo.svg" alt="Саме Те" />
+                    <img src="/same_te_mark_orange.svg" alt="Саме Те" class="h-10 w-auto" />
                 </a>
+                <HeaderNav/>
             </header>
             <main>
                 <Routes fallback=move || t!(i18n, app_not_found)>
@@ -115,6 +116,22 @@ pub fn App() -> impl IntoView {
                 </Routes>
             </main>
         </Router>
+    }
+}
+
+// ── Header nav ────────────────────────────────────────────────────────────────
+
+/// Renders `AdminNav` when the current path is under `/admin`, nothing otherwise.
+///
+/// Must be rendered inside `<Router>` so `use_location` has context.
+#[component]
+fn HeaderNav() -> impl IntoView {
+    let pathname = leptos_router::hooks::use_location().pathname;
+    move || {
+        pathname
+            .get()
+            .starts_with("/admin")
+            .then(|| view! { <AdminNav/> })
     }
 }
 

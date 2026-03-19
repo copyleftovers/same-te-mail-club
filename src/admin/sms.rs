@@ -228,9 +228,7 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     .await
     .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
-    let deadline_str = confirm_deadline
-        .format(&time::format_description::well_known::Rfc3339)
-        .unwrap_or_else(|_| td_string!(Locale::uk, common_unknown).to_owned());
+    let deadline_str = crate::date_format::format_date_uk(confirm_deadline);
 
     let phones = sqlx::query_scalar!(
         r#"
@@ -395,13 +393,6 @@ pub fn SmsPage() -> impl IntoView {
 
     view! {
         <div class="prose-page">
-            <nav class="admin-nav">
-                <a href="/admin">{t!(i18n, admin_nav_dashboard)}</a>
-                <a href="/admin/season">{t!(i18n, admin_nav_season)}</a>
-                <a href="/admin/participants">{t!(i18n, admin_nav_participants)}</a>
-                <a href="/admin/assignments">{t!(i18n, admin_nav_assignments)}</a>
-                <a href="/admin/sms">{t!(i18n, admin_nav_sms)}</a>
-            </nav>
             <h1>{t!(i18n, sms_page_title)}</h1>
 
             // Error display

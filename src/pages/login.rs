@@ -84,7 +84,7 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
         return Ok(false);
     };
 
-    if let Ok((_user_id, raw_token)) = auth::verify_otp(&pool, &normalized, &code).await {
+    if let Ok((user_id, raw_token)) = auth::verify_otp(&pool, &normalized, &code).await {
         // Set session cookie
         let response_options = leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
         let cookie =
@@ -94,7 +94,17 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
             axum::http::HeaderValue::from_str(&cookie)
                 .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
         );
-        leptos_axum::redirect("/");
+
+        let is_admin = sqlx::query_scalar!(
+            r#"SELECT role = 'admin' AS "is_admin!" FROM users WHERE id = $1"#,
+            user_id
+        )
+        .fetch_optional(&pool)
+        .await
+        .unwrap_or(None)
+        .unwrap_or(false);
+
+        leptos_axum::redirect(if is_admin { "/admin" } else { "/" });
         Ok(true)
     } else {
         leptos_axum::redirect("/login");

@@ -110,13 +110,6 @@ pub fn DashboardPage() -> impl IntoView {
 
     view! {
         <div class="prose-page">
-            <nav class="admin-nav">
-                <a href="/admin">{t!(i18n, admin_nav_dashboard)}</a>
-                <a href="/admin/season">{t!(i18n, admin_nav_season)}</a>
-                <a href="/admin/participants">{t!(i18n, admin_nav_participants)}</a>
-                <a href="/admin/assignments">{t!(i18n, admin_nav_assignments)}</a>
-                <a href="/admin/sms">{t!(i18n, admin_nav_sms)}</a>
-            </nav>
             <h1>{t!(i18n, admin_dashboard_title)}</h1>
 
             <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
@@ -135,30 +128,30 @@ pub fn DashboardPage() -> impl IntoView {
                                 crate::types::Phase::Complete | crate::types::Phase::Cancelled
                             );
 
-                            let phase_display = if s.launched {
+                            let (phase_display, phase_status) = if s.launched {
                                 match s.phase {
                                     crate::types::Phase::Enrollment =>
-                                        t_string!(i18n, season_phase_enrollment),
+                                        (t_string!(i18n, season_phase_enrollment), "active"),
                                     crate::types::Phase::Preparation =>
-                                        t_string!(i18n, season_phase_preparation),
+                                        (t_string!(i18n, season_phase_preparation), "active"),
                                     crate::types::Phase::Assignment =>
-                                        t_string!(i18n, season_phase_assignment),
+                                        (t_string!(i18n, season_phase_assignment), "pending"),
                                     crate::types::Phase::Delivery =>
-                                        t_string!(i18n, season_phase_delivery),
+                                        (t_string!(i18n, season_phase_delivery), "active"),
                                     crate::types::Phase::Complete =>
-                                        t_string!(i18n, season_phase_complete),
+                                        (t_string!(i18n, season_phase_complete), "confirmed"),
                                     crate::types::Phase::Cancelled =>
-                                        t_string!(i18n, season_phase_cancelled),
+                                        (t_string!(i18n, season_phase_cancelled), "inactive"),
                                 }
                             } else {
-                                t_string!(i18n, season_phase_created)
+                                (t_string!(i18n, season_phase_created), "pending")
                             };
 
                             view! {
                                 <section>
                                     <dl>
                                         <dt>{t!(i18n, dashboard_phase_label)}</dt>
-                                        <dd>{phase_display}</dd>
+                                        <dd><span class="badge" data-status=phase_status>{phase_display}</span></dd>
 
                                         {s.theme.as_ref().map(|theme_val| view! {
                                             <dt>{t!(i18n, dashboard_theme_label)}</dt>

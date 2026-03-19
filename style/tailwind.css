@@ -366,9 +366,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--density-space-sm);
-    padding: var(--density-space-sm) var(--density-space-md);
-    border-bottom: 1px solid oklch(from var(--color-brand-gray) l c h / 0.2);
-    margin-bottom: var(--density-space-md);
+    align-items: center;
   }
 
   .admin-nav a {
@@ -386,6 +384,11 @@
     color: var(--color-accent);
   }
 
+  .admin-nav a[aria-current="page"] {
+    color: var(--color-accent);
+    font-weight: 600;
+  }
+
   .app-header {
     display: flex;
     align-items: center;
@@ -393,6 +396,7 @@
     padding: 0.75rem 1rem;
     max-width: 65ch;
     margin-inline: auto;
+    border-bottom: 1px solid oklch(from var(--color-brand-gray) l c h / 0.2);
   }
 
   .app-header img {

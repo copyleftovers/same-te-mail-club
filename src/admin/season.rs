@@ -296,11 +296,11 @@ pub async fn cancel_season() -> Result<(), ServerFnError> {
 pub async fn get_season_status() -> Result<Option<SeasonStatus>, ServerFnError> {
     use crate::{
         auth,
+        date_format::format_date_uk,
         error::AppError,
         types::{Phase, UserRole},
     };
     use http::request::Parts;
-    use time::format_description::well_known::Rfc3339;
 
     let pool = leptos::context::use_context::<sqlx::PgPool>()
         .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
@@ -340,8 +340,8 @@ pub async fn get_season_status() -> Result<Option<SeasonStatus>, ServerFnError> 
     Ok(row.map(|r| SeasonStatus {
         id: r.id,
         phase: r.phase,
-        signup_deadline: r.signup_deadline.format(&Rfc3339).unwrap_or_default(),
-        confirm_deadline: r.confirm_deadline.format(&Rfc3339).unwrap_or_default(),
+        signup_deadline: format_date_uk(r.signup_deadline),
+        confirm_deadline: format_date_uk(r.confirm_deadline),
         theme: r.theme,
         launched: r.launched,
         enrolled_count: r.enrolled_count,
@@ -372,6 +372,7 @@ fn CreateSeasonForm(
                         name="signup_deadline"
                         required=true
                         data-testid="signup-deadline-input"
+                        aria-describedby="action-error"
                     />
                 </div>
                 <div class="field">
@@ -385,6 +386,7 @@ fn CreateSeasonForm(
                         name="confirm_deadline"
                         required=true
                         data-testid="confirm-deadline-input"
+                        aria-describedby="action-error"
                     />
                 </div>
                 <div class="field">
@@ -398,6 +400,7 @@ fn CreateSeasonForm(
                         name="theme"
                         placeholder=move || t_string!(i18n, season_theme_placeholder)
                         data-testid="theme-input"
+                        aria-describedby="action-error"
                     />
                 </div>
                 <button
@@ -558,25 +561,20 @@ pub fn SeasonManagePage() -> impl IntoView {
 
     view! {
         <div class="prose-page">
-            <nav class="admin-nav">
-                <a href="/admin">{t!(i18n, admin_nav_dashboard)}</a>
-                <a href="/admin/season">{t!(i18n, admin_nav_season)}</a>
-                <a href="/admin/participants">{t!(i18n, admin_nav_participants)}</a>
-                <a href="/admin/assignments">{t!(i18n, admin_nav_assignments)}</a>
-                <a href="/admin/sms">{t!(i18n, admin_nav_sms)}</a>
-            </nav>
             <h1>{t!(i18n, season_page_title)}</h1>
 
             // Error display for any action
-            {move || {
-                let err = create_action.value().get().and_then(Result::err)
-                    .or_else(|| launch_action.value().get().and_then(Result::err))
-                    .or_else(|| advance_action.value().get().and_then(Result::err))
-                    .or_else(|| cancel_action.value().get().and_then(Result::err));
-                err.map(|e| view! {
-                    <p class="alert">{e.to_string()}</p>
-                })
-            }}
+            <div id="action-error" role="alert" aria-live="assertive" data-testid="action-error">
+                {move || {
+                    let err = create_action.value().get().and_then(Result::err)
+                        .or_else(|| launch_action.value().get().and_then(Result::err))
+                        .or_else(|| advance_action.value().get().and_then(Result::err))
+                        .or_else(|| cancel_action.value().get().and_then(Result::err));
+                    err.map(|e| view! {
+                        <p class="alert">{e.to_string()}</p>
+                    })
+                }}
+            </div>
 
             <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
                 {move || status.get().map(|result| match result {
