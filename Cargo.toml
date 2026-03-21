@@ -14,6 +14,7 @@ leptos = { version = "0.8" }
 leptos_router = { version = "0.8" }
 leptos_meta = { version = "0.8" }
 leptos_i18n = { version = "0.6", features = [] }
+leptos-use = "0.18"
 
 # Serialization (shared between server and client)
 serde = { version = "1", features = ["derive"] }
@@ -42,6 +43,7 @@ anyhow = { version = "1", optional = true }
 # Hydrate-only
 wasm-bindgen = { version = "0.2", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
+getrandom = { version = "0.3", optional = true }
 
 [features]
 default = []
@@ -49,6 +51,8 @@ hydrate = [
     "leptos/hydrate",
     "dep:console_error_panic_hook",
     "dep:wasm-bindgen",
+    "dep:getrandom",
+    "getrandom/wasm_js",
     "uuid/js",
     "leptos_i18n/hydrate",
 ]
@@ -72,6 +76,8 @@ ssr = [
     "dep:anyhow",
     "leptos_i18n/ssr",
     "leptos_i18n/axum",
+    "leptos-use/ssr",
+    "leptos-use/axum",
 ]
 
 [lints.rust]
