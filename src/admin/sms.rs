@@ -300,10 +300,6 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
 ///
 /// Each button fires one batch SMS job; result shown in `sms-report`.
 /// Uses four separate actions so the result of each is tracked independently.
-// Four independent ActionForms each with their own trigger section.
-// Splitting into sub-components adds call-site indirection without reducing entanglement —
-// the actions, hydration gate, and report display are all coupled to each other.
-#[allow(clippy::too_many_lines)]
 #[component]
 pub fn SmsPage() -> impl IntoView {
     let i18n = use_i18n();
@@ -312,7 +308,40 @@ pub fn SmsPage() -> impl IntoView {
     let confirm_nudge_action = ServerAction::<SendConfirmNudgeSms>::new();
     let receipt_nudge_action = ServerAction::<SendReceiptNudgeSms>::new();
 
-    // Show the most recent SMS report (whichever action completed last)
+    let hydrated = use_hydrated();
+
+    view! {
+        <div class="prose-page">
+            <h1>{t!(i18n, sms_page_title)}</h1>
+
+            {render_sms_status(
+                season_open_action,
+                assignment_action,
+                confirm_nudge_action,
+                receipt_nudge_action,
+                i18n,
+            )}
+
+            {render_sms_triggers(
+                season_open_action,
+                assignment_action,
+                confirm_nudge_action,
+                receipt_nudge_action,
+                hydrated,
+                i18n,
+            )}
+        </div>
+    }
+}
+
+/// Renders error display and SMS report from the most recent completed action.
+fn render_sms_status(
+    season_open_action: ServerAction<SendSeasonOpenSms>,
+    assignment_action: ServerAction<SendAssignmentSms>,
+    confirm_nudge_action: ServerAction<SendConfirmNudgeSms>,
+    receipt_nudge_action: ServerAction<SendReceiptNudgeSms>,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+) -> impl IntoView {
     let latest_report = move || {
         season_open_action
             .value()
@@ -333,109 +362,115 @@ pub fn SmsPage() -> impl IntoView {
             .or_else(|| receipt_nudge_action.value().get().and_then(Result::err))
     };
 
-    let hydrated = use_hydrated();
-
     view! {
-        <div class="prose-page">
-            <h1>{t!(i18n, sms_page_title)}</h1>
+        // Error display
+        {move || latest_error().map(|e| view! { <p class="alert">{e.to_string()}</p> })}
 
-            // Error display
-            {move || latest_error().map(|e| view! { <p class="alert">{e.to_string()}</p> })}
+        // SMS report
+        {move || {
+            latest_report()
+                .map(|report| {
+                    view! {
+                        <div class="alert" data-testid="sms-report">
+                            <p data-testid="sms-sent-confirmation">
+                                {t!(i18n, sms_sent_label)} <strong>{report.sent}</strong>
+                            </p>
+                            {if report.failed > 0 {
+                                view! {
+                                    <p>
+                                        {t!(i18n, sms_failed_label)}
+                                        <strong>{report.failed}</strong>
+                                    </p>
+                                }
+                                    .into_any()
+                            } else {
+                                ().into_any()
+                            }}
+                        </div>
+                    }
+                })
+        }}
+    }
+}
 
-            // SMS report
-            {move || {
-                latest_report()
-                    .map(|report| {
-                        view! {
-                            <div class="alert" data-testid="sms-report">
-                                <p data-testid="sms-sent-confirmation">
-                                    {t!(i18n, sms_sent_label)} <strong>{report.sent}</strong>
-                                </p>
-                                {if report.failed > 0 {
-                                    view! {
-                                        <p>
-                                            {t!(i18n, sms_failed_label)}
-                                            <strong>{report.failed}</strong>
-                                        </p>
-                                    }
-                                        .into_any()
-                                } else {
-                                    ().into_any()
-                                }}
-                            </div>
-                        }
-                    })
-            }}
+/// Renders the four SMS trigger sections.
+fn render_sms_triggers(
+    season_open_action: ServerAction<SendSeasonOpenSms>,
+    assignment_action: ServerAction<SendAssignmentSms>,
+    confirm_nudge_action: ServerAction<SendConfirmNudgeSms>,
+    receipt_nudge_action: ServerAction<SendReceiptNudgeSms>,
+    hydrated: ReadSignal<bool>,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+) -> impl IntoView {
+    view! {
+        <section class="flex flex-col gap-3">
+            // Story 5.3: Season-open — target all active users
+            <div class="sms-trigger">
+                <h2>{t!(i18n, sms_season_open_section_title)}</h2>
+                <p>{t!(i18n, sms_season_open_target)}</p>
+                <leptos::form::ActionForm action=season_open_action>
+                    <button
+                        class="btn"
+                        data-size="sm"
+                        type="submit"
+                        data-testid="send-season-open-button"
+                        disabled=move || !hydrated.get()
+                    >
+                        {t!(i18n, common_send_button)}
+                    </button>
+                </leptos::form::ActionForm>
+            </div>
 
-            <section class="flex flex-col gap-3">
-                // Story 5.3: Season-open — target all active users
-                <div class="sms-trigger">
-                    <h2>{t!(i18n, sms_season_open_section_title)}</h2>
-                    <p>{t!(i18n, sms_season_open_target)}</p>
-                    <leptos::form::ActionForm action=season_open_action>
-                        <button
-                            class="btn"
-                            data-size="sm"
-                            type="submit"
-                            data-testid="send-season-open-button"
-                            disabled=move || !hydrated.get()
-                        >
-                            {t!(i18n, common_send_button)}
-                        </button>
-                    </leptos::form::ActionForm>
-                </div>
+            // Story 5.1: Assignment notification — target senders with notified_at IS NULL
+            <div class="sms-trigger">
+                <h2>{t!(i18n, sms_assignment_section_title)}</h2>
+                <p>{t!(i18n, sms_assignment_target)}</p>
+                <leptos::form::ActionForm action=assignment_action>
+                    <button
+                        class="btn"
+                        data-size="sm"
+                        type="submit"
+                        data-testid="send-assignment-button"
+                        disabled=move || !hydrated.get()
+                    >
+                        {t!(i18n, common_send_button)}
+                    </button>
+                </leptos::form::ActionForm>
+            </div>
 
-                // Story 5.1: Assignment notification — target senders with notified_at IS NULL
-                <div class="sms-trigger">
-                    <h2>{t!(i18n, sms_assignment_section_title)}</h2>
-                    <p>{t!(i18n, sms_assignment_target)}</p>
-                    <leptos::form::ActionForm action=assignment_action>
-                        <button
-                            class="btn"
-                            data-size="sm"
-                            type="submit"
-                            data-testid="send-assignment-button"
-                            disabled=move || !hydrated.get()
-                        >
-                            {t!(i18n, common_send_button)}
-                        </button>
-                    </leptos::form::ActionForm>
-                </div>
+            // Story 5.4: Pre-deadline nudge — target unconfirmed enrolled
+            <div class="sms-trigger">
+                <h2>{t!(i18n, sms_confirm_nudge_section_title)}</h2>
+                <p>{t!(i18n, sms_confirm_nudge_target)}</p>
+                <leptos::form::ActionForm action=confirm_nudge_action>
+                    <button
+                        class="btn"
+                        data-size="sm"
+                        type="submit"
+                        data-testid="send-confirm-nudge-button"
+                        disabled=move || !hydrated.get()
+                    >
+                        {t!(i18n, common_send_button)}
+                    </button>
+                </leptos::form::ActionForm>
+            </div>
 
-                // Story 5.4: Pre-deadline nudge — target unconfirmed enrolled
-                <div class="sms-trigger">
-                    <h2>{t!(i18n, sms_confirm_nudge_section_title)}</h2>
-                    <p>{t!(i18n, sms_confirm_nudge_target)}</p>
-                    <leptos::form::ActionForm action=confirm_nudge_action>
-                        <button
-                            class="btn"
-                            data-size="sm"
-                            type="submit"
-                            data-testid="send-confirm-nudge-button"
-                            disabled=move || !hydrated.get()
-                        >
-                            {t!(i18n, common_send_button)}
-                        </button>
-                    </leptos::form::ActionForm>
-                </div>
-
-                // Story 5.2: Receipt nudge — target recipients with no_response
-                <div class="sms-trigger">
-                    <h2>{t!(i18n, sms_receipt_nudge_section_title)}</h2>
-                    <p>{t!(i18n, sms_receipt_nudge_target)}</p>
-                    <leptos::form::ActionForm action=receipt_nudge_action>
-                        <button
-                            class="btn"
-                            data-size="sm"
-                            type="submit"
-                            data-testid="send-receipt-nudge-button"
-                            disabled=move || !hydrated.get()
-                        >
-                            {t!(i18n, common_send_button)}
-                        </button>
-                    </leptos::form::ActionForm>
-                </div>
-            </section>
-        </div>
+            // Story 5.2: Receipt nudge — target recipients with no_response
+            <div class="sms-trigger">
+                <h2>{t!(i18n, sms_receipt_nudge_section_title)}</h2>
+                <p>{t!(i18n, sms_receipt_nudge_target)}</p>
+                <leptos::form::ActionForm action=receipt_nudge_action>
+                    <button
+                        class="btn"
+                        data-size="sm"
+                        type="submit"
+                        data-testid="send-receipt-nudge-button"
+                        disabled=move || !hydrated.get()
+                    >
+                        {t!(i18n, common_send_button)}
+                    </button>
+                </leptos::form::ActionForm>
+            </div>
+        </section>
     }
 }

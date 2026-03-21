@@ -90,8 +90,6 @@ pub async fn get_dashboard() -> Result<DashboardState, ServerFnError> {
 /// Admin dashboard page.
 ///
 /// Shows season health at a glance: phase, enrolled/confirmed counts, alerts.
-// Single view macro — splitting adds indirection without reducing complexity.
-#[allow(clippy::too_many_lines)]
 #[component]
 pub fn DashboardPage() -> impl IntoView {
     let i18n = use_i18n();
@@ -122,101 +120,7 @@ pub fn DashboardPage() -> impl IntoView {
                                         }
                                             .into_any()
                                     }
-                                    Some(s) => {
-                                        let is_terminal = matches!(
-                                            s.phase,
-                                            crate::types::Phase::Complete
-                                            | crate::types::Phase::Cancelled
-                                        );
-                                        let (phase_display, phase_status) = if s.launched {
-                                            match s.phase {
-                                                crate::types::Phase::Enrollment => {
-                                                    (t_string!(i18n, season_phase_enrollment), "active")
-                                                }
-                                                crate::types::Phase::Preparation => {
-                                                    (t_string!(i18n, season_phase_preparation), "active")
-                                                }
-                                                crate::types::Phase::Assignment => {
-                                                    (t_string!(i18n, season_phase_assignment), "pending")
-                                                }
-                                                crate::types::Phase::Delivery => {
-                                                    (t_string!(i18n, season_phase_delivery), "active")
-                                                }
-                                                crate::types::Phase::Complete => {
-                                                    (t_string!(i18n, season_phase_complete), "confirmed")
-                                                }
-                                                crate::types::Phase::Cancelled => {
-                                                    (t_string!(i18n, season_phase_cancelled), "inactive")
-                                                }
-                                            }
-                                        } else {
-                                            (t_string!(i18n, season_phase_created), "pending")
-                                        };
-
-                                        view! {
-                                            <section>
-                                                <dl>
-                                                    <dt>{t!(i18n, dashboard_phase_label)}</dt>
-                                                    <dd>
-                                                        <span class="badge" data-status=phase_status>
-                                                            {phase_display}
-                                                        </span>
-                                                    </dd>
-
-                                                    {s
-                                                        .theme
-                                                        .as_ref()
-                                                        .map(|theme_val| {
-                                                            view! {
-                                                                <dt>{t!(i18n, dashboard_theme_label)}</dt>
-                                                                <dd>{theme_val.clone()}</dd>
-                                                            }
-                                                        })}
-
-                                                    {if is_terminal {
-                                                        ().into_any()
-                                                    } else {
-                                                        view! {
-                                                            <dt>{t!(i18n, dashboard_enrolled_label)}</dt>
-                                                            <dd>{s.enrolled_count}</dd>
-
-                                                            <dt>{t!(i18n, dashboard_confirmed_label)}</dt>
-                                                            <dd>{s.confirmed_count}</dd>
-                                                        }
-                                                            .into_any()
-                                                    }}
-                                                </dl>
-
-                                                {if s.not_received_count > 0 {
-                                                    view! {
-                                                        <div class="alert">
-                                                            <strong>
-                                                                {t!(i18n, dashboard_not_received_label)}
-                                                                {s.not_received_count}
-                                                            </strong>
-                                                        </div>
-                                                    }
-                                                        .into_any()
-                                                } else {
-                                                    ().into_any()
-                                                }}
-
-                                                {if is_terminal {
-                                                    view! {
-                                                        <p>
-                                                            <a class="btn" data-size="sm" href="/admin/season">
-                                                                {t!(i18n, dashboard_create_season_button)}
-                                                            </a>
-                                                        </p>
-                                                    }
-                                                        .into_any()
-                                                } else {
-                                                    ().into_any()
-                                                }}
-                                            </section>
-                                        }
-                                            .into_any()
-                                    }
+                                    Some(ref s) => render_season_detail(s, i18n),
                                 }
                             }
                         })
@@ -224,4 +128,97 @@ pub fn DashboardPage() -> impl IntoView {
             </Suspense>
         </div>
     }
+}
+
+// ── Helper ────────────────────────────────────────────────────────────────────
+
+/// Render season detail section.
+fn render_season_detail(
+    s: &DashboardSeason,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+) -> AnyView {
+    let is_terminal = matches!(
+        s.phase,
+        crate::types::Phase::Complete | crate::types::Phase::Cancelled
+    );
+    let (phase_display, phase_status) = if s.launched {
+        match s.phase {
+            crate::types::Phase::Enrollment => (t_string!(i18n, season_phase_enrollment), "active"),
+            crate::types::Phase::Preparation => {
+                (t_string!(i18n, season_phase_preparation), "active")
+            }
+            crate::types::Phase::Assignment => {
+                (t_string!(i18n, season_phase_assignment), "pending")
+            }
+            crate::types::Phase::Delivery => (t_string!(i18n, season_phase_delivery), "active"),
+            crate::types::Phase::Complete => (t_string!(i18n, season_phase_complete), "confirmed"),
+            crate::types::Phase::Cancelled => (t_string!(i18n, season_phase_cancelled), "inactive"),
+        }
+    } else {
+        (t_string!(i18n, season_phase_created), "pending")
+    };
+
+    view! {
+        <section>
+            <dl>
+                <dt>{t!(i18n, dashboard_phase_label)}</dt>
+                <dd>
+                    <span class="badge" data-status=phase_status>
+                        {phase_display}
+                    </span>
+                </dd>
+
+                {s
+                    .theme
+                    .as_ref()
+                    .map(|theme_val| {
+                        view! {
+                            <dt>{t!(i18n, dashboard_theme_label)}</dt>
+                            <dd>{theme_val.clone()}</dd>
+                        }
+                    })}
+
+                {if is_terminal {
+                    ().into_any()
+                } else {
+                    view! {
+                        <dt>{t!(i18n, dashboard_enrolled_label)}</dt>
+                        <dd>{s.enrolled_count}</dd>
+
+                        <dt>{t!(i18n, dashboard_confirmed_label)}</dt>
+                        <dd>{s.confirmed_count}</dd>
+                    }
+                        .into_any()
+                }}
+            </dl>
+
+            {if s.not_received_count > 0 {
+                view! {
+                    <div class="alert">
+                        <strong>
+                            {t!(i18n, dashboard_not_received_label)}
+                            {s.not_received_count}
+                        </strong>
+                    </div>
+                }
+                    .into_any()
+            } else {
+                ().into_any()
+            }}
+
+            {if is_terminal {
+                view! {
+                    <p>
+                        <a class="btn" data-size="sm" href="/admin/season">
+                            {t!(i18n, dashboard_create_season_button)}
+                        </a>
+                    </p>
+                }
+                    .into_any()
+            } else {
+                ().into_any()
+            }}
+        </section>
+    }
+    .into_any()
 }

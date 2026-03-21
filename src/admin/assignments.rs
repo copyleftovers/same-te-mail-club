@@ -63,6 +63,164 @@ struct ActiveSeasonRow {
     phase: crate::types::Phase,
 }
 
+// ── SSR-only helper functions ────────────────────────────────────────────────
+
+/// Fetch social weights matrix for assignment generation.
+///
+/// Queries group memberships and past pairings from the DB, then builds
+/// the weight matrix using the assignment algorithm.
+#[cfg(feature = "ssr")]
+async fn fetch_social_weights(
+    pool: &sqlx::PgPool,
+    participant_ids: &[uuid::Uuid],
+) -> Result<std::collections::HashMap<(uuid::Uuid, uuid::Uuid), u32>, ServerFnError> {
+    let group_memberships = sqlx::query_as!(
+        GroupMembershipRow,
+        r#"
+        SELECT gm.user_id, gm.group_id, g.weight
+        FROM known_group_members gm
+        JOIN known_groups g ON g.id = gm.group_id
+        WHERE gm.user_id = ANY($1)
+        "#,
+        participant_ids,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(db_err)?;
+
+    let past_pairings = sqlx::query_as!(
+        PastPairingRow,
+        r#"
+        SELECT a.sender_id, a.recipient_id
+        FROM assignments a
+        JOIN seasons s ON s.id = a.season_id
+        WHERE s.phase IN ('complete', 'cancelled')
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(db_err)?;
+
+    let gm_tuples: Vec<(uuid::Uuid, uuid::Uuid, u32)> = group_memberships
+        .iter()
+        .map(|r| (r.user_id, r.group_id, u32::try_from(r.weight).unwrap_or(0)))
+        .collect();
+    let pp_tuples: Vec<(uuid::Uuid, uuid::Uuid)> = past_pairings
+        .iter()
+        .map(|r| (r.sender_id, r.recipient_id))
+        .collect();
+
+    Ok(crate::assignment::build_weight_matrix(
+        &gm_tuples, &pp_tuples,
+    ))
+}
+
+/// Store assignment results in DB and build the preview response.
+///
+/// Queries participant names, inserts assignments, and constructs the
+/// cohort preview data for the frontend.
+#[cfg(feature = "ssr")]
+async fn store_and_build_preview(
+    pool: &sqlx::PgPool,
+    season: &ActiveSeasonRow,
+    result: &crate::assignment::AssignmentResult,
+    participants: &[uuid::Uuid],
+) -> Result<AssignmentPreview, ServerFnError> {
+    let name_rows = sqlx::query!(
+        r#"SELECT id, name FROM users WHERE id = ANY($1)"#,
+        participants,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(db_err)?;
+
+    let names: std::collections::HashMap<uuid::Uuid, String> =
+        name_rows.into_iter().map(|r| (r.id, r.name)).collect();
+
+    let mut cohort_previews = Vec::new();
+
+    for cycle in &result.cohorts {
+        let n = cycle.participants.len();
+        let mut chain = Vec::with_capacity(n);
+
+        for i in 0..n {
+            let sender_id = cycle.participants[i];
+            let recipient_id = cycle.participants[(i + 1) % n];
+
+            sqlx::query!(
+                r#"
+                INSERT INTO assignments (season_id, sender_id, recipient_id)
+                VALUES ($1, $2, $3)
+                "#,
+                season.id,
+                sender_id,
+                recipient_id,
+            )
+            .execute(pool)
+            .await
+            .map_err(db_err)?;
+
+            chain.push(AssignmentLink {
+                sender_name: names.get(&sender_id).cloned().unwrap_or_default(),
+                recipient_name: names.get(&recipient_id).cloned().unwrap_or_default(),
+            });
+        }
+
+        cohort_previews.push(CohortPreview {
+            score: cycle.score,
+            chain,
+        });
+    }
+
+    Ok(AssignmentPreview {
+        season_id: season.id.to_string(),
+        cohorts: cohort_previews,
+        phase: season.phase,
+    })
+}
+
+/// Validate swap topology after assignment swaps.
+///
+/// Builds cycle representation from assignments and validates that it
+/// forms a valid single cycle.
+#[cfg(feature = "ssr")]
+fn validate_swap_topology(assignments: &[AssignmentRow]) -> Result<(), ServerFnError> {
+    let cycle_participants: Vec<uuid::Uuid> = assignments.iter().map(|a| a.sender_id).collect();
+    let mut ordered = Vec::new();
+    let next_map: std::collections::HashMap<uuid::Uuid, uuid::Uuid> = assignments
+        .iter()
+        .map(|a| (a.sender_id, a.recipient_id))
+        .collect();
+
+    if let Some(&first) = cycle_participants.first() {
+        let mut current = first;
+        for _ in 0..cycle_participants.len() {
+            ordered.push(current);
+            if let Some(&next) = next_map.get(&current) {
+                current = next;
+            } else {
+                return Err(ServerFnError::new("broken cycle after swap"));
+            }
+        }
+        // Verify it's a complete cycle: last element's next should be first.
+        if next_map.get(&current) != Some(&first) && current != first {
+            return Err(ServerFnError::new("swap breaks cycle topology"));
+        }
+    }
+
+    let validation_result = crate::assignment::AssignmentResult {
+        cohorts: vec![crate::assignment::Cycle {
+            participants: ordered,
+            score: 0,
+        }],
+    };
+
+    crate::assignment::validate_cycles(&validation_result)
+        .map_err(|e| ServerFnError::new(format!("swap breaks cycle topology: {e}")))?;
+
+    Ok(())
+}
+
 // ── Server functions ─────────────────────────────────────────────────────────
 
 /// Generate assignments for the active season (admin only).
@@ -74,8 +232,6 @@ struct ActiveSeasonRow {
 ///
 /// Returns `Err` if caller is not admin, season not in Assignment phase,
 /// no confirmed participants, or DB fails.
-// The query-heavy nature of this function makes splitting it less readable.
-#[allow(clippy::too_many_lines)]
 #[server(GenerateAssignments)]
 pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFnError> {
     use crate::{
@@ -136,43 +292,7 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     let participant_ids: Vec<uuid::Uuid> = confirmed.iter().map(|r| r.user_id).collect();
 
     // Build social weight matrix.
-    let group_memberships = sqlx::query_as!(
-        GroupMembershipRow,
-        r#"
-        SELECT gm.user_id, gm.group_id, g.weight
-        FROM known_group_members gm
-        JOIN known_groups g ON g.id = gm.group_id
-        WHERE gm.user_id = ANY($1)
-        "#,
-        &participant_ids,
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(db_err)?;
-
-    let past_pairings = sqlx::query_as!(
-        PastPairingRow,
-        r#"
-        SELECT a.sender_id, a.recipient_id
-        FROM assignments a
-        JOIN seasons s ON s.id = a.season_id
-        WHERE s.phase IN ('complete', 'cancelled')
-        "#,
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(db_err)?;
-
-    let gm_tuples: Vec<(uuid::Uuid, uuid::Uuid, u32)> = group_memberships
-        .iter()
-        .map(|r| (r.user_id, r.group_id, u32::try_from(r.weight).unwrap_or(0)))
-        .collect();
-    let pp_tuples: Vec<(uuid::Uuid, uuid::Uuid)> = past_pairings
-        .iter()
-        .map(|r| (r.sender_id, r.recipient_id))
-        .collect();
-
-    let social_weights = assignment::build_weight_matrix(&gm_tuples, &pp_tuples);
+    let social_weights = fetch_social_weights(&pool, &participant_ids).await?;
 
     let input = AssignmentInput {
         participants: participant_ids,
@@ -184,58 +304,7 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
         .map_err(|e| ServerFnError::new(format!("invalid cycle topology: {e}")))?;
 
     // Store assignments in DB and build preview.
-    // First, build a name lookup.
-    let name_rows = sqlx::query!(
-        r#"SELECT id, name FROM users WHERE id = ANY($1)"#,
-        &input.participants,
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(db_err)?;
-
-    let names: std::collections::HashMap<uuid::Uuid, String> =
-        name_rows.into_iter().map(|r| (r.id, r.name)).collect();
-
-    let mut cohort_previews = Vec::new();
-
-    for cycle in &result.cohorts {
-        let n = cycle.participants.len();
-        let mut chain = Vec::with_capacity(n);
-
-        for i in 0..n {
-            let sender_id = cycle.participants[i];
-            let recipient_id = cycle.participants[(i + 1) % n];
-
-            sqlx::query!(
-                r#"
-                INSERT INTO assignments (season_id, sender_id, recipient_id)
-                VALUES ($1, $2, $3)
-                "#,
-                season.id,
-                sender_id,
-                recipient_id,
-            )
-            .execute(&pool)
-            .await
-            .map_err(db_err)?;
-
-            chain.push(AssignmentLink {
-                sender_name: names.get(&sender_id).cloned().unwrap_or_default(),
-                recipient_name: names.get(&recipient_id).cloned().unwrap_or_default(),
-            });
-        }
-
-        cohort_previews.push(CohortPreview {
-            score: cycle.score,
-            chain,
-        });
-    }
-
-    Ok(AssignmentPreview {
-        season_id: season.id.to_string(),
-        cohorts: cohort_previews,
-        phase: season.phase,
-    })
+    store_and_build_preview(&pool, &season, &result, &input.participants).await
 }
 
 /// Swap two senders' recipients (admin only).
@@ -247,8 +316,6 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
 ///
 /// Returns `Err` if caller is not admin, assignments don't exist,
 /// or the swap breaks cycle topology.
-// Swap involves loading, updating, and validating — splitting would scatter the transaction.
-#[allow(clippy::too_many_lines)]
 #[server(SwapAssignment)]
 pub async fn swap_assignment(
     season_id: String,
@@ -331,39 +398,7 @@ pub async fn swap_assignment(
     .await
     .map_err(db_err)?;
 
-    // Build cycle representation for validation.
-    let cycle_participants: Vec<uuid::Uuid> = all_assignments.iter().map(|a| a.sender_id).collect();
-    let mut ordered = Vec::new();
-    let next_map: std::collections::HashMap<uuid::Uuid, uuid::Uuid> = all_assignments
-        .iter()
-        .map(|a| (a.sender_id, a.recipient_id))
-        .collect();
-
-    if let Some(&first) = cycle_participants.first() {
-        let mut current = first;
-        for _ in 0..cycle_participants.len() {
-            ordered.push(current);
-            if let Some(&next) = next_map.get(&current) {
-                current = next;
-            } else {
-                return Err(ServerFnError::new("broken cycle after swap"));
-            }
-        }
-        // Verify it's a complete cycle: last element's next should be first.
-        if next_map.get(&current) != Some(&first) && current != first {
-            return Err(ServerFnError::new("swap breaks cycle topology"));
-        }
-    }
-
-    let validation_result = crate::assignment::AssignmentResult {
-        cohorts: vec![crate::assignment::Cycle {
-            participants: ordered,
-            score: 0,
-        }],
-    };
-
-    crate::assignment::validate_cycles(&validation_result)
-        .map_err(|e| ServerFnError::new(format!("swap breaks cycle topology: {e}")))?;
+    validate_swap_topology(&all_assignments)?;
 
     Ok(())
 }

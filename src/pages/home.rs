@@ -590,9 +590,137 @@ pub fn HomePage() -> impl IntoView {
     }
 }
 
-// Rendering dispatch — each arm is a distinct UI state with its own markup.
-// Splitting further would add indirection without reducing complexity.
-#[allow(clippy::too_many_lines)]
+fn render_enrollment_open(
+    deadline: String,
+    theme: Option<&String>,
+    enroll_action: ServerAction<EnrollInSeason>,
+    hydrated: ReadSignal<bool>,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+) -> AnyView {
+    view! {
+        <h2>{t!(i18n, home_enroll_open_heading)}</h2>
+
+        {theme
+            .map(|theme_val| {
+                view! {
+                    <p class="theme" data-testid="season-theme">
+                        {t!(i18n, home_theme_label)}
+                        {theme_val.clone()}
+                    </p>
+                }
+            })}
+
+        <p class="deadline">{t!(i18n, home_signup_deadline_label)} {deadline}</p>
+
+        <p class="guideline">{t!(i18n, home_guideline)}</p>
+
+        <leptos::form::ActionForm action=enroll_action>
+            <div class="field">
+                <label class="field-label" for="branch-enroll">
+                    {t!(i18n, home_enroll_branch_label)}
+                </label>
+                <input
+                    class="field-input"
+                    id="branch-enroll"
+                    type="text"
+                    name="branch"
+                    placeholder=move || t_string!(i18n, home_enroll_branch_placeholder)
+                    data-testid="enroll-branch-input"
+                    aria-invalid=move || {
+                        enroll_action.value().get().and_then(Result::err).is_some()
+                    }
+                    aria-describedby="action-error"
+                />
+            </div>
+            <button
+                class="btn"
+                type="submit"
+                data-testid="enroll-button"
+                disabled=move || !hydrated.get()
+            >
+                {t!(i18n, home_enroll_button)}
+            </button>
+        </leptos::form::ActionForm>
+    }
+    .into_any()
+}
+
+fn render_assigned_view(
+    recipient_name: String,
+    recipient_phone: String,
+    recipient_city: String,
+    recipient_branch_number: i32,
+    receipt_action: ServerAction<ConfirmReceipt>,
+    hydrated: ReadSignal<bool>,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+) -> AnyView {
+    view! {
+        <h2>{t!(i18n, home_assigned_heading)}</h2>
+        <p>{t!(i18n, home_send_instructions)}</p>
+
+        <dl>
+            <dt>{t!(i18n, home_name_label)}</dt>
+            <dd data-testid="recipient-name">{recipient_name}</dd>
+
+            <dt>{t!(i18n, home_phone_label)}</dt>
+            <dd data-testid="recipient-phone">{recipient_phone}</dd>
+
+            <dt>{t!(i18n, home_enroll_branch_label)}</dt>
+            <dd data-testid="recipient-branch">
+                {t!(
+                    i18n, home_recipient_branch, branch_number = recipient_branch_number, city = recipient_city
+                )}
+            </dd>
+        </dl>
+
+        <section class="receipt-section">
+            <h3>{t!(i18n, home_confirm_receipt_heading)}</h3>
+
+            <leptos::form::ActionForm action=receipt_action>
+                <div class="field">
+                    <label class="field-label" for="receipt-note">
+                        {t!(i18n, home_receipt_note_label)}
+                    </label>
+                    <textarea
+                        class="field-input"
+                        id="receipt-note"
+                        name="note"
+                        placeholder=move || t_string!(i18n, home_receipt_note_placeholder)
+                        data-testid="receipt-note-input"
+                        aria-invalid=move || {
+                            receipt_action.value().get().and_then(Result::err).is_some()
+                        }
+                        aria-describedby="action-error"
+                    ></textarea>
+                </div>
+                // received=true hidden input for the Received button
+                <button
+                    class="btn"
+                    type="submit"
+                    name="received"
+                    value="true"
+                    data-testid="received-button"
+                    disabled=move || !hydrated.get()
+                >
+                    {t!(i18n, home_received_button)}
+                </button>
+                <button
+                    class="btn"
+                    data-variant="secondary"
+                    type="submit"
+                    name="received"
+                    value="false"
+                    data-testid="not-received-button"
+                    disabled=move || !hydrated.get()
+                >
+                    {t!(i18n, home_not_received_button)}
+                </button>
+            </leptos::form::ActionForm>
+        </section>
+    }
+    .into_any()
+}
+
 fn render_home_state(
     state: HomeState,
     enroll_action: ServerAction<EnrollInSeason>,
@@ -602,56 +730,11 @@ fn render_home_state(
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
     match state {
-        HomeState::NoSeason => view! { <p>{t!(i18n, home_no_season)}</p> }
-        .into_any(),
+        HomeState::NoSeason => view! { <p>{t!(i18n, home_no_season)}</p> }.into_any(),
 
-        HomeState::EnrollmentOpen { deadline, theme } => view! {
-            <h2>{t!(i18n, home_enroll_open_heading)}</h2>
-
-            {theme
-                .as_ref()
-                .map(|theme_val| {
-                    view! {
-                        <p class="theme" data-testid="season-theme">
-                            {t!(i18n, home_theme_label)}
-                            {theme_val.clone()}
-                        </p>
-                    }
-                })}
-
-            <p class="deadline">{t!(i18n, home_signup_deadline_label)} {deadline}</p>
-
-            <p class="guideline">{t!(i18n, home_guideline)}</p>
-
-            <leptos::form::ActionForm action=enroll_action>
-                <div class="field">
-                    <label class="field-label" for="branch-enroll">
-                        {t!(i18n, home_enroll_branch_label)}
-                    </label>
-                    <input
-                        class="field-input"
-                        id="branch-enroll"
-                        type="text"
-                        name="branch"
-                        placeholder=move || t_string!(i18n, home_enroll_branch_placeholder)
-                        data-testid="enroll-branch-input"
-                        aria-invalid=move || {
-                            enroll_action.value().get().and_then(Result::err).is_some()
-                        }
-                        aria-describedby="action-error"
-                    />
-                </div>
-                <button
-                    class="btn"
-                    type="submit"
-                    data-testid="enroll-button"
-                    disabled=move || !hydrated.get()
-                >
-                    {t!(i18n, home_enroll_button)}
-                </button>
-            </leptos::form::ActionForm>
+        HomeState::EnrollmentOpen { deadline, theme } => {
+            render_enrollment_open(deadline, theme.as_ref(), enroll_action, hydrated, i18n)
         }
-        .into_any(),
 
         HomeState::Enrolled { confirm_deadline } => view! {
             <h2>{t!(i18n, home_enrolled_heading)}</h2>
@@ -698,71 +781,15 @@ fn render_home_state(
             recipient_phone,
             recipient_city,
             recipient_branch_number,
-        } => view! {
-            <h2>{t!(i18n, home_assigned_heading)}</h2>
-            <p>{t!(i18n, home_send_instructions)}</p>
-
-            <dl>
-                <dt>{t!(i18n, home_name_label)}</dt>
-                <dd data-testid="recipient-name">{recipient_name}</dd>
-
-                <dt>{t!(i18n, home_phone_label)}</dt>
-                <dd data-testid="recipient-phone">{recipient_phone}</dd>
-
-                <dt>{t!(i18n, home_enroll_branch_label)}</dt>
-                <dd data-testid="recipient-branch">
-                    {t!(
-                        i18n, home_recipient_branch, branch_number = recipient_branch_number, city = recipient_city
-                    )}
-                </dd>
-            </dl>
-
-            <section class="receipt-section">
-                <h3>{t!(i18n, home_confirm_receipt_heading)}</h3>
-
-                <leptos::form::ActionForm action=receipt_action>
-                    <div class="field">
-                        <label class="field-label" for="receipt-note">
-                            {t!(i18n, home_receipt_note_label)}
-                        </label>
-                        <textarea
-                            class="field-input"
-                            id="receipt-note"
-                            name="note"
-                            placeholder=move || t_string!(i18n, home_receipt_note_placeholder)
-                            data-testid="receipt-note-input"
-                            aria-invalid=move || {
-                                receipt_action.value().get().and_then(Result::err).is_some()
-                            }
-                            aria-describedby="action-error"
-                        ></textarea>
-                    </div>
-                    // received=true hidden input for the Received button
-                    <button
-                        class="btn"
-                        type="submit"
-                        name="received"
-                        value="true"
-                        data-testid="received-button"
-                        disabled=move || !hydrated.get()
-                    >
-                        {t!(i18n, home_received_button)}
-                    </button>
-                    <button
-                        class="btn"
-                        data-variant="secondary"
-                        type="submit"
-                        name="received"
-                        value="false"
-                        data-testid="not-received-button"
-                        disabled=move || !hydrated.get()
-                    >
-                        {t!(i18n, home_not_received_button)}
-                    </button>
-                </leptos::form::ActionForm>
-            </section>
-        }
-        .into_any(),
+        } => render_assigned_view(
+            recipient_name,
+            recipient_phone,
+            recipient_city,
+            recipient_branch_number,
+            receipt_action,
+            hydrated,
+            i18n,
+        ),
 
         HomeState::ReceiptConfirmed => view! {
             <h2>{t!(i18n, home_thanks_heading)}</h2>
