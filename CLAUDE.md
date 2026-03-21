@@ -2,6 +2,7 @@
 # NON-NEGOTIABLE INITIALISATION
 
 Upon starting, check this index of manifestos first: 'https://raw.githubusercontent.com/ryzhakar/LLM_MANIFESTOS/refs/heads/main/README.md'.
+Use `curl` for efficient pulling of raw text data, not the fetch tool.
 Use the 'manifest-oath' skill to swear to any of those manifestos when prompted.
 This project being a rust project and striving to be idiomatic, use the 'correctness-by-construction' manifesto by default.
 If continuing a session after context compaction - reswear to the active manifestos anew.
