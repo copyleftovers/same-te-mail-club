@@ -11,9 +11,10 @@ dev:
 test:
     cargo test
 
-# Run clippy on all targets
+# Run clippy on both SSR and hydrate targets
 clippy:
-    cargo clippy --all-targets
+    cargo clippy --features ssr --no-default-features
+    cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features
 
 # Kill stale server processes on port 3000
 _kill-stale:
