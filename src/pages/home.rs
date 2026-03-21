@@ -1,5 +1,9 @@
+use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
+
+#[cfg(feature = "ssr")]
+use crate::error::db_err;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -99,7 +103,7 @@ async fn resolve_enrollment_state(
     )
     .fetch_one(pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     if enrolled {
         Ok(HomeState::Enrolled {
@@ -134,7 +138,7 @@ async fn resolve_preparation_state(
     )
     .fetch_one(pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     if confirmed {
         Ok(HomeState::Confirmed)
@@ -178,7 +182,7 @@ async fn resolve_delivery_state(
     )
     .fetch_optional(pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     // No outgoing assignment yet — organizer is still in the assignment phase.
     let Some(a) = outgoing else {
@@ -197,7 +201,7 @@ async fn resolve_delivery_state(
     )
     .fetch_optional(pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     match incoming_status {
         Some(ReceiptStatus::Received | ReceiptStatus::NotReceived) => {
@@ -221,17 +225,9 @@ async fn resolve_delivery_state(
 /// Returns `Err` if session is invalid or DB fails.
 #[server]
 pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
-    use crate::{auth, date_format::format_date_uk, error::AppError, types::Phase};
-    use http::request::Parts;
+    use crate::{auth, date_format::format_date_uk, types::Phase};
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
+    let (pool, user) = auth::require_auth().await?;
 
     let season = sqlx::query_as!(
         SeasonInfoRow,
@@ -244,7 +240,7 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     let Some(season) = season else {
         // Show Complete only when the most recently created season is Complete.
@@ -260,7 +256,7 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
         )
         .fetch_optional(&pool)
         .await
-        .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+        .map_err(db_err)?;
 
         return match most_recent_phase {
             Some(Phase::Complete) => Ok(HomeState::Complete),
@@ -293,17 +289,9 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
 /// no delivery address, or already enrolled.
 #[server]
 pub async fn enroll_in_season(branch: String) -> Result<(), ServerFnError> {
-    use crate::{auth, error::AppError};
-    use http::request::Parts;
+    use crate::auth;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
+    let (pool, user) = auth::require_auth().await?;
 
     let season = sqlx::query_as!(
         EnrollSeasonRow,
@@ -316,7 +304,7 @@ pub async fn enroll_in_season(branch: String) -> Result<(), ServerFnError> {
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("enrollment is not open"))?;
 
     // Deadline check — bypassed in test mode
@@ -361,7 +349,7 @@ pub async fn enroll_in_season(branch: String) -> Result<(), ServerFnError> {
         )
         .execute(&pool)
         .await
-        .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+        .map_err(db_err)?;
     }
 
     // Verify user has a delivery address
@@ -375,7 +363,7 @@ pub async fn enroll_in_season(branch: String) -> Result<(), ServerFnError> {
     )
     .fetch_one(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     if !has_address {
         return Err(ServerFnError::new(
@@ -394,7 +382,7 @@ pub async fn enroll_in_season(branch: String) -> Result<(), ServerFnError> {
     )
     .execute(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     Ok(())
 }
@@ -409,17 +397,9 @@ pub async fn enroll_in_season(branch: String) -> Result<(), ServerFnError> {
 /// Returns `Err` if not in Preparation phase, deadline passed, or not enrolled.
 #[server]
 pub async fn confirm_ready() -> Result<(), ServerFnError> {
-    use crate::{auth, error::AppError};
-    use http::request::Parts;
+    use crate::auth;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
+    let (pool, user) = auth::require_auth().await?;
 
     let season = sqlx::query_as!(
         ConfirmSeasonRow,
@@ -432,7 +412,7 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("confirmation is not open"))?;
 
     // Deadline check — bypassed in test mode
@@ -454,7 +434,7 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
     )
     .execute(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     Ok(())
 }
@@ -470,17 +450,9 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
 /// Returns `Err` if not logged in, season not in Delivery phase, or already confirmed.
 #[server]
 pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(), ServerFnError> {
-    use crate::{auth, error::AppError, types::ReceiptStatus};
-    use http::request::Parts;
+    use crate::{auth, types::ReceiptStatus};
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
+    let (pool, user) = auth::require_auth().await?;
 
     // Parse received from "true"/"false" string (HTML form submit button value)
     let received_bool = match received.as_str() {
@@ -504,7 +476,7 @@ pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("no active delivery season"))?;
 
     // Find assignment where this user is the RECIPIENT
@@ -520,7 +492,7 @@ pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("already confirmed or no assignment found"))?;
 
     let new_status = if received_bool {
@@ -547,7 +519,7 @@ pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(
     )
     .execute(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     Ok(())
 }
@@ -576,31 +548,43 @@ pub fn HomePage() -> impl IntoView {
         |_| get_home_state(),
     );
 
-    // Hydration gate
-    let (hydrated, set_hydrated) = signal(false);
-    Effect::new(move |_| {
-        set_hydrated.set(true);
-    });
+    let hydrated = use_hydrated();
 
     view! {
         <div class="prose-page">
             // Action error display
             <div role="alert" aria-live="assertive" data-testid="action-error">
                 {move || {
-                    let err = enroll_action.value().get().and_then(Result::err)
+                    let err = enroll_action
+                        .value()
+                        .get()
+                        .and_then(Result::err)
                         .or_else(|| confirm_action.value().get().and_then(Result::err))
                         .or_else(|| receipt_action.value().get().and_then(Result::err));
-                    err.map(|e| view! {
-                        <p class="alert">{e.to_string()}</p>
-                    })
+                    err.map(|e| view! { <p class="alert">{e.to_string()}</p> })
                 }}
             </div>
 
-            <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
-                {move || home_state.get().map(|result| match result {
-                    Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
-                    Ok(state) => render_home_state(state, enroll_action, confirm_action, receipt_action, hydrated, i18n),
-                })}
+            <Suspense fallback=move || {
+                view! { <p>{t!(i18n, common_loading)}</p> }
+            }>
+                {move || {
+                    home_state
+                        .get()
+                        .map(|result| match result {
+                            Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
+                            Ok(state) => {
+                                render_home_state(
+                                    state,
+                                    enroll_action,
+                                    confirm_action,
+                                    receipt_action,
+                                    hydrated,
+                                    i18n,
+                                )
+                            }
+                        })
+                }}
             </Suspense>
         </div>
     }
@@ -618,17 +602,22 @@ fn render_home_state(
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
     match state {
-        HomeState::NoSeason => view! {
-            <p>{t!(i18n, home_no_season)}</p>
-        }
+        HomeState::NoSeason => view! { <p>{t!(i18n, home_no_season)}</p> }
         .into_any(),
 
         HomeState::EnrollmentOpen { deadline, theme } => view! {
             <h2>{t!(i18n, home_enroll_open_heading)}</h2>
 
-            {theme.as_ref().map(|theme_val| view! {
-                <p class="theme" data-testid="season-theme">{t!(i18n, home_theme_label)} {theme_val.clone()}</p>
-            })}
+            {theme
+                .as_ref()
+                .map(|theme_val| {
+                    view! {
+                        <p class="theme" data-testid="season-theme">
+                            {t!(i18n, home_theme_label)}
+                            {theme_val.clone()}
+                        </p>
+                    }
+                })}
 
             <p class="deadline">{t!(i18n, home_signup_deadline_label)} {deadline}</p>
 
@@ -646,7 +635,9 @@ fn render_home_state(
                         name="branch"
                         placeholder=move || t_string!(i18n, home_enroll_branch_placeholder)
                         data-testid="enroll-branch-input"
-                        aria-invalid=move || enroll_action.value().get().and_then(Result::err).is_some()
+                        aria-invalid=move || {
+                            enroll_action.value().get().and_then(Result::err).is_some()
+                        }
                         aria-describedby="action-error"
                     />
                 </div>
@@ -665,16 +656,17 @@ fn render_home_state(
         HomeState::Enrolled { confirm_deadline } => view! {
             <h2>{t!(i18n, home_enrolled_heading)}</h2>
             <p>{t!(i18n, home_enrolled_desc)}</p>
-            <p class="deadline">{t!(i18n, home_confirm_deadline_label)}
-                {confirm_deadline}
-            </p>
+            <p class="deadline">{t!(i18n, home_confirm_deadline_label)} {confirm_deadline}</p>
         }
         .into_any(),
 
         HomeState::Preparing { confirm_deadline } => view! {
             <h2>{t!(i18n, home_preparing_heading)}</h2>
             <p>{t!(i18n, home_preparing_body)}</p>
-            <p class="deadline" data-testid="season-deadline">{t!(i18n, home_deadline_label)} {confirm_deadline}</p>
+            <p class="deadline" data-testid="season-deadline">
+                {t!(i18n, home_deadline_label)}
+                {confirm_deadline}
+            </p>
 
             <leptos::form::ActionForm action=confirm_action>
                 <button
@@ -719,7 +711,9 @@ fn render_home_state(
 
                 <dt>{t!(i18n, home_enroll_branch_label)}</dt>
                 <dd data-testid="recipient-branch">
-                    {t!(i18n, home_recipient_branch, branch_number = recipient_branch_number, city = recipient_city)}
+                    {t!(
+                        i18n, home_recipient_branch, branch_number = recipient_branch_number, city = recipient_city
+                    )}
                 </dd>
             </dl>
 
@@ -737,7 +731,9 @@ fn render_home_state(
                             name="note"
                             placeholder=move || t_string!(i18n, home_receipt_note_placeholder)
                             data-testid="receipt-note-input"
-                            aria-invalid=move || receipt_action.value().get().and_then(Result::err).is_some()
+                            aria-invalid=move || {
+                                receipt_action.value().get().and_then(Result::err).is_some()
+                            }
                             aria-describedby="action-error"
                         ></textarea>
                     </div>

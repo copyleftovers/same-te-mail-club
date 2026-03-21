@@ -5,6 +5,7 @@ use leptos_router::{
     StaticSegment,
     components::{Route, Router, Routes},
 };
+use leptos_use::use_preferred_dark;
 
 use crate::{
     admin::{
@@ -23,15 +24,9 @@ use crate::{
 #[server]
 pub async fn get_current_user() -> Result<Option<crate::types::CurrentUser>, ServerFnError> {
     use crate::auth;
-    use http::request::Parts;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    match auth::current_user(&pool, &parts).await {
-        Ok(user) => Ok(Some(user)),
+    match auth::require_auth().await {
+        Ok((_pool, user)) => Ok(Some(user)),
         Err(_) => Ok(None),
     }
 }
@@ -43,15 +38,15 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
         <!DOCTYPE html>
         <html lang="uk">
             <head>
-                <meta charset="utf-8"/>
-                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <AutoReload options=options.clone() />
-                <HydrationScripts options/>
-                <MetaTags/>
-                <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+                <HydrationScripts options />
+                <MetaTags />
+                <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
             </head>
             <body>
-                <App/>
+                <App />
             </body>
         </html>
     }
@@ -76,46 +71,117 @@ pub fn App() -> impl IntoView {
     provide_context(current_user);
 
     view! {
-        <Stylesheet id="leptos" href="/pkg/samete.css"/>
-        <Title text=t_string!(i18n, app_title)/>
+        <Stylesheet id="leptos" href="/pkg/samete.css" />
+        <Title text=t_string!(i18n, app_title) />
 
         <Router>
-            <header class="app-header">
-                <a href="/">
-                    <img src="/same_te_mark_orange.svg" alt="Саме Те" class="h-10 w-auto" />
-                </a>
-                <HeaderNav/>
-            </header>
+            <Header />
             <main>
                 <Routes fallback=move || t!(i18n, app_not_found)>
-                    <Route path=StaticSegment("login") view=LoginPage/>
-                    <Route path=StaticSegment("onboarding") view=move || {
-                        view! { <AuthGuard require_onboarded=false><OnboardingPage/></AuthGuard> }
-                    }/>
-                    <Route path=StaticSegment("") view=move || {
-                        view! { <AuthGuard require_onboarded=true><HomePage/></AuthGuard> }
-                    }/>
+                    <Route path=StaticSegment("login") view=LoginPage />
+                    <Route
+                        path=StaticSegment("onboarding")
+                        view=move || {
+                            view! {
+                                <AuthGuard require_onboarded=false>
+                                    <OnboardingPage />
+                                </AuthGuard>
+                            }
+                        }
+                    />
+                    <Route
+                        path=StaticSegment("")
+                        view=move || {
+                            view! {
+                                <AuthGuard require_onboarded=true>
+                                    <HomePage />
+                                </AuthGuard>
+                            }
+                        }
+                    />
                     // Admin routes — flat list, exact matching.
                     // Each tuple path matches exactly (no prefix overlap with
                     // `StaticSegment("admin")`).
-                    <Route path=StaticSegment("admin") view=move || {
-                        view! { <AdminGuard><DashboardPage/></AdminGuard> }
-                    }/>
-                    <Route path=(StaticSegment("admin"), StaticSegment("season")) view=move || {
-                        view! { <AdminGuard><SeasonManagePage/></AdminGuard> }
-                    }/>
-                    <Route path=(StaticSegment("admin"), StaticSegment("participants")) view=move || {
-                        view! { <AdminGuard><ParticipantsPage/></AdminGuard> }
-                    }/>
-                    <Route path=(StaticSegment("admin"), StaticSegment("assignments")) view=move || {
-                        view! { <AdminGuard><AssignmentsPage/></AdminGuard> }
-                    }/>
-                    <Route path=(StaticSegment("admin"), StaticSegment("sms")) view=move || {
-                        view! { <AdminGuard><SmsPage/></AdminGuard> }
-                    }/>
+                    <Route
+                        path=StaticSegment("admin")
+                        view=move || {
+                            view! {
+                                <AdminGuard>
+                                    <DashboardPage />
+                                </AdminGuard>
+                            }
+                        }
+                    />
+                    <Route
+                        path=(StaticSegment("admin"), StaticSegment("season"))
+                        view=move || {
+                            view! {
+                                <AdminGuard>
+                                    <SeasonManagePage />
+                                </AdminGuard>
+                            }
+                        }
+                    />
+                    <Route
+                        path=(StaticSegment("admin"), StaticSegment("participants"))
+                        view=move || {
+                            view! {
+                                <AdminGuard>
+                                    <ParticipantsPage />
+                                </AdminGuard>
+                            }
+                        }
+                    />
+                    <Route
+                        path=(StaticSegment("admin"), StaticSegment("assignments"))
+                        view=move || {
+                            view! {
+                                <AdminGuard>
+                                    <AssignmentsPage />
+                                </AdminGuard>
+                            }
+                        }
+                    />
+                    <Route
+                        path=(StaticSegment("admin"), StaticSegment("sms"))
+                        view=move || {
+                            view! {
+                                <AdminGuard>
+                                    <SmsPage />
+                                </AdminGuard>
+                            }
+                        }
+                    />
                 </Routes>
             </main>
         </Router>
+    }
+}
+
+// ── Header ────────────────────────────────────────────────────────────────────
+
+/// App header with dark-mode–aware logo and admin nav.
+#[component]
+fn Header() -> impl IntoView {
+    let is_dark = use_preferred_dark();
+
+    view! {
+        <header class="app-header">
+            <a href="/">
+                <img
+                    src=move || {
+                        if is_dark.get() {
+                            "/same_te_mark_white.svg"
+                        } else {
+                            "/same_te_mark_orange.svg"
+                        }
+                    }
+                    alt="Саме Те"
+                    class="h-10 w-auto"
+                />
+            </a>
+            <HeaderNav />
+        </header>
     }
 }
 
@@ -131,7 +197,7 @@ fn HeaderNav() -> impl IntoView {
         pathname
             .get()
             .starts_with("/admin")
-            .then(|| view! { <AdminNav/> })
+            .then(|| view! { <AdminNav /> })
     }
 }
 
@@ -167,23 +233,25 @@ fn AuthGuard(require_onboarded: bool, children: ChildrenFn) -> impl IntoView {
         <Suspense fallback=|| ()>
             {move || {
                 let children = children.clone();
-                current_user.get().map(|result| {
-                    match result {
-                        Ok(None) | Err(_) => {
-                            isomorphic_redirect("/login");
-                            ().into_any()
+                current_user
+                    .get()
+                    .map(|result| {
+                        match result {
+                            Ok(None) | Err(_) => {
+                                isomorphic_redirect("/login");
+                                ().into_any()
+                            }
+                            Ok(Some(ref user)) if require_onboarded && !user.onboarded => {
+                                isomorphic_redirect("/onboarding");
+                                ().into_any()
+                            }
+                            Ok(Some(ref user)) if !require_onboarded && user.onboarded => {
+                                isomorphic_redirect("/");
+                                ().into_any()
+                            }
+                            Ok(Some(_)) => children().into_any(),
                         }
-                        Ok(Some(ref user)) if require_onboarded && !user.onboarded => {
-                            isomorphic_redirect("/onboarding");
-                            ().into_any()
-                        }
-                        Ok(Some(ref user)) if !require_onboarded && user.onboarded => {
-                            isomorphic_redirect("/");
-                            ().into_any()
-                        }
-                        Ok(Some(_)) => children().into_any(),
-                    }
-                })
+                    })
             }}
         </Suspense>
     }
@@ -202,21 +270,23 @@ fn AdminGuard(children: ChildrenFn) -> impl IntoView {
         <Suspense fallback=|| ()>
             {move || {
                 let children = children.clone();
-                current_user.get().map(|result| {
-                    match result {
-                        Ok(None) | Err(_) => {
-                            isomorphic_redirect("/login");
-                            ().into_any()
+                current_user
+                    .get()
+                    .map(|result| {
+                        match result {
+                            Ok(None) | Err(_) => {
+                                isomorphic_redirect("/login");
+                                ().into_any()
+                            }
+                            Ok(Some(ref user)) if user.role == UserRole::Admin => {
+                                view! { <div data-layout="admin">{children()}</div> }.into_any()
+                            }
+                            Ok(Some(_)) => {
+                                isomorphic_redirect("/");
+                                ().into_any()
+                            }
                         }
-                        Ok(Some(ref user)) if user.role == UserRole::Admin => {
-                            view! { <div data-layout="admin">{children()}</div> }.into_any()
-                        }
-                        Ok(Some(_)) => {
-                            isomorphic_redirect("/");
-                            ().into_any()
-                        }
-                    }
-                })
+                    })
             }}
         </Suspense>
     }

@@ -1,3 +1,4 @@
+use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 
@@ -13,16 +14,8 @@ use leptos::prelude::*;
 #[server]
 pub async fn complete_onboarding(branch: String) -> Result<(), ServerFnError> {
     use crate::auth;
-    use http::request::Parts;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    let (pool, user) = auth::require_auth().await?;
 
     let trimmed = branch.trim().to_owned();
     if trimmed.is_empty() {
@@ -91,11 +84,7 @@ pub fn OnboardingPage() -> impl IntoView {
 
     let onboard_action = ServerAction::<CompleteOnboarding>::new();
 
-    // Hydration gate
-    let (hydrated, set_hydrated) = signal(false);
-    Effect::new(move |_| {
-        set_hydrated.set(true);
-    });
+    let hydrated = use_hydrated();
 
     Effect::new(move |_| {
         if let Some(Err(e)) = onboard_action.value().get() {
@@ -113,7 +102,9 @@ pub fn OnboardingPage() -> impl IntoView {
 
             <leptos::form::ActionForm action=onboard_action>
                 <div class="field">
-                    <label class="field-label" for="np-branch">{t!(i18n, onboarding_branch_label)}</label>
+                    <label class="field-label" for="np-branch">
+                        {t!(i18n, onboarding_branch_label)}
+                    </label>
                     <input
                         class="field-input"
                         id="np-branch"
@@ -124,11 +115,21 @@ pub fn OnboardingPage() -> impl IntoView {
                         aria-invalid=move || error_msg.get().is_some()
                         aria-describedby="np-branch-error"
                     />
-                    <div id="np-branch-error" role="alert" aria-live="assertive" data-testid="action-error">
+                    <div
+                        id="np-branch-error"
+                        role="alert"
+                        aria-live="assertive"
+                        data-testid="action-error"
+                    >
                         {move || error_msg.get().map(|msg| view! { <span>{msg}</span> })}
                     </div>
                 </div>
-                <button class="btn" type="submit" data-testid="save-onboarding-button" disabled=move || !hydrated.get()>
+                <button
+                    class="btn"
+                    type="submit"
+                    data-testid="save-onboarding-button"
+                    disabled=move || !hydrated.get()
+                >
                     {t!(i18n, onboarding_save_button)}
                 </button>
             </leptos::form::ActionForm>

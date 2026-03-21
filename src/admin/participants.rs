@@ -1,5 +1,9 @@
+use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
+
+#[cfg(feature = "ssr")]
+use crate::error::db_err;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,21 +36,9 @@ struct ParticipantRow {
 /// or the phone number already exists.
 #[server]
 pub async fn register_participant(phone: String, name: String) -> Result<(), ServerFnError> {
-    use crate::{auth, phone as phone_mod, types::UserRole};
-    use http::request::Parts;
+    use crate::{auth, phone as phone_mod};
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     let normalized = phone_mod::normalize(&phone)
         .map_err(|e| ServerFnError::new(format!("invalid phone: {e}")))?;
@@ -83,21 +75,9 @@ pub async fn register_participant(phone: String, name: String) -> Result<(), Ser
 /// Returns `Err` if the caller is not an admin or DB fails.
 #[server]
 pub async fn list_participants() -> Result<Vec<ParticipantSummary>, ServerFnError> {
-    use crate::{auth, types::UserRole};
-    use http::request::Parts;
+    use crate::auth;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     let rows = sqlx::query_as!(
         ParticipantRow,
@@ -115,7 +95,7 @@ pub async fn list_participants() -> Result<Vec<ParticipantSummary>, ServerFnErro
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     Ok(rows
         .into_iter()
@@ -136,21 +116,9 @@ pub async fn list_participants() -> Result<Vec<ParticipantSummary>, ServerFnErro
 /// Returns `Err` if the caller is not an admin or DB fails.
 #[server]
 pub async fn deactivate_participant(user_id: uuid::Uuid) -> Result<(), ServerFnError> {
-    use crate::{auth, types::UserRole};
-    use http::request::Parts;
+    use crate::auth;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let caller = auth::current_user(&pool, &parts)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    if caller.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     sqlx::query!(
         "UPDATE users SET status = 'deactivated' WHERE id = $1",
@@ -158,14 +126,14 @@ pub async fn deactivate_participant(user_id: uuid::Uuid) -> Result<(), ServerFnE
     )
     .execute(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     // Revoke all active sessions immediately — deactivated user cannot continue
     // using existing browser sessions on the next request.
     sqlx::query!("DELETE FROM sessions WHERE user_id = $1", user_id)
         .execute(&pool)
         .await
-        .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+        .map_err(db_err)?;
 
     Ok(())
 }
@@ -179,16 +147,14 @@ pub async fn deactivate_participant(user_id: uuid::Uuid) -> Result<(), ServerFnE
 #[component]
 fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl IntoView {
     let i18n = use_i18n();
-    // Hydration gate — prevent native form POST before WASM hydrates.
-    let (hydrated, set_hydrated) = signal(false);
-    Effect::new(move |_| {
-        set_hydrated.set(true);
-    });
+    let hydrated = use_hydrated();
 
     view! {
         <leptos::form::ActionForm action=register_action>
             <div class="field">
-                <label class="field-label" for="reg-phone">{t!(i18n, participants_phone_label)}</label>
+                <label class="field-label" for="reg-phone">
+                    {t!(i18n, participants_phone_label)}
+                </label>
                 <input
                     class="field-input"
                     id="reg-phone"
@@ -200,7 +166,9 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
                 />
             </div>
             <div class="field">
-                <label class="field-label" for="reg-name">{t!(i18n, participants_name_label)}</label>
+                <label class="field-label" for="reg-name">
+                    {t!(i18n, participants_name_label)}
+                </label>
                 <input
                     class="field-input"
                     id="reg-name"
@@ -211,7 +179,12 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
                     aria-describedby="action-error"
                 />
             </div>
-            <button class="btn" type="submit" data-testid="register-button" disabled=move || !hydrated.get()>
+            <button
+                class="btn"
+                type="submit"
+                data-testid="register-button"
+                disabled=move || !hydrated.get()
+            >
                 {t!(i18n, participants_register_button)}
             </button>
         </leptos::form::ActionForm>
@@ -225,86 +198,105 @@ fn ParticipantList(
     deactivate_action: ServerAction<DeactivateParticipant>,
 ) -> impl IntoView {
     let i18n = use_i18n();
-    // Hydration gate — deactivate buttons disabled until WASM is live.
-    let (hydrated, set_hydrated) = signal(false);
-    Effect::new(move |_| {
-        set_hydrated.set(true);
-    });
+    let hydrated = use_hydrated();
 
     view! {
-        <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
-            {move || participants.get().map(|result| match result {
-                Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
-                Ok(list) => view! {
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>{t!(i18n, participants_table_name)}</th>
-                                <th>{t!(i18n, participants_table_phone)}</th>
-                                <th>{t!(i18n, participants_table_status)}</th>
-                                <th>{t!(i18n, participants_table_actions)}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <For
-                                each=move || list.clone()
-                                key=|p| p.id
-                                children=move |p| {
-                                    let uid_str = p.id.to_string();
-                                    let active = matches!(
-                                        p.status,
-                                        crate::types::UserStatus::Active
-                                    );
-                                    view! {
-                                        <tr data-testid="participant-row">
-                                            <td data-testid="participant-name-cell">{p.name.clone()}</td>
-                                            <td>{p.phone.clone()}</td>
-                                            <td>
-                                                {move || if active {
-                                                    view! { <span class="badge" data-status="active">{t!(i18n, participants_status_active)}</span> }.into_any()
-                                                } else {
-                                                    view! { <span class="badge" data-status="inactive">{t!(i18n, participants_status_deactivated)}</span> }.into_any()
-                                                }}
-                                            </td>
-                                            <td>
-                                                {if active {
-                                                    view! {
-                                                        <leptos::form::ActionForm
-                                                            action=deactivate_action
-                                                        >
-                                                            <input
-                                                                type="hidden"
-                                                                name="user_id"
-                                                                value=uid_str
-                                                            />
-                                                            <button
-                                                                class="btn"
-                                                                data-variant="destructive"
-                                                                data-size="sm"
-                                                                type="submit"
-                                                                data-testid="deactivate-button"
-                                                                disabled=move || !hydrated.get()
-                                                            >
-                                                                {t!(i18n, participants_deactivate_button)}
-                                                            </button>
-                                                        </leptos::form::ActionForm>
-                                                    }.into_any()
-                                                } else {
-                                                    view! {
-                                                        <span class="badge" data-status="inactive" data-testid="inactive-status">
-                                                            {t!(i18n, participants_deactivated_label)}
-                                                        </span>
-                                                    }.into_any()
-                                                }}
-                                            </td>
+        <Suspense fallback=move || {
+            view! { <p>{t!(i18n, common_loading)}</p> }
+        }>
+            {move || {
+                participants
+                    .get()
+                    .map(|result| match result {
+                        Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
+                        Ok(list) => {
+                            view! {
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>{t!(i18n, participants_table_name)}</th>
+                                            <th>{t!(i18n, participants_table_phone)}</th>
+                                            <th>{t!(i18n, participants_table_status)}</th>
+                                            <th>{t!(i18n, participants_table_actions)}</th>
                                         </tr>
-                                    }
-                                }
-                            />
-                        </tbody>
-                    </table>
-                }.into_any(),
-            })}
+                                    </thead>
+                                    <tbody>
+                                        <For
+                                            each=move || list.clone()
+                                            key=|p| p.id
+                                            children=move |p| {
+                                                let uid_str = p.id.to_string();
+                                                let active = matches!(
+                                                    p.status,
+                                                    crate::types::UserStatus::Active
+                                                );
+                                                view! {
+                                                    <tr data-testid="participant-row">
+                                                        <td data-testid="participant-name-cell">
+                                                            {p.name.clone()}
+                                                        </td>
+                                                        <td>{p.phone.clone()}</td>
+                                                        <td>
+                                                            {move || {
+                                                                if active {
+                                                                    view! {
+                                                                        <span class="badge" data-status="active">
+                                                                            {t!(i18n, participants_status_active)}
+                                                                        </span>
+                                                                    }
+                                                                        .into_any()
+                                                                } else {
+                                                                    view! {
+                                                                        <span class="badge" data-status="inactive">
+                                                                            {t!(i18n, participants_status_deactivated)}
+                                                                        </span>
+                                                                    }
+                                                                        .into_any()
+                                                                }
+                                                            }}
+                                                        </td>
+                                                        <td>
+                                                            {if active {
+                                                                view! {
+                                                                    <leptos::form::ActionForm action=deactivate_action>
+                                                                        <input type="hidden" name="user_id" value=uid_str />
+                                                                        <button
+                                                                            class="btn"
+                                                                            data-variant="destructive"
+                                                                            data-size="sm"
+                                                                            type="submit"
+                                                                            data-testid="deactivate-button"
+                                                                            disabled=move || !hydrated.get()
+                                                                        >
+                                                                            {t!(i18n, participants_deactivate_button)}
+                                                                        </button>
+                                                                    </leptos::form::ActionForm>
+                                                                }
+                                                                    .into_any()
+                                                            } else {
+                                                                view! {
+                                                                    <span
+                                                                        class="badge"
+                                                                        data-status="inactive"
+                                                                        data-testid="inactive-status"
+                                                                    >
+                                                                        {t!(i18n, participants_deactivated_label)}
+                                                                    </span>
+                                                                }
+                                                                    .into_any()
+                                                            }}
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            }
+                                        />
+                                    </tbody>
+                                </table>
+                            }
+                                .into_any()
+                        }
+                    })
+            }}
         </Suspense>
     }
 }
@@ -349,22 +341,20 @@ pub fn ParticipantsPage() -> impl IntoView {
 
             <section>
                 <h2>{t!(i18n, participants_register_section_title)}</h2>
-                <RegisterForm
-                    register_action=register_action
-                />
-                <div id="action-error" role="alert" aria-live="assertive" data-testid="action-error">
-                    {move || error_msg.get().map(|msg| view! {
-                        <p class="alert">{msg}</p>
-                    })}
+                <RegisterForm register_action=register_action />
+                <div
+                    id="action-error"
+                    role="alert"
+                    aria-live="assertive"
+                    data-testid="action-error"
+                >
+                    {move || error_msg.get().map(|msg| view! { <p class="alert">{msg}</p> })}
                 </div>
             </section>
 
             <section>
                 <h2>{t!(i18n, participants_list_title)}</h2>
-                <ParticipantList
-                    participants=participants
-                    deactivate_action=deactivate_action
-                />
+                <ParticipantList participants=participants deactivate_action=deactivate_action />
             </section>
         </div>
     }

@@ -1,5 +1,9 @@
+use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
+
+#[cfg(feature = "ssr")]
+use crate::error::db_err;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,23 +55,11 @@ pub async fn create_season(
     confirm_deadline: String,
     theme: Option<String>,
 ) -> Result<(), ServerFnError> {
-    use crate::{auth, error::AppError, types::UserRole};
-    use http::request::Parts;
+    use crate::auth;
     use time::OffsetDateTime;
     use time::format_description::well_known::Rfc3339;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     // Parse ISO 8601 deadlines — datetime-local inputs send "YYYY-MM-DDTHH:MM"
     // which is not valid RFC3339. Append ":00Z" to make it parseable as UTC.
@@ -134,21 +126,9 @@ pub async fn create_season(
 /// Returns `Err` if caller is not admin, no unlaunched active season, or DB fails.
 #[server]
 pub async fn launch_season() -> Result<(), ServerFnError> {
-    use crate::{auth, error::AppError, types::UserRole};
-    use http::request::Parts;
+    use crate::auth;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     let rows_affected = sqlx::query!(
         r#"
@@ -160,7 +140,7 @@ pub async fn launch_season() -> Result<(), ServerFnError> {
     )
     .execute(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .rows_affected();
 
     if rows_affected == 0 {
@@ -180,25 +160,9 @@ pub async fn launch_season() -> Result<(), ServerFnError> {
 /// Returns `Err` if caller is not admin, no active launched season, or transition is invalid.
 #[server]
 pub async fn advance_season() -> Result<(), ServerFnError> {
-    use crate::{
-        auth,
-        error::AppError,
-        types::{Phase, UserRole},
-    };
-    use http::request::Parts;
+    use crate::{auth, error::AppError, types::Phase};
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     let season = sqlx::query_as!(
         ActiveSeasonRow,
@@ -211,7 +175,7 @@ pub async fn advance_season() -> Result<(), ServerFnError> {
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("no active launched season found"))?;
 
     let next_phase = season
@@ -226,7 +190,7 @@ pub async fn advance_season() -> Result<(), ServerFnError> {
     )
     .execute(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     Ok(())
 }
@@ -238,25 +202,9 @@ pub async fn advance_season() -> Result<(), ServerFnError> {
 /// Returns `Err` if caller is not admin, no active season, or season is terminal.
 #[server]
 pub async fn cancel_season() -> Result<(), ServerFnError> {
-    use crate::{
-        auth,
-        error::AppError,
-        types::{Phase, UserRole},
-    };
-    use http::request::Parts;
+    use crate::{auth, error::AppError, types::Phase};
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     let season = sqlx::query_as!(
         ActiveSeasonRow,
@@ -268,7 +216,7 @@ pub async fn cancel_season() -> Result<(), ServerFnError> {
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("no active season found"))?;
 
     season
@@ -282,7 +230,7 @@ pub async fn cancel_season() -> Result<(), ServerFnError> {
     )
     .execute(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     Ok(())
 }
@@ -294,26 +242,9 @@ pub async fn cancel_season() -> Result<(), ServerFnError> {
 /// Returns `Err` if caller is not admin or DB fails.
 #[server]
 pub async fn get_season_status() -> Result<Option<SeasonStatus>, ServerFnError> {
-    use crate::{
-        auth,
-        date_format::format_date_uk,
-        error::AppError,
-        types::{Phase, UserRole},
-    };
-    use http::request::Parts;
+    use crate::{auth, date_format::format_date_uk, types::Phase};
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     let row = sqlx::query_as!(
         SeasonStatusRow,
@@ -335,7 +266,7 @@ pub async fn get_season_status() -> Result<Option<SeasonStatus>, ServerFnError> 
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     Ok(row.map(|r| SeasonStatus {
         id: r.id,
@@ -447,10 +378,15 @@ fn ActiveSeasonPanel(
                 <dt>{t!(i18n, season_phase_label)}</dt>
                 <dd>{phase_label}</dd>
 
-                {status.theme.as_ref().map(|theme_val| view! {
-                    <dt>{t!(i18n, season_theme_display_label)}</dt>
-                    <dd data-testid="season-theme">{theme_val.clone()}</dd>
-                })}
+                {status
+                    .theme
+                    .as_ref()
+                    .map(|theme_val| {
+                        view! {
+                            <dt>{t!(i18n, season_theme_display_label)}</dt>
+                            <dd data-testid="season-theme">{theme_val.clone()}</dd>
+                        }
+                    })}
 
                 <dt>{t!(i18n, season_signup_deadline_display)}</dt>
                 <dd data-testid="season-deadline">{status.signup_deadline.clone()}</dd>
@@ -481,9 +417,9 @@ fn ActiveSeasonPanel(
                                 {t!(i18n, season_launch_button)}
                             </button>
                         </leptos::form::ActionForm>
-                    }.into_any()
+                    }
+                        .into_any()
                 }}
-
                 // Advance button — only when launched and phase can advance
                 {if launched && can_advance {
                     view! {
@@ -498,11 +434,11 @@ fn ActiveSeasonPanel(
                                 {t!(i18n, season_advance_button)}
                             </button>
                         </leptos::form::ActionForm>
-                    }.into_any()
+                    }
+                        .into_any()
                 } else {
                     ().into_any()
                 }}
-
                 // Cancel button — available while launched
                 {if launched {
                     view! {
@@ -517,7 +453,8 @@ fn ActiveSeasonPanel(
                                 {t!(i18n, season_cancel_button)}
                             </button>
                         </leptos::form::ActionForm>
-                    }.into_any()
+                    }
+                        .into_any()
                 } else {
                     ().into_any()
                 }}
@@ -553,11 +490,7 @@ pub fn SeasonManagePage() -> impl IntoView {
         |_| get_season_status(),
     );
 
-    // Hydration gate — prevent native POST before WASM hydrates
-    let (hydrated, set_hydrated) = signal(false);
-    Effect::new(move |_| {
-        set_hydrated.set(true);
-    });
+    let hydrated = use_hydrated();
 
     view! {
         <div class="prose-page">
@@ -566,39 +499,48 @@ pub fn SeasonManagePage() -> impl IntoView {
             // Error display for any action
             <div id="action-error" role="alert" aria-live="assertive" data-testid="action-error">
                 {move || {
-                    let err = create_action.value().get().and_then(Result::err)
+                    let err = create_action
+                        .value()
+                        .get()
+                        .and_then(Result::err)
                         .or_else(|| launch_action.value().get().and_then(Result::err))
                         .or_else(|| advance_action.value().get().and_then(Result::err))
                         .or_else(|| cancel_action.value().get().and_then(Result::err));
-                    err.map(|e| view! {
-                        <p class="alert">{e.to_string()}</p>
-                    })
+                    err.map(|e| view! { <p class="alert">{e.to_string()}</p> })
                 }}
             </div>
 
-            <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
-                {move || status.get().map(|result| match result {
-                    Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
-                    Ok(None) => {
-                        view! {
-                            <CreateSeasonForm
-                                create_action=create_action
-                                hydrated=hydrated
-                            />
-                        }.into_any()
-                    }
-                    Ok(Some(s)) => {
-                        view! {
-                            <ActiveSeasonPanel
-                                status=s
-                                launch_action=launch_action
-                                advance_action=advance_action
-                                cancel_action=cancel_action
-                                hydrated=hydrated
-                            />
-                        }.into_any()
-                    }
-                })}
+            <Suspense fallback=move || {
+                view! { <p>{t!(i18n, common_loading)}</p> }
+            }>
+                {move || {
+                    status
+                        .get()
+                        .map(|result| match result {
+                            Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
+                            Ok(None) => {
+                                view! {
+                                    <CreateSeasonForm
+                                        create_action=create_action
+                                        hydrated=hydrated
+                                    />
+                                }
+                                    .into_any()
+                            }
+                            Ok(Some(s)) => {
+                                view! {
+                                    <ActiveSeasonPanel
+                                        status=s
+                                        launch_action=launch_action
+                                        advance_action=advance_action
+                                        cancel_action=cancel_action
+                                        hydrated=hydrated
+                                    />
+                                }
+                                    .into_any()
+                            }
+                        })
+                }}
             </Suspense>
         </div>
     }

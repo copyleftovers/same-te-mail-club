@@ -12,7 +12,7 @@ For any given delegation, you need to make an explicit decision whether to retai
 Rely on externalized context for delegation as a first-class citizen, prefering it to the handing-down the conversation history whenever possible.
 Context, instructions and preferences are externalized as manifestos, plans, artifacts, operational notes, etc.
 
-Plans must survive handoff to agents who lack your context. Use defensive-planning skill to do so.
+Plans must survive handoff to agents who lack your context. Use defensive-planning skill to do so for longer sequences of implementation steps.
 
 If anything can be delegated and done in parallel, use multiple parallel agents.
 One of the workflows where this pattern lends itself beautifully is objective fault analysis based on each of the active manifestos by separate agents.
@@ -38,7 +38,6 @@ All 6 implementation phases complete. E2E flakiness root-caused and fixed (2026-
 
 - @guidance/dev-protocol.md — feedback loop, compiler rules, LSP, TDD, unit vs E2E boundary (**binding**)
 - @guidance/leptos-idioms.md — Leptos 0.8 patterns (mandatory for all component work)
-- @guidance/delegation-playbook.md — agent delegation framework and prompt template
 - @guidance/debugging-policy.md — E2E failure delegation, long-running command rules
 - @guidance/design-system.md — palette, typography, components, density, accessibility (**binding**)
 - @guidance/frontend-protocol.md — Tailwind v4 setup, CSS architecture, banned patterns (**binding**)

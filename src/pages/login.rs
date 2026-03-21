@@ -1,3 +1,4 @@
+use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, use_i18n};
 use leptos::prelude::*;
 use leptos::server_fn::ServerFn;
@@ -128,12 +129,7 @@ pub fn LoginPage() -> impl IntoView {
     let request_action = ServerAction::<RequestOtp>::new();
 
     // Hydration gate — phone form button stays disabled until WASM hydrates.
-    // Prevents native form POST (which would show raw JSON) before
-    // `ActionForm`'s JS handler is attached.
-    let (hydrated, set_hydrated) = signal(false);
-    Effect::new(move |_| {
-        set_hydrated.set(true);
-    });
+    let hydrated = use_hydrated();
 
     // Store the phone when it's submitted — capture from the pending input
     // before the action completes and clears `input()`.
@@ -149,14 +145,20 @@ pub fn LoginPage() -> impl IntoView {
 
     view! {
         <div class="prose-page flex flex-col items-center text-center min-h-[80svh] justify-center">
-            <img src="/logo.svg" alt="Саме Те · Поштовий клуб" class="h-20 w-auto mb-8" />
+            <img
+                src="/logo.svg"
+                alt="Саме Те · Поштовий клуб"
+                class="h-20 w-auto mb-8"
+            />
 
             // Phone step — hidden once OTP step activates.
             // Uses ActionForm: reads phone from FormData (DOM) at submit time.
             <div style:display=move || if otp_step.get() { "none" } else { "" }>
                 <leptos::form::ActionForm action=request_action>
                     <div class="field">
-                        <label class="field-label" for="phone-input">{t!(i18n, login_phone_label)}</label>
+                        <label class="field-label" for="phone-input">
+                            {t!(i18n, login_phone_label)}
+                        </label>
                         <input
                             class="field-input"
                             id="phone-input"
@@ -166,7 +168,12 @@ pub fn LoginPage() -> impl IntoView {
                             data-testid="phone-input"
                         />
                     </div>
-                    <button class="btn" type="submit" data-testid="send-otp-button" disabled=move || !hydrated.get()>
+                    <button
+                        class="btn"
+                        type="submit"
+                        data-testid="send-otp-button"
+                        disabled=move || !hydrated.get()
+                    >
                         {t!(i18n, login_send_code_button)}
                     </button>
                 </leptos::form::ActionForm>
@@ -178,9 +185,11 @@ pub fn LoginPage() -> impl IntoView {
             // the navigation to complete. No WASM involvement needed.
             <div style:display=move || if otp_step.get() { "" } else { "none" }>
                 <form method="post" action=VerifyOtpCode::url()>
-                    <input type="hidden" name="phone" prop:value=submitted_phone/>
+                    <input type="hidden" name="phone" prop:value=submitted_phone />
                     <div class="field">
-                        <label class="field-label" for="code-input">{t!(i18n, login_otp_label)}</label>
+                        <label class="field-label" for="code-input">
+                            {t!(i18n, login_otp_label)}
+                        </label>
                         <input
                             class="field-input"
                             id="code-input"

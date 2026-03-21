@@ -68,3 +68,11 @@ impl AppError {
         leptos::prelude::ServerFnError::new(self.to_string())
     }
 }
+
+/// Shorthand for converting `sqlx::Error` to `ServerFnError` in `.map_err()`.
+///
+/// Usage: `.map_err(db_err)?` instead of
+/// `.map_err(|e| ServerFnError::new(format!("database error: {e}")))?`
+pub fn db_err(e: sqlx::Error) -> leptos::prelude::ServerFnError {
+    AppError::from(e).into_server_fn_error()
+}

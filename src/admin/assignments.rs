@@ -1,5 +1,9 @@
+use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, use_i18n};
 use leptos::prelude::*;
+
+#[cfg(feature = "ssr")]
+use crate::error::db_err;
 
 // ── Types (shared between SSR and WASM) ──────────────────────────────────────
 
@@ -77,23 +81,10 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     use crate::{
         assignment::{self, AssignmentInput},
         auth,
-        error::AppError,
-        types::{Phase, UserRole},
+        types::Phase,
     };
-    use http::request::Parts;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     // Get active season in Assignment phase.
     let season = sqlx::query_as!(
@@ -107,7 +98,7 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("no active launched season found"))?;
 
     if season.phase != Phase::Assignment {
@@ -120,7 +111,7 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     sqlx::query!("DELETE FROM assignments WHERE season_id = $1", season.id)
         .execute(&pool)
         .await
-        .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+        .map_err(db_err)?;
 
     // Get confirmed participants.
     let confirmed = sqlx::query_as!(
@@ -134,7 +125,7 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     if confirmed.len() < 3 {
         return Err(ServerFnError::new(
@@ -157,7 +148,7 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     let past_pairings = sqlx::query_as!(
         PastPairingRow,
@@ -170,7 +161,7 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     let gm_tuples: Vec<(uuid::Uuid, uuid::Uuid, u32)> = group_memberships
         .iter()
@@ -200,7 +191,7 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     let names: std::collections::HashMap<uuid::Uuid, String> =
         name_rows.into_iter().map(|r| (r.id, r.name)).collect();
@@ -226,7 +217,7 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
             )
             .execute(&pool)
             .await
-            .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+            .map_err(db_err)?;
 
             chain.push(AssignmentLink {
                 sender_name: names.get(&sender_id).cloned().unwrap_or_default(),
@@ -264,21 +255,9 @@ pub async fn swap_assignment(
     sender_a: String,
     sender_b: String,
 ) -> Result<(), ServerFnError> {
-    use crate::{auth, error::AppError, types::UserRole};
-    use http::request::Parts;
+    use crate::auth;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     let sid: uuid::Uuid = season_id
         .parse()
@@ -298,7 +277,7 @@ pub async fn swap_assignment(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("assignment for sender_a not found"))?;
 
     let rec_b = sqlx::query_scalar!(
@@ -308,7 +287,7 @@ pub async fn swap_assignment(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("assignment for sender_b not found"))?;
 
     // Perform swap.
@@ -320,7 +299,7 @@ pub async fn swap_assignment(
     )
     .execute(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     sqlx::query!(
         r#"UPDATE assignments SET recipient_id = $1 WHERE season_id = $2 AND sender_id = $3"#,
@@ -330,7 +309,7 @@ pub async fn swap_assignment(
     )
     .execute(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     // Validate resulting topology.
     let all_assignments = sqlx::query_as!(
@@ -350,7 +329,7 @@ pub async fn swap_assignment(
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     // Build cycle representation for validation.
     let cycle_participants: Vec<uuid::Uuid> = all_assignments.iter().map(|a| a.sender_id).collect();
@@ -404,25 +383,9 @@ pub async fn swap_assignment(
 /// or no assignments generated yet.
 #[server(ReleaseAssignments)]
 pub async fn release_assignments() -> Result<(), ServerFnError> {
-    use crate::{
-        auth,
-        error::AppError,
-        types::{Phase, UserRole},
-    };
-    use http::request::Parts;
+    use crate::{auth, types::Phase};
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     let season = sqlx::query_as!(
         ActiveSeasonRow,
@@ -435,7 +398,7 @@ pub async fn release_assignments() -> Result<(), ServerFnError> {
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("no active launched season found"))?;
 
     if season.phase != Phase::Assignment {
@@ -451,7 +414,7 @@ pub async fn release_assignments() -> Result<(), ServerFnError> {
     )
     .fetch_one(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     if count == 0 {
         return Err(ServerFnError::new(
@@ -474,25 +437,9 @@ pub async fn release_assignments() -> Result<(), ServerFnError> {
 /// Returns `Err` if caller is not admin or DB fails.
 #[server(GetAssignmentPreview)]
 pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, ServerFnError> {
-    use crate::{
-        auth,
-        error::AppError,
-        types::{Phase, UserRole},
-    };
-    use http::request::Parts;
+    use crate::{auth, types::Phase};
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     let season = sqlx::query_as!(
         ActiveSeasonRow,
@@ -505,7 +452,7 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     let Some(season) = season else {
         return Ok(None);
@@ -529,7 +476,7 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     if assignments.is_empty() {
         // Get confirmed count for the "before generate" view.
@@ -574,21 +521,9 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
 /// Returns `Err` if caller is not admin or DB fails.
 #[server(GetConfirmedCount)]
 pub async fn get_confirmed_count() -> Result<i64, ServerFnError> {
-    use crate::{auth, error::AppError, types::UserRole};
-    use http::request::Parts;
+    use crate::auth;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
+    let (pool, _user) = auth::require_admin().await?;
 
     let count = sqlx::query_scalar!(
         r#"
@@ -602,7 +537,7 @@ pub async fn get_confirmed_count() -> Result<i64, ServerFnError> {
     )
     .fetch_one(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     Ok(count)
 }
@@ -635,11 +570,7 @@ pub fn AssignmentsPage() -> impl IntoView {
         |_| get_assignment_preview(),
     );
 
-    // Hydration gate.
-    let (hydrated, set_hydrated) = signal(false);
-    Effect::new(move |_| {
-        set_hydrated.set(true);
-    });
+    let hydrated = use_hydrated();
 
     view! {
         <div class="prose-page">
@@ -647,42 +578,75 @@ pub fn AssignmentsPage() -> impl IntoView {
 
             // Error display.
             {move || {
-                let err = generate_action.value().get().and_then(Result::err)
+                let err = generate_action
+                    .value()
+                    .get()
+                    .and_then(Result::err)
                     .or_else(|| swap_action.value().get().and_then(Result::err))
                     .or_else(|| release_action.value().get().and_then(Result::err));
-                err.map(|e| view! {
-                    <p class="alert">{e.to_string()}</p>
-                })
+                err.map(|e| view! { <p class="alert">{e.to_string()}</p> })
             }}
 
             // Release confirmation — shown after successful release_assignments() call
             {move || {
-                release_action.value().get().and_then(Result::ok).map(|()| view! {
-                    <p data-testid="released-status">{t!(i18n, assignments_released_advance_note)}</p>
-                })
+                release_action
+                    .value()
+                    .get()
+                    .and_then(Result::ok)
+                    .map(|()| {
+                        view! {
+                            <p data-testid="released-status">
+                                {t!(i18n, assignments_released_advance_note)}
+                            </p>
+                        }
+                    })
             }}
 
             // Confirmed count.
-            <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
-                {move || confirmed_count.get().map(|result| match result {
-                    Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
-                    Ok(count) => view! {
-                        <p data-testid="confirmed-count">{t!(i18n, assignments_confirmed_label)} {count}</p>
-                    }.into_any(),
-                })}
+            <Suspense fallback=move || {
+                view! { <p>{t!(i18n, common_loading)}</p> }
+            }>
+                {move || {
+                    confirmed_count
+                        .get()
+                        .map(|result| match result {
+                            Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
+                            Ok(count) => {
+                                view! {
+                                    <p data-testid="confirmed-count">
+                                        {t!(i18n, assignments_confirmed_label)} {count}
+                                    </p>
+                                }
+                                    .into_any()
+                            }
+                        })
+                }}
             </Suspense>
 
             // Main content: preview + actions.
-            <Suspense fallback=move || view! { <p>{t!(i18n, common_loading)}</p> }>
-                {move || preview.get().map(|result| match result {
-                    Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
-                    Ok(None) => view! {
-                        <p>{t!(i18n, assignments_no_season)}</p>
-                    }.into_any(),
-                    Ok(Some(ref p)) => {
-                        render_preview(p, generate_action, swap_action, release_action, hydrated, i18n)
-                    }
-                })}
+            <Suspense fallback=move || {
+                view! { <p>{t!(i18n, common_loading)}</p> }
+            }>
+                {move || {
+                    preview
+                        .get()
+                        .map(|result| match result {
+                            Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
+                            Ok(None) => {
+                                view! { <p>{t!(i18n, assignments_no_season)}</p> }.into_any()
+                            }
+                            Ok(Some(ref p)) => {
+                                render_preview(
+                                    p,
+                                    generate_action,
+                                    swap_action,
+                                    release_action,
+                                    hydrated,
+                                    i18n,
+                                )
+                            }
+                        })
+                }}
             </Suspense>
         </div>
     }
@@ -722,35 +686,28 @@ fn render_preview(
                             }}
                         </button>
                     </leptos::form::ActionForm>
-                }.into_any()
+                }
+                    .into_any()
             } else {
-                view! {
-                    <p data-testid="released-status">{t!(i18n, assignments_released_note)}</p>
-                }.into_any()
+                view! { <p data-testid="released-status">{t!(i18n, assignments_released_note)}</p> }
+                    .into_any()
             }}
-
             // Cycle visualization.
             {if has_assignments {
                 render_cycle_visualization(&p.cohorts, i18n).into_any()
             } else {
                 ().into_any()
             }}
-
             // Swap UI — only before release and when assignments exist.
             {if has_assignments && is_assignment_phase {
                 let sid = season_id.clone();
                 view! {
-                    <SwapForm
-                        swap_action=swap_action
-                        season_id=sid
-                        hydrated=hydrated
-                        i18n=i18n
-                    />
-                }.into_any()
+                    <SwapForm swap_action=swap_action season_id=sid hydrated=hydrated i18n=i18n />
+                }
+                    .into_any()
             } else {
                 ().into_any()
             }}
-
             // Release button — only when assignments exist and not yet released.
             {if has_assignments && is_assignment_phase {
                 view! {
@@ -764,7 +721,8 @@ fn render_preview(
                             {t!(i18n, assignments_release_button)}
                         </button>
                     </leptos::form::ActionForm>
-                }.into_any()
+                }
+                    .into_any()
             } else {
                 ().into_any()
             }}
@@ -786,13 +744,7 @@ fn render_cycle_visualization(
                 .chain
                 .iter()
                 .map(|link| {
-                    view! {
-                        <li>
-                            {link.sender_name.clone()}
-                            " → "
-                            {link.recipient_name.clone()}
-                        </li>
-                    }
+                    view! { <li>{link.sender_name.clone()} " → " {link.recipient_name.clone()}</li> }
                 })
                 .collect_view();
 
@@ -829,12 +781,28 @@ fn SwapForm(
             <leptos::form::ActionForm action=swap_action>
                 <input type="hidden" name="season_id" value=season_id />
                 <div class="field">
-                    <label class="field-label" for="sender-a">{t!(i18n, assignments_sender_a_label)}</label>
-                    <input class="field-input" id="sender-a" type="text" name="sender_a" required=true />
+                    <label class="field-label" for="sender-a">
+                        {t!(i18n, assignments_sender_a_label)}
+                    </label>
+                    <input
+                        class="field-input"
+                        id="sender-a"
+                        type="text"
+                        name="sender_a"
+                        required=true
+                    />
                 </div>
                 <div class="field">
-                    <label class="field-label" for="sender-b">{t!(i18n, assignments_sender_b_label)}</label>
-                    <input class="field-input" id="sender-b" type="text" name="sender_b" required=true />
+                    <label class="field-label" for="sender-b">
+                        {t!(i18n, assignments_sender_b_label)}
+                    </label>
+                    <input
+                        class="field-input"
+                        id="sender-b"
+                        type="text"
+                        name="sender_b"
+                        required=true
+                    />
                 </div>
                 <button
                     class="btn"

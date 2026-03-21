@@ -329,3 +329,40 @@ pub async fn current_user(
 
 // `CurrentUser` lives in `crate::types` so it's available in both SSR and WASM builds.
 pub use crate::types::CurrentUser;
+
+// ── Server function context helpers ─────────────────────────────────────────
+
+/// Extract the database pool and authenticated user from server function context.
+///
+/// Combines context extraction + session validation into one call.
+///
+/// # Errors
+///
+/// Returns `Err(ServerFnError)` if context is missing or session is invalid.
+pub async fn require_auth() -> Result<(PgPool, CurrentUser), leptos::prelude::ServerFnError> {
+    let pool = leptos::context::use_context::<PgPool>()
+        .ok_or_else(|| leptos::prelude::ServerFnError::new("no database pool in context"))?;
+    let parts = leptos::context::use_context::<http::request::Parts>()
+        .ok_or_else(|| leptos::prelude::ServerFnError::new("no request parts in context"))?;
+
+    let user = current_user(&pool, &parts)
+        .await
+        .map_err(AppError::into_server_fn_error)?;
+
+    Ok((pool, user))
+}
+
+/// Extract the database pool and verify the caller is an admin.
+///
+/// # Errors
+///
+/// Returns `Err(ServerFnError)` if not authenticated or not an admin.
+pub async fn require_admin() -> Result<(PgPool, CurrentUser), leptos::prelude::ServerFnError> {
+    let (pool, user) = require_auth().await?;
+
+    if user.role != crate::types::UserRole::Admin {
+        return Err(AppError::Forbidden.into_server_fn_error());
+    }
+
+    Ok((pool, user))
+}

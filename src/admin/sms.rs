@@ -1,5 +1,9 @@
+use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, use_i18n};
 use leptos::prelude::*;
+
+#[cfg(feature = "ssr")]
+use crate::error::db_err;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -36,32 +40,18 @@ pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
     use crate::{
         auth,
         config::Config,
-        error::AppError,
         i18n::i18n::{Locale, td_string},
         sms,
-        types::UserRole,
     };
-    use http::request::Parts;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
+    let (pool, _user) = auth::require_admin().await?;
     let config = leptos::context::use_context::<Config>()
         .ok_or_else(|| ServerFnError::new("no config in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
 
     let phones = sqlx::query_scalar!(r#"SELECT phone FROM users WHERE status = 'active'"#,)
         .fetch_all(&pool)
         .await
-        .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+        .map_err(db_err)?;
 
     let message = td_string!(Locale::uk, sms_season_open_body);
 
@@ -99,27 +89,13 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
     use crate::{
         auth,
         config::Config,
-        error::AppError,
         i18n::i18n::{Locale, td_string},
         sms,
-        types::UserRole,
     };
-    use http::request::Parts;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
+    let (pool, _user) = auth::require_admin().await?;
     let config = leptos::context::use_context::<Config>()
         .ok_or_else(|| ServerFnError::new("no config in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
 
     // Assignment season required (assignment or delivery phase — both have assignments)
     let season_id = sqlx::query_scalar!(
@@ -127,7 +103,7 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("no active assignment/delivery season"))?;
 
     // Senders who haven't been notified yet
@@ -143,7 +119,7 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     let message = td_string!(Locale::uk, sms_assignment_body);
 
@@ -189,27 +165,13 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     use crate::{
         auth,
         config::Config,
-        error::AppError,
         i18n::i18n::{Locale, td_string},
         sms,
-        types::UserRole,
     };
-    use http::request::Parts;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
+    let (pool, _user) = auth::require_admin().await?;
     let config = leptos::context::use_context::<Config>()
         .ok_or_else(|| ServerFnError::new("no config in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
 
     // Active preparation season required
     let season_id = sqlx::query_scalar!(
@@ -217,7 +179,7 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("no active preparation season"))?;
 
     let confirm_deadline = sqlx::query_scalar!(
@@ -226,7 +188,7 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     )
     .fetch_one(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     let deadline_str = crate::date_format::format_date_uk(confirm_deadline);
 
@@ -241,7 +203,7 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     let prefix = td_string!(Locale::uk, sms_confirm_nudge_body_prefix);
     let message = format!("{prefix}{deadline_str}.");
@@ -279,27 +241,13 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     use crate::{
         auth,
         config::Config,
-        error::AppError,
         i18n::i18n::{Locale, td_string},
         sms,
-        types::UserRole,
     };
-    use http::request::Parts;
 
-    let pool = leptos::context::use_context::<sqlx::PgPool>()
-        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
+    let (pool, _user) = auth::require_admin().await?;
     let config = leptos::context::use_context::<Config>()
         .ok_or_else(|| ServerFnError::new("no config in context"))?;
-    let parts = leptos::context::use_context::<Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-
-    let user = auth::current_user(&pool, &parts)
-        .await
-        .map_err(AppError::into_server_fn_error)?;
-
-    if user.role != UserRole::Admin {
-        return Err(ServerFnError::new("forbidden: admin only"));
-    }
 
     // Active delivery season required
     let season_id = sqlx::query_scalar!(
@@ -307,7 +255,7 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("no active delivery season"))?;
 
     let phones = sqlx::query_scalar!(
@@ -321,7 +269,7 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(db_err)?;
 
     let message = td_string!(Locale::uk, sms_receipt_nudge_body);
 
@@ -385,40 +333,39 @@ pub fn SmsPage() -> impl IntoView {
             .or_else(|| receipt_nudge_action.value().get().and_then(Result::err))
     };
 
-    // Hydration gate — all buttons disabled until WASM is live
-    let (hydrated, set_hydrated) = signal(false);
-    Effect::new(move |_| {
-        set_hydrated.set(true);
-    });
+    let hydrated = use_hydrated();
 
     view! {
         <div class="prose-page">
             <h1>{t!(i18n, sms_page_title)}</h1>
 
             // Error display
-            {move || latest_error().map(|e| view! {
-                <p class="alert">{e.to_string()}</p>
-            })}
+            {move || latest_error().map(|e| view! { <p class="alert">{e.to_string()}</p> })}
 
             // SMS report
-            {move || latest_report().map(|report| view! {
-                <div class="alert" data-testid="sms-report">
-                    <p data-testid="sms-sent-confirmation">
-                        {t!(i18n, sms_sent_label)}
-                        <strong>{report.sent}</strong>
-                    </p>
-                    {if report.failed > 0 {
+            {move || {
+                latest_report()
+                    .map(|report| {
                         view! {
-                            <p>
-                                {t!(i18n, sms_failed_label)}
-                                <strong>{report.failed}</strong>
-                            </p>
-                        }.into_any()
-                    } else {
-                        ().into_any()
-                    }}
-                </div>
-            })}
+                            <div class="alert" data-testid="sms-report">
+                                <p data-testid="sms-sent-confirmation">
+                                    {t!(i18n, sms_sent_label)} <strong>{report.sent}</strong>
+                                </p>
+                                {if report.failed > 0 {
+                                    view! {
+                                        <p>
+                                            {t!(i18n, sms_failed_label)}
+                                            <strong>{report.failed}</strong>
+                                        </p>
+                                    }
+                                        .into_any()
+                                } else {
+                                    ().into_any()
+                                }}
+                            </div>
+                        }
+                    })
+            }}
 
             <section class="flex flex-col gap-3">
                 // Story 5.3: Season-open — target all active users

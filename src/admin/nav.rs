@@ -14,10 +14,7 @@ pub fn AdminNav() -> impl IntoView {
 
     view! {
         <nav class="admin-nav">
-            <a
-                href="/admin"
-                aria-current=move || if is_active("/admin")() { "page" } else { "" }
-            >
+            <a href="/admin" aria-current=move || if is_active("/admin")() { "page" } else { "" }>
                 {t!(i18n, admin_nav_dashboard)}
             </a>
             <a
