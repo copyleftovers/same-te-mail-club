@@ -1,3 +1,4 @@
+use crate::components::stepper::PhaseStepper;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 
@@ -100,7 +101,13 @@ pub fn DashboardPage() -> impl IntoView {
             <h1>{t!(i18n, admin_dashboard_title)}</h1>
 
             <Suspense fallback=move || {
-                view! { <p>{t!(i18n, common_loading)}</p> }
+                view! {
+                    <div aria-hidden="true" class="flex flex-col gap-3">
+                        <div class="skeleton-line h-4 w-3/4"></div>
+                        <div class="skeleton-line h-4 w-1/2"></div>
+                        <div class="skeleton-line h-4 w-5/8"></div>
+                    </div>
+                }
             }>
                 {move || {
                     dashboard
@@ -160,21 +167,27 @@ fn render_season_detail(
 
     view! {
         <section>
-            <dl>
-                <dt>{t!(i18n, dashboard_phase_label)}</dt>
-                <dd>
-                    <span class="badge" data-status=phase_status>
-                        {phase_display}
-                    </span>
-                </dd>
+            <PhaseStepper current_phase=s.phase />
+
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 mb-6">
+                <div class="stat-card" data-testid="stat-phase">
+                    <div class="stat-label">{t!(i18n, dashboard_phase_label)}</div>
+                    <div class="stat-value text-base">
+                        <span class="badge" data-status=phase_status>
+                            {phase_display}
+                        </span>
+                    </div>
+                </div>
 
                 {s
                     .theme
                     .as_ref()
                     .map(|theme_val| {
                         view! {
-                            <dt>{t!(i18n, dashboard_theme_label)}</dt>
-                            <dd>{theme_val.clone()}</dd>
+                            <div class="stat-card" data-testid="stat-theme">
+                                <div class="stat-label">{t!(i18n, dashboard_theme_label)}</div>
+                                <div class="stat-value text-lg">{theme_val.clone()}</div>
+                            </div>
                         }
                     })}
 
@@ -182,15 +195,19 @@ fn render_season_detail(
                     ().into_any()
                 } else {
                     view! {
-                        <dt>{t!(i18n, dashboard_enrolled_label)}</dt>
-                        <dd>{s.enrolled_count}</dd>
+                        <div class="stat-card" data-testid="stat-enrolled">
+                            <div class="stat-label">{t!(i18n, dashboard_enrolled_label)}</div>
+                            <div class="stat-value">{s.enrolled_count.to_string()}</div>
+                        </div>
 
-                        <dt>{t!(i18n, dashboard_confirmed_label)}</dt>
-                        <dd>{s.confirmed_count}</dd>
+                        <div class="stat-card" data-testid="stat-confirmed">
+                            <div class="stat-label">{t!(i18n, dashboard_confirmed_label)}</div>
+                            <div class="stat-value">{s.confirmed_count.to_string()}</div>
+                        </div>
                     }
                         .into_any()
                 }}
-            </dl>
+            </div>
 
             {if s.not_received_count > 0 {
                 view! {

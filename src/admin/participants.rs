@@ -1,3 +1,4 @@
+use crate::components::toast::use_toast;
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
@@ -148,6 +149,7 @@ pub async fn deactivate_participant(user_id: uuid::Uuid) -> Result<(), ServerFnE
 fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl IntoView {
     let i18n = use_i18n();
     let hydrated = use_hydrated();
+    let pending = register_action.pending();
 
     view! {
         <leptos::form::ActionForm action=register_action>
@@ -183,9 +185,13 @@ fn RegisterForm(register_action: ServerAction<RegisterParticipant>) -> impl Into
                 class="btn"
                 type="submit"
                 data-testid="register-button"
-                disabled=move || !hydrated.get()
+                disabled=move || pending.get() || !hydrated.get()
             >
-                {t!(i18n, participants_register_button)}
+                {move || if pending.get() {
+                    "Реєструю...".into_any()
+                } else {
+                    t!(i18n, participants_register_button).into_any()
+                }}
             </button>
         </leptos::form::ActionForm>
     }
@@ -202,7 +208,13 @@ fn ParticipantList(
 
     view! {
         <Suspense fallback=move || {
-            view! { <p>{t!(i18n, common_loading)}</p> }
+            view! {
+                <div aria-hidden="true" class="flex flex-col gap-3">
+                    <div class="skeleton-line h-4 w-3/4"></div>
+                    <div class="skeleton-line h-4 w-1/2"></div>
+                    <div class="skeleton-line h-4 w-5/8"></div>
+                </div>
+            }
         }>
             {move || {
                 participants
@@ -210,90 +222,107 @@ fn ParticipantList(
                     .map(|result| match result {
                         Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
                         Ok(list) => {
-                            view! {
-                                <table class="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th>{t!(i18n, participants_table_name)}</th>
-                                            <th>{t!(i18n, participants_table_phone)}</th>
-                                            <th>{t!(i18n, participants_table_status)}</th>
-                                            <th>{t!(i18n, participants_table_actions)}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <For
-                                            each=move || list.clone()
-                                            key=|p| p.id
-                                            children=move |p| {
-                                                let uid_str = p.id.to_string();
-                                                let active = matches!(
-                                                    p.status,
-                                                    crate::types::UserStatus::Active
-                                                );
-                                                view! {
-                                                    <tr data-testid="participant-row">
-                                                        <td data-testid="participant-name-cell">
-                                                            {p.name.clone()}
-                                                        </td>
-                                                        <td>{p.phone.clone()}</td>
-                                                        <td>
-                                                            {move || {
-                                                                if active {
-                                                                    view! {
-                                                                        <span class="badge" data-status="active">
-                                                                            {t!(i18n, participants_status_active)}
-                                                                        </span>
+                            if list.is_empty() {
+                                view! {
+                                    <div class="empty-state" data-testid="empty-state">
+                                        <p class="empty-state-headline">Ще немає учасників</p>
+                                        <p class="empty-state-body">Зареєструйте першого учасника вище</p>
+                                    </div>
+                                }
+                                    .into_any()
+                            } else {
+                                view! {
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>{t!(i18n, participants_table_name)}</th>
+                                                <th>{t!(i18n, participants_table_phone)}</th>
+                                                <th>{t!(i18n, participants_table_status)}</th>
+                                                <th>{t!(i18n, participants_table_actions)}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <For
+                                                each=move || list.clone()
+                                                key=|p| p.id
+                                                children=move |p| {
+                                                    let uid_str = p.id.to_string();
+                                                    let active = matches!(
+                                                        p.status,
+                                                        crate::types::UserStatus::Active
+                                                    );
+                                                    view! {
+                                                        <tr data-testid="participant-row">
+                                                            <td data-testid="participant-name-cell">
+                                                                {p.name.clone()}
+                                                            </td>
+                                                            <td>{p.phone.clone()}</td>
+                                                            <td>
+                                                                {move || {
+                                                                    if active {
+                                                                        view! {
+                                                                            <span class="badge" data-status="active">
+                                                                                {t!(i18n, participants_status_active)}
+                                                                            </span>
+                                                                        }
+                                                                            .into_any()
+                                                                    } else {
+                                                                        view! {
+                                                                            <span class="badge" data-status="inactive">
+                                                                                {t!(i18n, participants_status_deactivated)}
+                                                                            </span>
+                                                                        }
+                                                                            .into_any()
                                                                     }
-                                                                        .into_any()
-                                                                } else {
-                                                                    view! {
-                                                                        <span class="badge" data-status="inactive">
-                                                                            {t!(i18n, participants_status_deactivated)}
-                                                                        </span>
+                                                                }}
+                                                            </td>
+                                                            <td>
+                                                                {
+                                                                    let deactivate_pending = deactivate_action.pending();
+                                                                    if active {
+                                                                        view! {
+                                                                            <leptos::form::ActionForm action=deactivate_action>
+                                                                                <input type="hidden" name="user_id" value=uid_str />
+                                                                                <button
+                                                                                    class="btn"
+                                                                                    data-variant="destructive"
+                                                                                    data-size="sm"
+                                                                                    type="submit"
+                                                                                    data-testid="deactivate-button"
+                                                                                    disabled=move || deactivate_pending.get() || !hydrated.get()
+                                                                                >
+                                                                                    {move || if deactivate_pending.get() {
+                                                                                        "Деактивую...".into_any()
+                                                                                    } else {
+                                                                                        t!(i18n, participants_deactivate_button).into_any()
+                                                                                    }}
+                                                                                </button>
+                                                                            </leptos::form::ActionForm>
+                                                                        }
+                                                                            .into_any()
+                                                                    } else {
+                                                                        view! {
+                                                                            <span
+                                                                                class="badge"
+                                                                                data-status="inactive"
+                                                                                data-testid="inactive-status"
+                                                                            >
+                                                                                {t!(i18n, participants_deactivated_label)}
+                                                                            </span>
+                                                                        }
+                                                                            .into_any()
                                                                     }
-                                                                        .into_any()
                                                                 }
-                                                            }}
-                                                        </td>
-                                                        <td>
-                                                            {if active {
-                                                                view! {
-                                                                    <leptos::form::ActionForm action=deactivate_action>
-                                                                        <input type="hidden" name="user_id" value=uid_str />
-                                                                        <button
-                                                                            class="btn"
-                                                                            data-variant="destructive"
-                                                                            data-size="sm"
-                                                                            type="submit"
-                                                                            data-testid="deactivate-button"
-                                                                            disabled=move || !hydrated.get()
-                                                                        >
-                                                                            {t!(i18n, participants_deactivate_button)}
-                                                                        </button>
-                                                                    </leptos::form::ActionForm>
-                                                                }
-                                                                    .into_any()
-                                                            } else {
-                                                                view! {
-                                                                    <span
-                                                                        class="badge"
-                                                                        data-status="inactive"
-                                                                        data-testid="inactive-status"
-                                                                    >
-                                                                        {t!(i18n, participants_deactivated_label)}
-                                                                    </span>
-                                                                }
-                                                                    .into_any()
-                                                            }}
-                                                        </td>
-                                                    </tr>
+                                                            </td>
+                                                        </tr>
+                                                    }
                                                 }
-                                            }
-                                        />
-                                    </tbody>
-                                </table>
+                                            />
+                                        </tbody>
+                                    </table>
+                                }
+                                    .into_any()
                             }
-                                .into_any()
                         }
                     })
             }}
@@ -308,6 +337,7 @@ fn ParticipantList(
 pub fn ParticipantsPage() -> impl IntoView {
     let i18n = use_i18n();
     let (error_msg, set_error_msg) = signal(Option::<String>::None);
+    let set_toast = use_toast();
 
     let register_action = ServerAction::<RegisterParticipant>::new();
     let deactivate_action = ServerAction::<DeactivateParticipant>::new();
@@ -327,11 +357,18 @@ pub fn ParticipantsPage() -> impl IntoView {
             match result {
                 Ok(()) => {
                     set_error_msg.set(None);
+                    set_toast.set(Some("Учасника зареєстровано!".into()));
                 }
                 Err(e) => {
                     set_error_msg.set(Some(e.to_string()));
                 }
             }
+        }
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(())) = deactivate_action.value().get() {
+            set_toast.set(Some("Учасника деактивовано!".into()));
         }
     });
 

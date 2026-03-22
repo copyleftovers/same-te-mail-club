@@ -12,7 +12,12 @@ use crate::{
         assignments::AssignmentsPage, dashboard::DashboardPage, nav::AdminNav,
         participants::ParticipantsPage, season::SeasonManagePage, sms::SmsPage,
     },
-    pages::{home::HomePage, login::LoginPage, onboarding::OnboardingPage},
+    components::toast::{Toast, provide_toast_context},
+    pages::{
+        home::HomePage,
+        login::{LoginPage, Logout},
+        onboarding::OnboardingPage,
+    },
 };
 
 // ── Server function ───────────────────────────────────────────────────────────
@@ -39,7 +44,11 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
         <html lang="uk">
             <head>
                 <meta charset="utf-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes" />
+                <meta name="theme-color" content="#D93A12" media="(prefers-color-scheme: light)" />
+                <meta name="theme-color" content="#161616" media="(prefers-color-scheme: dark)" />
+                <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+                <link rel="manifest" href="/manifest.json" />
                 <AutoReload options=options.clone() />
                 <HydrationScripts options />
                 <MetaTags />
@@ -66,18 +75,28 @@ pub fn App() -> impl IntoView {
     let i18n = use_i18n();
 
     // Fetch current user once at app load — used for all auth guards
-    let current_user = Resource::new(|| (), |()| get_current_user());
+    // Create a logout action at the app level so its version can trigger refetches
+    let logout_action = ServerAction::<Logout>::new();
+    let current_user = Resource::new(
+        move || logout_action.version().get(),
+        |_| get_current_user(),
+    );
 
+    provide_context(logout_action);
     provide_context(current_user);
+
+    // Provide toast context — used for success feedback across the app
+    provide_toast_context();
 
     view! {
         <Stylesheet id="leptos" href="/pkg/samete.css" />
         <Title text=t_string!(i18n, app_title) />
 
         <Router>
-            <Header />
-            <main>
-                <Routes fallback=move || t!(i18n, app_not_found)>
+            <div class="flex min-h-dvh flex-col">
+                <Header />
+                <main class="flex-1">
+                    <Routes fallback=move || t!(i18n, app_not_found)>
                     <Route path=StaticSegment("login") view=LoginPage />
                     <Route
                         path=StaticSegment("onboarding")
@@ -152,9 +171,12 @@ pub fn App() -> impl IntoView {
                             }
                         }
                     />
-                </Routes>
-            </main>
+                    </Routes>
+                </main>
+            </div>
         </Router>
+
+        <Toast />
     }
 }
 
@@ -164,6 +186,7 @@ pub fn App() -> impl IntoView {
 #[component]
 fn Header() -> impl IntoView {
     let is_dark = use_preferred_dark();
+    let (menu_open, set_menu_open) = signal(false);
 
     view! {
         <header class="app-header">
@@ -181,23 +204,178 @@ fn Header() -> impl IntoView {
                 />
             </a>
             <HeaderNav />
+            <button
+                class="menu-toggle"
+                aria-label="Menu"
+                aria-expanded=move || menu_open.get()
+                data-testid="menu-toggle"
+                on:click=move |_| set_menu_open.update(|v| *v = !*v)
+            >
+                <span class="block h-0.5 w-5 bg-current"></span>
+                <span class="block h-0.5 w-5 bg-current mt-1"></span>
+                <span class="block h-0.5 w-5 bg-current mt-1"></span>
+            </button>
+            <Show when=move || menu_open.get()>
+                <MobileMenu on_close=Callback::new(move |()| set_menu_open.set(false)) />
+            </Show>
         </header>
     }
 }
 
 // ── Header nav ────────────────────────────────────────────────────────────────
 
-/// Renders `AdminNav` when the current path is under `/admin`, nothing otherwise.
+/// Renders `AdminNav` when the current path is under `/admin`, logout button otherwise.
 ///
 /// Must be rendered inside `<Router>` so `use_location` has context.
 #[component]
 fn HeaderNav() -> impl IntoView {
+    use crate::hooks::use_hydrated;
+    let i18n = use_i18n();
     let pathname = leptos_router::hooks::use_location().pathname;
-    move || {
-        pathname
-            .get()
-            .starts_with("/admin")
-            .then(|| view! { <AdminNav /> })
+    let hydrated = use_hydrated();
+    let logout_action =
+        use_context::<ServerAction<Logout>>().expect("logout action must be provided");
+
+    let is_admin = move || pathname.get().starts_with("/admin");
+    let show_logout = move || {
+        !pathname.get().starts_with("/admin")
+            && pathname.get() != "/login"
+            && pathname.get() != "/onboarding"
+    };
+
+    view! {
+        <Show when=is_admin fallback=move || {
+            view! {
+                <Show when=show_logout>
+                    <div class="header-nav">
+                        <leptos::form::ActionForm action=logout_action>
+                            <button
+                                type="submit"
+                                class="btn"
+                                data-variant="secondary"
+                                data-size="sm"
+                                data-testid="logout-button"
+                                disabled=move || !hydrated.get()
+                            >
+                                {t!(i18n, nav_logout)}
+                            </button>
+                        </leptos::form::ActionForm>
+                    </div>
+                </Show>
+            }
+        }>
+            <AdminNav />
+        </Show>
+    }
+}
+
+// ── Mobile menu ────────────────────────────────────────────────────────────────
+
+/// Mobile navigation menu with overlay and slide-in panel.
+///
+/// Closes on overlay click, link click, or Escape key.
+#[component]
+fn MobileMenu(on_close: Callback<()>) -> impl IntoView {
+    use crate::hooks::use_hydrated;
+    let i18n = use_i18n();
+    let pathname = leptos_router::hooks::use_location().pathname;
+    let is_active = move |path: &'static str| move || pathname.get() == path;
+    let hydrated = use_hydrated();
+    let logout_action =
+        use_context::<ServerAction<Logout>>().expect("logout action must be provided");
+
+    // Close menu on Escape key (client-side only)
+    #[cfg(not(feature = "ssr"))]
+    Effect::new(move |_| {
+        use leptos::prelude::document;
+        use leptos::wasm_bindgen::JsCast;
+        use leptos::wasm_bindgen::closure::Closure;
+        use leptos::web_sys;
+
+        let document = document();
+        let closure: Closure<dyn Fn(web_sys::KeyboardEvent)> =
+            Closure::new(move |ev: web_sys::KeyboardEvent| {
+                if ev.key() == "Escape" {
+                    on_close.run(());
+                }
+            });
+
+        let _ =
+            document.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref());
+
+        // Cleanup: remove listener when Effect is dropped
+        move || {
+            let _ = document
+                .remove_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref());
+        }
+    });
+
+    view! {
+        <div
+            class="mobile-menu-overlay"
+            on:click=move |_| on_close.run(())
+            data-testid="mobile-menu-overlay"
+        ></div>
+        <nav class="mobile-menu" data-testid="mobile-menu">
+            <a
+                href="/"
+                on:click=move |_| on_close.run(())
+                aria-current=move || if is_active("/")() { "page" } else { "" }
+            >
+                {t!(i18n, nav_home)}
+            </a>
+            <Show when=move || pathname.get().starts_with("/admin")>
+                <a
+                    href="/admin"
+                    on:click=move |_| on_close.run(())
+                    aria-current=move || if is_active("/admin")() { "page" } else { "" }
+                >
+                    {t!(i18n, admin_nav_dashboard)}
+                </a>
+                <a
+                    href="/admin/season"
+                    on:click=move |_| on_close.run(())
+                    aria-current=move || if is_active("/admin/season")() { "page" } else { "" }
+                >
+                    {t!(i18n, admin_nav_season)}
+                </a>
+                <a
+                    href="/admin/participants"
+                    on:click=move |_| on_close.run(())
+                    aria-current=move || if is_active("/admin/participants")() { "page" } else { "" }
+                >
+                    {t!(i18n, admin_nav_participants)}
+                </a>
+                <a
+                    href="/admin/assignments"
+                    on:click=move |_| on_close.run(())
+                    aria-current=move || if is_active("/admin/assignments")() { "page" } else { "" }
+                >
+                    {t!(i18n, admin_nav_assignments)}
+                </a>
+                <a
+                    href="/admin/sms"
+                    on:click=move |_| on_close.run(())
+                    aria-current=move || if is_active("/admin/sms")() { "page" } else { "" }
+                >
+                    {t!(i18n, admin_nav_sms)}
+                </a>
+            </Show>
+            <Show when=move || pathname.get() != "/login" && pathname.get() != "/onboarding">
+                <leptos::form::ActionForm action=logout_action>
+                    <button
+                        type="submit"
+                        class="btn w-full"
+                        data-variant="secondary"
+                        data-size="sm"
+                        data-testid="logout-button-mobile"
+                        disabled=move || !hydrated.get()
+                    >
+                        {t!(i18n, nav_logout)}
+                    </button>
+                </leptos::form::ActionForm>
+            </Show>
+        </nav>
     }
 }
 

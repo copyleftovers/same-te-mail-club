@@ -32,8 +32,12 @@ const NAMES = {
   C: "Тестова Людина В",
 };
 
-const BRANCH = "Відділення №1, Київ";
-const BRANCH_ALT = "Відділення №5, Київ";
+const CITY_KYIV = "Київ";
+const CITY_BROVARY = "Бровари";
+const CITY_LVIV = "Львів";
+const BRANCH_1 = "1";
+const BRANCH_5 = "5";
+const BRANCH_10 = "10";
 
 // Deadlines in the future — enrollment and confirmation stay open.
 // Phase advancement bypasses deadline gates in test mode.
@@ -100,7 +104,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.expectRedirectedToOnboarding();
-      await app.completeOnboarding(BRANCH);
+      await app.completeOnboarding(CITY_KYIV, BRANCH_1);
       await app.expectRedirectedToHome();
     });
 
@@ -117,7 +121,7 @@ test.describe.serial("The Mail Club", () => {
 
       await app.login(PHONES.B);
       await app.expectRedirectedToOnboarding();
-      await app.completeOnboarding(BRANCH);
+      await app.completeOnboarding(CITY_KYIV, BRANCH_1);
       await app.expectRedirectedToHome();
 
       // Fresh browser context for C — need new page
@@ -127,7 +131,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(PHONES.C);
       await app.expectRedirectedToOnboarding();
-      await app.completeOnboarding(BRANCH);
+      await app.completeOnboarding(CITY_KYIV, BRANCH_1);
       await app.expectRedirectedToHome();
     });
 
@@ -241,7 +245,7 @@ test.describe.serial("The Mail Club", () => {
       await app.login(PHONES.A);
       await app.goHome();
       await app.expectEnrollAvailable();
-      await app.enrollInSeason(BRANCH);
+      await app.enrollInSeason(CITY_KYIV, BRANCH_1);
       await app.expectEnrolled();
     });
 
@@ -250,7 +254,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(PHONES.B);
       await app.goHome();
-      await app.enrollInSeason(BRANCH_ALT);
+      await app.enrollInSeason(CITY_LVIV, BRANCH_10);
       await app.expectEnrolled();
     });
 
@@ -259,7 +263,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(PHONES.C);
       await app.goHome();
-      await app.enrollInSeason(BRANCH);
+      await app.enrollInSeason(CITY_KYIV, BRANCH_5);
       await app.expectEnrolled();
     });
 
@@ -462,6 +466,8 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.goHome();
+      // Reveal envelope before counting
+      await app.revealAssignment();
       const count = await app.page.getByTestId("recipient-name").count();
       expect(count).toBe(1);
     });
@@ -596,6 +602,39 @@ test.describe.serial("The Mail Club", () => {
       await app.login(PHONES.A);
       await app.goHome();
       await app.expectHomeContent(/no season|немає сезону|SMS/i);
+    });
+  });
+
+  // ════════════════════════════════════════════
+  // BLOCK 10: Logout
+  // Verifies logout functionality (clears session, redirects to login)
+  // ════════════════════════════════════════════
+
+  test.describe("Logout", () => {
+    test("logout — participant logs out and is redirected to login", async ({
+      page,
+    }) => {
+      const app = new MailClubPage(page);
+      // Login as participant
+      await app.login(PHONES.A);
+      await app.goHome();
+      // Logout
+      await app.logout();
+      // Should be at / which redirects to /login (no session)
+      await page.waitForURL(/\/login/);
+    });
+
+    test("logout — admin logs out and is redirected to login", async ({
+      page,
+    }) => {
+      const app = new MailClubPage(page);
+      // Login as admin
+      await app.login(ADMIN_PHONE);
+      await app.goToDashboard();
+      // Logout
+      await app.logout();
+      // Should be at / which redirects to /login (no session)
+      await page.waitForURL(/\/login/);
     });
   });
 });

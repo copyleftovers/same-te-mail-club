@@ -1,6 +1,10 @@
+use crate::components::toast::use_toast;
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
+
+#[cfg(not(feature = "ssr"))]
+use leptos::web_sys;
 
 #[cfg(feature = "ssr")]
 use crate::error::db_err;
@@ -288,7 +292,7 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
 /// Returns `Err` if not logged in, season not in Enrollment phase, deadline passed,
 /// no delivery address, or already enrolled.
 #[server]
-pub async fn enroll_in_season(branch: String) -> Result<(), ServerFnError> {
+pub async fn enroll_in_season(city: String, np_number: String) -> Result<(), ServerFnError> {
     use crate::auth;
 
     let (pool, user) = auth::require_auth().await?;
@@ -313,27 +317,19 @@ pub async fn enroll_in_season(branch: String) -> Result<(), ServerFnError> {
         return Err(ServerFnError::new("enrollment deadline has passed"));
     }
 
-    // UPSERT delivery address from the branch field
-    let trimmed = branch.trim().to_owned();
-    if !trimmed.is_empty() {
-        let number: i32 = trimmed
-            .chars()
-            .skip_while(|c: &char| !c.is_ascii_digit())
-            .take_while(char::is_ascii_digit)
-            .collect::<String>()
-            .parse()
-            .unwrap_or(1);
-
-        // Extract city: everything after the first ", " separator
-        // "Відділення №5, Київ" → "Київ"
-        // "№5, Київ" → "Київ"
-        // "Відділення №5" → "" (no city — store empty string)
-        let city = trimmed
-            .split_once(", ")
-            .map_or("", |x| x.1)
+    // UPSERT delivery address from the split fields
+    let city = city.trim().to_owned();
+    let number: i32 = if np_number.trim().is_empty() {
+        // If no number provided but city is, skip UPSERT (use existing address)
+        0
+    } else {
+        np_number
             .trim()
-            .to_owned();
+            .parse()
+            .map_err(|_| ServerFnError::new("invalid branch number"))?
+    };
 
+    if !city.is_empty() && number > 0 {
         sqlx::query!(
             r#"
             INSERT INTO delivery_addresses (user_id, nova_poshta_city, nova_poshta_number)
@@ -549,6 +545,26 @@ pub fn HomePage() -> impl IntoView {
     );
 
     let hydrated = use_hydrated();
+    let set_toast = use_toast();
+
+    // Toast feedback for successful actions
+    Effect::new(move |_| {
+        if let Some(Ok(())) = enroll_action.value().get() {
+            set_toast.set(Some("Записано на сезон!".into()));
+        }
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(())) = confirm_action.value().get() {
+            set_toast.set(Some("Готовність підтверджено!".into()));
+        }
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(())) = receipt_action.value().get() {
+            set_toast.set(Some("Дякуємо за підтвердження!".into()));
+        }
+    });
 
     view! {
         <div class="prose-page">
@@ -566,7 +582,13 @@ pub fn HomePage() -> impl IntoView {
             </div>
 
             <Suspense fallback=move || {
-                view! { <p>{t!(i18n, common_loading)}</p> }
+                view! {
+                    <div aria-hidden="true" class="flex flex-col gap-3">
+                        <div class="skeleton-line h-4 w-3/4"></div>
+                        <div class="skeleton-line h-4 w-1/2"></div>
+                        <div class="skeleton-line h-4 w-5/8"></div>
+                    </div>
+                }
             }>
                 {move || {
                     home_state
@@ -597,6 +619,7 @@ fn render_enrollment_open(
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
+    let pending = enroll_action.pending();
     view! {
         <h2>{t!(i18n, home_enroll_open_heading)}</h2>
 
@@ -615,30 +638,46 @@ fn render_enrollment_open(
         <p class="guideline">{t!(i18n, home_guideline)}</p>
 
         <leptos::form::ActionForm action=enroll_action>
-            <div class="field">
-                <label class="field-label" for="branch-enroll">
-                    {t!(i18n, home_enroll_branch_label)}
-                </label>
-                <input
-                    class="field-input"
-                    id="branch-enroll"
-                    type="text"
-                    name="branch"
-                    placeholder=move || t_string!(i18n, home_enroll_branch_placeholder)
-                    data-testid="enroll-branch-input"
-                    aria-invalid=move || {
-                        enroll_action.value().get().and_then(Result::err).is_some()
-                    }
-                    aria-describedby="action-error"
-                />
+            <div class="flex flex-col gap-(--density-space-md) sm:flex-row sm:gap-(--density-space-sm)">
+                <div class="field sm:w-1/2">
+                    <label class="field-label" for="enroll-city">
+                        {t!(i18n, home_city_label)}
+                    </label>
+                    <input
+                        class="field-input"
+                        type="text"
+                        id="enroll-city"
+                        name="city"
+                        value="Київ"
+                        data-testid="np-city-input"
+                    />
+                </div>
+                <div class="field sm:w-1/2">
+                    <label class="field-label" for="enroll-number">
+                        {t!(i18n, home_np_number_label)}
+                    </label>
+                    <input
+                        class="field-input"
+                        id="enroll-number"
+                        type="text"
+                        inputmode="numeric"
+                        name="np_number"
+                        placeholder="123"
+                        data-testid="np-number-input"
+                    />
+                </div>
             </div>
             <button
                 class="btn"
                 type="submit"
                 data-testid="enroll-button"
-                disabled=move || !hydrated.get()
+                disabled=move || pending.get() || !hydrated.get()
             >
-                {t!(i18n, home_enroll_button)}
+                {move || if pending.get() {
+                    "Записуюсь...".into_any()
+                } else {
+                    t!(i18n, home_enroll_button).into_any()
+                }}
             </button>
         </leptos::form::ActionForm>
     }
@@ -646,33 +685,32 @@ fn render_enrollment_open(
 }
 
 fn render_assigned_view(
-    recipient_name: String,
-    recipient_phone: String,
-    recipient_city: String,
+    recipient_name: &str,
+    recipient_phone: &str,
+    recipient_city: &str,
     recipient_branch_number: i32,
     receipt_action: ServerAction<ConfirmReceipt>,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
+    render_envelope_reveal(
+        recipient_name,
+        recipient_phone,
+        recipient_city,
+        recipient_branch_number,
+        receipt_action,
+        hydrated,
+        i18n,
+    )
+}
+
+fn render_receipt_form(
+    receipt_action: ServerAction<ConfirmReceipt>,
+    receipt_pending: Memo<bool>,
+    hydrated: ReadSignal<bool>,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+) -> impl IntoView {
     view! {
-        <h2>{t!(i18n, home_assigned_heading)}</h2>
-        <p>{t!(i18n, home_send_instructions)}</p>
-
-        <dl>
-            <dt>{t!(i18n, home_name_label)}</dt>
-            <dd data-testid="recipient-name">{recipient_name}</dd>
-
-            <dt>{t!(i18n, home_phone_label)}</dt>
-            <dd data-testid="recipient-phone">{recipient_phone}</dd>
-
-            <dt>{t!(i18n, home_enroll_branch_label)}</dt>
-            <dd data-testid="recipient-branch">
-                {t!(
-                    i18n, home_recipient_branch, branch_number = recipient_branch_number, city = recipient_city
-                )}
-            </dd>
-        </dl>
-
         <section class="receipt-section">
             <h3>{t!(i18n, home_confirm_receipt_heading)}</h3>
 
@@ -693,16 +731,19 @@ fn render_assigned_view(
                         aria-describedby="action-error"
                     ></textarea>
                 </div>
-                // received=true hidden input for the Received button
                 <button
                     class="btn"
                     type="submit"
                     name="received"
                     value="true"
                     data-testid="received-button"
-                    disabled=move || !hydrated.get()
+                    disabled=move || receipt_pending.get() || !hydrated.get()
                 >
-                    {t!(i18n, home_received_button)}
+                    {move || if receipt_pending.get() {
+                        "Надсилаю...".into_any()
+                    } else {
+                        t!(i18n, home_received_button).into_any()
+                    }}
                 </button>
                 <button
                     class="btn"
@@ -711,12 +752,152 @@ fn render_assigned_view(
                     name="received"
                     value="false"
                     data-testid="not-received-button"
-                    disabled=move || !hydrated.get()
+                    disabled=move || receipt_pending.get() || !hydrated.get()
                 >
-                    {t!(i18n, home_not_received_button)}
+                    {move || if receipt_pending.get() {
+                        "Надсилаю...".into_any()
+                    } else {
+                        t!(i18n, home_not_received_button).into_any()
+                    }}
                 </button>
             </leptos::form::ActionForm>
         </section>
+    }
+}
+
+fn setup_envelope_reveal() -> (
+    ReadSignal<bool>,
+    WriteSignal<bool>,
+    ReadSignal<bool>,
+    WriteSignal<bool>,
+) {
+    let (revealed, set_revealed) = signal(false);
+    let (confetti_active, set_confetti_active) = signal(false);
+
+    // Check localStorage for already_seen state on client-side only
+    Effect::new(move |_| {
+        #[cfg(not(feature = "ssr"))]
+        {
+            if let Some(window) = web_sys::window()
+                && let Ok(Some(storage)) = window.local_storage()
+            {
+                let key = "assignment_revealed";
+                if let Ok(Some(_)) = storage.get_item(key) {
+                    set_revealed.set(true);
+                }
+            }
+        }
+    });
+
+    (revealed, set_revealed, confetti_active, set_confetti_active)
+}
+
+fn render_envelope_reveal(
+    recipient_name: &str,
+    recipient_phone: &str,
+    recipient_city: &str,
+    recipient_branch_number: i32,
+    receipt_action: ServerAction<ConfirmReceipt>,
+    hydrated: ReadSignal<bool>,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+) -> AnyView {
+    let receipt_pending = receipt_action.pending();
+    let (revealed, set_revealed, confetti_active, set_confetti_active) = setup_envelope_reveal();
+
+    let on_reveal = move |()| {
+        if !revealed.get_untracked() {
+            set_revealed.set(true);
+            set_confetti_active.set(true);
+
+            // Save to localStorage
+            #[cfg(not(feature = "ssr"))]
+            {
+                if let Some(window) = web_sys::window()
+                    && let Ok(Some(storage)) = window.local_storage()
+                {
+                    let key = "assignment_revealed";
+                    let _ = storage.set_item(key, "true");
+                }
+            }
+
+            // Confetti auto-dismiss after 1.5s
+            leptos::prelude::set_timeout(
+                move || set_confetti_active.set(false),
+                std::time::Duration::from_millis(1500),
+            );
+        }
+    };
+
+    let on_keydown = {
+        #[cfg(not(feature = "ssr"))]
+        {
+            move |ev: web_sys::KeyboardEvent| {
+                if ev.key() == "Enter" || ev.key() == " " {
+                    ev.prevent_default();
+                    on_reveal(());
+                }
+            }
+        }
+        #[cfg(feature = "ssr")]
+        {
+            move |_| {}
+        }
+    };
+
+    let recipient_branch_text = t!(
+        i18n,
+        home_recipient_branch,
+        branch_number = recipient_branch_number,
+        city = recipient_city.to_string()
+    );
+
+    view! {
+        <h2>{t!(i18n, home_assigned_heading)}</h2>
+        <p>{t!(i18n, home_send_instructions)}</p>
+
+        <article
+            class="reveal-envelope"
+            data-testid="reveal-envelope"
+            role="button"
+            tabindex="0"
+            attr:aria-expanded=move || if revealed.get() { "true" } else { "false" }
+            attr:aria-label="Tap to reveal your recipient"
+            on:click=move |_| on_reveal(())
+            on:keydown=on_keydown
+        >
+            <div class="envelope-body" aria-hidden="true">
+                <div class="envelope-flap"></div>
+            </div>
+            <div class="envelope-card">
+                <h3 class="envelope-recipient" data-testid="recipient-name">
+                    {recipient_name.to_string()}
+                </h3>
+                <dl class="info-list">
+                    <div class="info-item">
+                        <dt class="info-label">{t!(i18n, home_branch_label)}</dt>
+                        <dd class="info-value" data-testid="recipient-branch">
+                            {recipient_branch_text}
+                        </dd>
+                    </div>
+                    <div class="info-item">
+                        <dt class="info-label">{t!(i18n, home_phone_label)}</dt>
+                        <dd class="info-value">
+                            <a
+                                href=format!("tel:{}", recipient_phone.to_string())
+                                class="info-link"
+                                data-testid="recipient-phone"
+                            >
+                                {recipient_phone.to_string()}
+                            </a>
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+        </article>
+
+        <div class="confetti" attr:data-active=move || if confetti_active.get() { "true" } else { "false" } aria-hidden="true"></div>
+
+        {render_receipt_form(receipt_action, receipt_pending, hydrated, i18n)}
     }
     .into_any()
 }
@@ -743,26 +924,33 @@ fn render_home_state(
         }
         .into_any(),
 
-        HomeState::Preparing { confirm_deadline } => view! {
-            <h2>{t!(i18n, home_preparing_heading)}</h2>
-            <p>{t!(i18n, home_preparing_body)}</p>
-            <p class="deadline" data-testid="season-deadline">
-                {t!(i18n, home_deadline_label)}
-                {confirm_deadline}
-            </p>
+        HomeState::Preparing { confirm_deadline } => {
+            let confirm_pending = confirm_action.pending();
+            view! {
+                <h2>{t!(i18n, home_preparing_heading)}</h2>
+                <p>{t!(i18n, home_preparing_body)}</p>
+                <p class="deadline" data-testid="season-deadline">
+                    {t!(i18n, home_deadline_label)}
+                    {confirm_deadline}
+                </p>
 
-            <leptos::form::ActionForm action=confirm_action>
-                <button
-                    class="btn"
-                    type="submit"
-                    data-testid="confirm-ready-button"
-                    disabled=move || !hydrated.get()
-                >
-                    {t!(i18n, home_confirm_ready_button)}
-                </button>
-            </leptos::form::ActionForm>
+                <leptos::form::ActionForm action=confirm_action>
+                    <button
+                        class="btn"
+                        type="submit"
+                        data-testid="confirm-ready-button"
+                        disabled=move || confirm_pending.get() || !hydrated.get()
+                    >
+                        {move || if confirm_pending.get() {
+                            "Підтверджую...".into_any()
+                        } else {
+                            t!(i18n, home_confirm_ready_button).into_any()
+                        }}
+                    </button>
+                </leptos::form::ActionForm>
+            }
+            .into_any()
         }
-        .into_any(),
 
         HomeState::Confirmed => view! {
             <h2>{t!(i18n, home_ready_confirmed_heading)}</h2>
@@ -782,9 +970,9 @@ fn render_home_state(
             recipient_city,
             recipient_branch_number,
         } => render_assigned_view(
-            recipient_name,
-            recipient_phone,
-            recipient_city,
+            &recipient_name,
+            &recipient_phone,
+            &recipient_city,
             recipient_branch_number,
             receipt_action,
             hydrated,

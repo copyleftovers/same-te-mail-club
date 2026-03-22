@@ -1,4 +1,5 @@
 use crate::i18n::i18n::{t, use_i18n};
+use crate::pages::login::Logout;
 use leptos::prelude::*;
 
 /// Admin navigation bar with active-page indicator.
@@ -7,8 +8,12 @@ use leptos::prelude::*;
 /// CSS in `style/tailwind.css` (`@layer components`) styles the active link.
 #[component]
 pub fn AdminNav() -> impl IntoView {
+    use crate::hooks::use_hydrated;
     let i18n = use_i18n();
     let location = leptos_router::hooks::use_location();
+    let hydrated = use_hydrated();
+    let logout_action =
+        use_context::<ServerAction<Logout>>().expect("logout action must be provided");
 
     let is_active = move |path: &'static str| move || location.pathname.get() == path;
 
@@ -41,6 +46,18 @@ pub fn AdminNav() -> impl IntoView {
             >
                 {t!(i18n, admin_nav_sms)}
             </a>
+            <leptos::form::ActionForm action=logout_action>
+                <button
+                    type="submit"
+                    class="btn"
+                    data-variant="secondary"
+                    data-size="sm"
+                    data-testid="logout-button"
+                    disabled=move || !hydrated.get()
+                >
+                    {t!(i18n, nav_logout)}
+                </button>
+            </leptos::form::ActionForm>
         </nav>
     }
 }

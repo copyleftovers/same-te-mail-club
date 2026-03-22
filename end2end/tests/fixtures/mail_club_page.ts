@@ -75,6 +75,15 @@ export class MailClubPage {
     await expect(this.page).not.toHaveURL(/\/login/);
   }
 
+  async logout() {
+    const logoutBtn = this.page.getByTestId("logout-button");
+    await expect(logoutBtn).toBeEnabled();
+    await this.clickAndWaitForResponse(logoutBtn, "logout");
+    // The logout action redirects to / which then redirects to /login (no session)
+    // Wait a moment for the client-side redirect to trigger
+    await this.page.waitForURL("/", { timeout: 5000 }).catch(() => {});
+  }
+
   async expectLoggedIn() {
     await expect(this.page).not.toHaveURL(/\/login/);
   }
@@ -89,17 +98,25 @@ export class MailClubPage {
 
   // ── Onboarding (Story 1.3) ──
 
-  async completeOnboarding(branch: string) {
+  async completeOnboarding(city: string, branchNumber: string) {
     // Wait for hydration before filling inputs.
     await expect(
       this.page.getByTestId("save-onboarding-button"),
     ).toBeEnabled();
-    await this.page.getByTestId("branch-input").fill(branch);
-    await this.clickAndWaitForResponse(
-      this.page.getByTestId("save-onboarding-button"),
-      "complete_onboarding",
-    );
-    await this.page.waitForURL("/");
+
+    const cityInput = this.page.getByTestId("np-city-input");
+    const numberInput = this.page.getByTestId("np-number-input");
+
+    await cityInput.fill(city);
+    await numberInput.fill(branchNumber);
+
+    // Verify the form fields have the correct values before submitting.
+    await expect(cityInput).toHaveValue(city);
+    await expect(numberInput).toHaveValue(branchNumber);
+
+    await this.page.getByTestId("save-onboarding-button").click();
+    // Wait for redirect to complete - server function redirects to "/".
+    await this.page.waitForURL("/", { timeout: 15000 });
   }
 
   // ── Home Screen ──
@@ -120,9 +137,12 @@ export class MailClubPage {
 
   // ── Season enrollment (Story 2.1) ──
 
-  async enrollInSeason(branch?: string) {
-    if (branch) {
-      await this.page.getByTestId("enroll-branch-input").fill(branch);
+  async enrollInSeason(city?: string, branchNumber?: string) {
+    if (city) {
+      await this.page.getByTestId("np-city-input").fill(city);
+    }
+    if (branchNumber) {
+      await this.page.getByTestId("np-number-input").fill(branchNumber);
     }
     await this.page.getByTestId("enroll-button").click();
     // Wait for refetch to complete — enroll button disappears when enrolled.
@@ -159,13 +179,24 @@ export class MailClubPage {
 
   // ── Assignment view (Story 2.3) ──
 
+  async revealAssignment() {
+    const envelope = this.page.getByTestId("reveal-envelope");
+    await envelope.click();
+    // Wait for content to be visible after animation
+    await expect(this.page.getByTestId("recipient-name")).toBeVisible();
+  }
+
   async expectAssignmentVisible() {
+    // Click envelope to reveal (idempotent - CSS handles already-expanded)
+    await this.revealAssignment();
     await expect(this.page.getByTestId("recipient-name")).toBeVisible();
     await expect(this.page.getByTestId("recipient-phone")).toBeVisible();
     await expect(this.page.getByTestId("recipient-branch")).toBeVisible();
   }
 
   async getAssignment() {
+    // Ensure envelope is revealed before reading text content
+    await this.revealAssignment();
     return {
       name: await this.page.getByTestId("recipient-name").textContent(),
       phone: await this.page.getByTestId("recipient-phone").textContent(),

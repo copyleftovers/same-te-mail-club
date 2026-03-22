@@ -1,3 +1,4 @@
+use crate::components::toast::use_toast;
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, use_i18n};
 use leptos::prelude::*;
@@ -303,12 +304,38 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
 #[component]
 pub fn SmsPage() -> impl IntoView {
     let i18n = use_i18n();
+    let set_toast = use_toast();
     let season_open_action = ServerAction::<SendSeasonOpenSms>::new();
     let assignment_action = ServerAction::<SendAssignmentSms>::new();
     let confirm_nudge_action = ServerAction::<SendConfirmNudgeSms>::new();
     let receipt_nudge_action = ServerAction::<SendReceiptNudgeSms>::new();
 
     let hydrated = use_hydrated();
+
+    // Toast feedback for successful SMS sends
+    Effect::new(move |_| {
+        if let Some(Ok(_)) = season_open_action.value().get() {
+            set_toast.set(Some("SMS надіслано!".into()));
+        }
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(_)) = assignment_action.value().get() {
+            set_toast.set(Some("SMS надіслано!".into()));
+        }
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(_)) = confirm_nudge_action.value().get() {
+            set_toast.set(Some("SMS надіслано!".into()));
+        }
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(_)) = receipt_nudge_action.value().get() {
+            set_toast.set(Some("SMS надіслано!".into()));
+        }
+    });
 
     view! {
         <div class="prose-page">
@@ -402,6 +429,11 @@ fn render_sms_triggers(
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> impl IntoView {
+    let season_open_pending = season_open_action.pending();
+    let assignment_pending = assignment_action.pending();
+    let confirm_nudge_pending = confirm_nudge_action.pending();
+    let receipt_nudge_pending = receipt_nudge_action.pending();
+
     view! {
         <section class="flex flex-col gap-3">
             // Story 5.3: Season-open — target all active users
@@ -414,9 +446,13 @@ fn render_sms_triggers(
                         data-size="sm"
                         type="submit"
                         data-testid="send-season-open-button"
-                        disabled=move || !hydrated.get()
+                        disabled=move || season_open_pending.get() || !hydrated.get()
                     >
-                        {t!(i18n, common_send_button)}
+                        {move || if season_open_pending.get() {
+                            "Надсилаю...".into_any()
+                        } else {
+                            t!(i18n, common_send_button).into_any()
+                        }}
                     </button>
                 </leptos::form::ActionForm>
             </div>
@@ -431,9 +467,13 @@ fn render_sms_triggers(
                         data-size="sm"
                         type="submit"
                         data-testid="send-assignment-button"
-                        disabled=move || !hydrated.get()
+                        disabled=move || assignment_pending.get() || !hydrated.get()
                     >
-                        {t!(i18n, common_send_button)}
+                        {move || if assignment_pending.get() {
+                            "Надсилаю...".into_any()
+                        } else {
+                            t!(i18n, common_send_button).into_any()
+                        }}
                     </button>
                 </leptos::form::ActionForm>
             </div>
@@ -448,9 +488,13 @@ fn render_sms_triggers(
                         data-size="sm"
                         type="submit"
                         data-testid="send-confirm-nudge-button"
-                        disabled=move || !hydrated.get()
+                        disabled=move || confirm_nudge_pending.get() || !hydrated.get()
                     >
-                        {t!(i18n, common_send_button)}
+                        {move || if confirm_nudge_pending.get() {
+                            "Надсилаю...".into_any()
+                        } else {
+                            t!(i18n, common_send_button).into_any()
+                        }}
                     </button>
                 </leptos::form::ActionForm>
             </div>
@@ -465,9 +509,13 @@ fn render_sms_triggers(
                         data-size="sm"
                         type="submit"
                         data-testid="send-receipt-nudge-button"
-                        disabled=move || !hydrated.get()
+                        disabled=move || receipt_nudge_pending.get() || !hydrated.get()
                     >
-                        {t!(i18n, common_send_button)}
+                        {move || if receipt_nudge_pending.get() {
+                            "Надсилаю...".into_any()
+                        } else {
+                            t!(i18n, common_send_button).into_any()
+                        }}
                     </button>
                 </leptos::form::ActionForm>
             </div>

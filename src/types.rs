@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 /// Six phases: Enrollment → Preparation → Assignment → Delivery → Complete.
 /// Cancelled reachable from any non-terminal.
 /// Transition rules gathered here, not scattered.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(feature = "ssr", derive(sqlx::Type))]
 #[cfg_attr(
     feature = "ssr",

@@ -1,3 +1,4 @@
+use crate::components::toast::use_toast;
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, use_i18n};
 use leptos::prelude::*;
@@ -579,6 +580,36 @@ pub async fn get_confirmed_count() -> Result<i64, ServerFnError> {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
+/// Render confirmed participant count with loading skeleton.
+fn render_confirmed_count(
+    confirmed_count: impl Get<Value = Option<Result<i64, ServerFnError>>> + Copy + Send + 'static,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+) -> impl IntoView {
+    view! {
+        <Suspense fallback=move || {
+            view! {
+                <div aria-hidden="true" class="flex flex-col gap-3">
+                    <div class="skeleton-line h-4 w-3/4"></div>
+                </div>
+            }
+        }>
+            {move || {
+                confirmed_count.get().map(|result| match result {
+                    Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
+                    Ok(count) => {
+                        view! {
+                            <p data-testid="confirmed-count">
+                                {t!(i18n, assignments_confirmed_label)} {count}
+                            </p>
+                        }
+                            .into_any()
+                    }
+                })
+            }}
+        </Suspense>
+    }
+}
+
 /// Admin assignments page (Epic 3: Stories 3.1, 3.2, 3.3).
 ///
 /// Shows confirmed count, generate button, cycle visualization, swap UI,
@@ -586,6 +617,7 @@ pub async fn get_confirmed_count() -> Result<i64, ServerFnError> {
 #[component]
 pub fn AssignmentsPage() -> impl IntoView {
     let i18n = use_i18n();
+    let set_toast = use_toast();
     let generate_action = ServerAction::<GenerateAssignments>::new();
     let swap_action = ServerAction::<SwapAssignment>::new();
     let release_action = ServerAction::<ReleaseAssignments>::new();
@@ -606,6 +638,15 @@ pub fn AssignmentsPage() -> impl IntoView {
     );
 
     let hydrated = use_hydrated();
+
+    // Toast feedback for successful actions
+    Effect::new(move |_| {
+        if let Some(Ok(_)) = generate_action.value().get() {
+            set_toast.set(Some("Призначення згенеровано!".into()));
+        } else if let Some(Ok(())) = release_action.value().get() {
+            set_toast.set(Some("Призначення опубліковано!".into()));
+        }
+    });
 
     view! {
         <div class="prose-page">
@@ -637,30 +678,17 @@ pub fn AssignmentsPage() -> impl IntoView {
                     })
             }}
 
-            // Confirmed count.
-            <Suspense fallback=move || {
-                view! { <p>{t!(i18n, common_loading)}</p> }
-            }>
-                {move || {
-                    confirmed_count
-                        .get()
-                        .map(|result| match result {
-                            Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
-                            Ok(count) => {
-                                view! {
-                                    <p data-testid="confirmed-count">
-                                        {t!(i18n, assignments_confirmed_label)} {count}
-                                    </p>
-                                }
-                                    .into_any()
-                            }
-                        })
-                }}
-            </Suspense>
+            {render_confirmed_count(confirmed_count, i18n)}
 
             // Main content: preview + actions.
             <Suspense fallback=move || {
-                view! { <p>{t!(i18n, common_loading)}</p> }
+                view! {
+                    <div aria-hidden="true" class="flex flex-col gap-3">
+                        <div class="skeleton-line h-4 w-3/4"></div>
+                        <div class="skeleton-line h-4 w-1/2"></div>
+                        <div class="skeleton-line h-4 w-5/8"></div>
+                    </div>
+                }
             }>
                 {move || {
                     preview
@@ -701,6 +729,8 @@ fn render_preview(
     let is_assignment_phase = p.phase == crate::types::Phase::Assignment;
     let has_assignments = !p.cohorts.is_empty() && !p.cohorts.iter().all(|c| c.chain.is_empty());
     let season_id = p.season_id.clone();
+    let generate_pending = generate_action.pending();
+    let release_pending = release_action.pending();
 
     view! {
         <div>
@@ -712,12 +742,14 @@ fn render_preview(
                             class="btn"
                             type="submit"
                             data-testid="generate-button"
-                            disabled=move || !hydrated.get()
+                            disabled=move || generate_pending.get() || !hydrated.get()
                         >
-                            {if has_assignments {
-                                view! { {t!(i18n, assignments_regenerate_button)} }.into_any()
+                            {move || if generate_pending.get() {
+                                "Генерую...".into_any()
+                            } else if has_assignments {
+                                t!(i18n, assignments_regenerate_button).into_any()
                             } else {
-                                view! { {t!(i18n, assignments_generate_button)} }.into_any()
+                                t!(i18n, assignments_generate_button).into_any()
                             }}
                         </button>
                     </leptos::form::ActionForm>
@@ -751,9 +783,13 @@ fn render_preview(
                             class="btn"
                             type="submit"
                             data-testid="release-button"
-                            disabled=move || !hydrated.get()
+                            disabled=move || release_pending.get() || !hydrated.get()
                         >
-                            {t!(i18n, assignments_release_button)}
+                            {move || if release_pending.get() {
+                                "Публікую...".into_any()
+                            } else {
+                                t!(i18n, assignments_release_button).into_any()
+                            }}
                         </button>
                     </leptos::form::ActionForm>
                 }
@@ -774,31 +810,150 @@ fn render_cycle_visualization(
     let cohorts_view = cohorts
         .iter()
         .enumerate()
-        .map(|(idx, cohort)| {
-            let chain_items = cohort
-                .chain
-                .iter()
-                .map(|link| {
-                    view! { <li>{link.sender_name.clone()} " → " {link.recipient_name.clone()}</li> }
-                })
-                .collect_view();
+        .map(|(idx, cohort)| render_cycle_ring(&cohort.chain, idx + 1, cohort.score))
+        .collect_view();
+
+    view! {
+        <div>
+            <h2>{t!(i18n, assignments_cycles_label)}</h2>
+            {cohorts_view}
+        </div>
+    }
+}
+
+/// Compute circle node positions.
+#[allow(clippy::cast_precision_loss)]
+fn compute_circle_positions(
+    n: usize,
+    radius: f64,
+    center_x: f64,
+    center_y: f64,
+) -> Vec<(f64, f64)> {
+    use std::f64::consts::{PI, TAU};
+    (0..n)
+        .map(|i| {
+            let angle = (i as f64 / n as f64) * TAU - (PI / 2.0);
+            let x = center_x + radius * angle.cos();
+            let y = center_y + radius * angle.sin();
+            (x, y)
+        })
+        .collect()
+}
+
+/// Render a single cycle as an SVG ring.
+///
+/// Clippy allows: SVG rendering logic naturally requires many lines for proper structure.
+/// Precision loss is acceptable for visual positioning of <20 participants in a ring.
+#[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
+fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) -> impl IntoView {
+    let n = chain.len();
+    if n == 0 {
+        return view! { <div></div> }.into_any();
+    }
+
+    let radius = 150.0;
+    let center_x = 200.0;
+    let center_y = 200.0;
+    let node_radius = 20.0;
+
+    // Compute positions for all nodes (evenly spaced on circle, starting at top)
+    let positions = compute_circle_positions(n, radius, center_x, center_y);
+
+    // Generate arrows (lines with markers)
+    let arrows = (0..n)
+        .map(|i| {
+            let (x1, y1) = positions[i];
+            let (x2, y2) = positions[(i + 1) % n];
+
+            // Shorten arrow endpoints to not overlap node circles
+            let dx = x2 - x1;
+            let dy = y2 - y1;
+            let dist = (dx * dx + dy * dy).sqrt();
+            let ux = dx / dist;
+            let uy = dy / dist;
+
+            let margin = node_radius + 5.0;
+            let start_x = x1 + ux * margin;
+            let start_y = y1 + uy * margin;
+            let end_x = x2 - ux * margin;
+            let end_y = y2 - uy * margin;
 
             view! {
-                <div class="cohort">
-                    <h3>{t!(i18n, assignments_cohort_label)}{idx + 1}</h3>
-                    <p>{t!(i18n, assignments_score_label)}{cohort.score}</p>
-                    <ol>{chain_items}</ol>
-                </div>
+                <line
+                    x1=start_x
+                    y1=start_y
+                    x2=end_x
+                    y2=end_y
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    marker-end="url(#arrowhead)"
+                    opacity="0.5"
+                />
+            }
+        })
+        .collect_view();
+
+    // Generate nodes
+    let nodes = chain
+        .iter()
+        .enumerate()
+        .map(|(i, link)| {
+            let (cx, cy) = positions[i];
+            let name = link.sender_name.clone();
+            let sanitized = name.to_lowercase().replace(' ', "-");
+            let testid = format!("node-{sanitized}");
+
+            view! {
+                <g>
+                    <circle
+                        cx=cx
+                        cy=cy
+                        r=node_radius
+                        fill="var(--color-accent)"
+                        stroke="var(--color-surface-raised)"
+                        stroke-width="2"
+                        data-testid=testid
+                    />
+                    <text
+                        x=cx
+                        y=cy + node_radius + 14.0
+                        text-anchor="middle"
+                        font-size="10"
+                        font-weight="600"
+                        fill="var(--color-text)"
+                    >
+                        {name}
+                    </text>
+                </g>
             }
         })
         .collect_view();
 
     view! {
-        <div data-testid="cycle-visualization">
-            <h2>{t!(i18n, assignments_cycles_label)}</h2>
-            {cohorts_view}
-        </div>
+        <figure class="cycle-viz-container" data-testid="cycle-visualization">
+            <figcaption class="sr-only">
+                "Assignment cycle " {cohort_num} ": " {n} " participants (score: " {score} ")"
+            </figcaption>
+            <svg viewBox="0 0 400 400" class="cycle-viz" role="img" aria-label=format!("Assignment cycle {cohort_num}: {n} participants")>
+                <defs>
+                    <marker
+                        id="arrowhead"
+                        viewBox="0 0 10 7"
+                        refX="10"
+                        refY="3.5"
+                        markerWidth="8"
+                        markerHeight="6"
+                        orient="auto-start-reverse"
+                    >
+                        <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" />
+                    </marker>
+                </defs>
+                {arrows}
+                {nodes}
+            </svg>
+        </figure>
     }
+    .into_any()
 }
 
 /// Swap form sub-component.

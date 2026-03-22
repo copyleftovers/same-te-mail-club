@@ -1,3 +1,4 @@
+use crate::components::toast::use_toast;
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
@@ -288,6 +289,7 @@ fn CreateSeasonForm(
     hydrated: ReadSignal<bool>,
 ) -> impl IntoView {
     let i18n = use_i18n();
+    let pending = create_action.pending();
     view! {
         <section>
             <h2>{t!(i18n, season_create_form_title)}</h2>
@@ -338,9 +340,13 @@ fn CreateSeasonForm(
                     class="btn"
                     type="submit"
                     data-testid="create-season-button"
-                    disabled=move || !hydrated.get()
+                    disabled=move || pending.get() || !hydrated.get()
                 >
-                    {t!(i18n, season_create_button)}
+                    {move || if pending.get() {
+                        "Створюю...".into_any()
+                    } else {
+                        t!(i18n, season_create_button).into_any()
+                    }}
                 </button>
             </leptos::form::ActionForm>
         </section>
@@ -356,6 +362,9 @@ fn ActiveSeasonPanel(
     hydrated: ReadSignal<bool>,
 ) -> impl IntoView {
     let i18n = use_i18n();
+    let launch_pending = launch_action.pending();
+    let advance_pending = advance_action.pending();
+    let cancel_pending = cancel_action.pending();
     let can_advance = status.phase.can_advance();
     let launched = status.launched;
     let phase_label = if launched {
@@ -412,9 +421,13 @@ fn ActiveSeasonPanel(
                                 class="btn"
                                 type="submit"
                                 data-testid="launch-button"
-                                disabled=move || !hydrated.get()
+                                disabled=move || launch_pending.get() || !hydrated.get()
                             >
-                                {t!(i18n, season_launch_button)}
+                                {move || if launch_pending.get() {
+                                    "Запускаю...".into_any()
+                                } else {
+                                    t!(i18n, season_launch_button).into_any()
+                                }}
                             </button>
                         </leptos::form::ActionForm>
                     }
@@ -429,9 +442,13 @@ fn ActiveSeasonPanel(
                                 data-variant="secondary"
                                 type="submit"
                                 data-testid="advance-button"
-                                disabled=move || !hydrated.get()
+                                disabled=move || advance_pending.get() || !hydrated.get()
                             >
-                                {t!(i18n, season_advance_button)}
+                                {move || if advance_pending.get() {
+                                    "Просуваю...".into_any()
+                                } else {
+                                    t!(i18n, season_advance_button).into_any()
+                                }}
                             </button>
                         </leptos::form::ActionForm>
                     }
@@ -448,9 +465,13 @@ fn ActiveSeasonPanel(
                                 data-variant="destructive"
                                 type="submit"
                                 data-testid="cancel-button"
-                                disabled=move || !hydrated.get()
+                                disabled=move || cancel_pending.get() || !hydrated.get()
                             >
-                                {t!(i18n, season_cancel_button)}
+                                {move || if cancel_pending.get() {
+                                    "Скасовую...".into_any()
+                                } else {
+                                    t!(i18n, season_cancel_button).into_any()
+                                }}
                             </button>
                         </leptos::form::ActionForm>
                     }
@@ -491,6 +512,32 @@ pub fn SeasonManagePage() -> impl IntoView {
     );
 
     let hydrated = use_hydrated();
+    let set_toast = use_toast();
+
+    // Toast feedback for successful actions
+    Effect::new(move |_| {
+        if let Some(Ok(())) = create_action.value().get() {
+            set_toast.set(Some("Сезон створено!".into()));
+        }
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(())) = launch_action.value().get() {
+            set_toast.set(Some("Сезон запущено!".into()));
+        }
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(())) = advance_action.value().get() {
+            set_toast.set(Some("Фазу просунуто!".into()));
+        }
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(())) = cancel_action.value().get() {
+            set_toast.set(Some("Сезон скасовано!".into()));
+        }
+    });
 
     view! {
         <div class="prose-page">
@@ -511,7 +558,13 @@ pub fn SeasonManagePage() -> impl IntoView {
             </div>
 
             <Suspense fallback=move || {
-                view! { <p>{t!(i18n, common_loading)}</p> }
+                view! {
+                    <div aria-hidden="true" class="flex flex-col gap-3">
+                        <div class="skeleton-line h-4 w-3/4"></div>
+                        <div class="skeleton-line h-4 w-1/2"></div>
+                        <div class="skeleton-line h-4 w-5/8"></div>
+                    </div>
+                }
             }>
                 {move || {
                     status

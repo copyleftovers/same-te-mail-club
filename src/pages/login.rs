@@ -113,6 +113,44 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
     }
 }
 
+/// Logout by clearing the session cookie and deleting the session from the database.
+///
+/// Redirects to `/` (which will redirect to `/login` since no valid session exists).
+#[server(Logout)]
+pub async fn logout() -> Result<(), ServerFnError> {
+    use crate::auth;
+
+    let pool = leptos::context::use_context::<sqlx::PgPool>()
+        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
+
+    // Extract the session cookie if it exists
+    if let Some(parts) = leptos::context::use_context::<http::request::Parts>()
+        && let Some(cookie_header) = parts.headers.get(http::header::COOKIE)
+        && let Ok(cookie_str) = cookie_header.to_str()
+    {
+        for pair in cookie_str.split(';') {
+            let pair = pair.trim();
+            if let Some(raw_token) = pair.strip_prefix("session=") {
+                // Delete session from database (ignore errors — logout always succeeds)
+                let _ = auth::delete_session(&pool, raw_token).await;
+                break;
+            }
+        }
+    }
+
+    // Clear the session cookie by setting it with Max-Age=0
+    let response_options = leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
+    let cookie = "session=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/";
+    response_options.append_header(
+        axum::http::header::SET_COOKIE,
+        axum::http::HeaderValue::from_str(cookie)
+            .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
+    );
+
+    leptos_axum::redirect("/");
+    Ok(())
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /// Two-step login: phone input → OTP input.
@@ -127,6 +165,7 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
 pub fn LoginPage() -> impl IntoView {
     let i18n = use_i18n();
     let request_action = ServerAction::<RequestOtp>::new();
+    let request_pending = request_action.pending();
 
     // Hydration gate — phone form button stays disabled until WASM hydrates.
     let hydrated = use_hydrated();
@@ -172,9 +211,13 @@ pub fn LoginPage() -> impl IntoView {
                         class="btn"
                         type="submit"
                         data-testid="send-otp-button"
-                        disabled=move || !hydrated.get()
+                        disabled=move || request_pending.get() || !hydrated.get()
                     >
-                        {t!(i18n, login_send_code_button)}
+                        {move || if request_pending.get() {
+                            "Надсилаю...".into_any()
+                        } else {
+                            t!(i18n, login_send_code_button).into_any()
+                        }}
                     </button>
                 </leptos::form::ActionForm>
             </div>

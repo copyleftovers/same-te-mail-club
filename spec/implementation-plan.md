@@ -33,7 +33,7 @@ Do this before any visual implementation work. The skill provides design quality
 
 ---
 
-## Phase 0: Foundation (P0)
+## Phase 0: Foundation (P0) ✅ COMPLETE
 
 **Tracer bullet:** After this phase, the app renders correctly on mobile Safari with safe areas, has PWA install capability, and all existing E2E tests still pass.
 
@@ -66,7 +66,7 @@ Do this before any visual implementation work. The skill provides design quality
 
 ---
 
-## Phase 1: Participant Forms — The Tracer Bullet (P0)
+## Phase 1: Participant Forms — The Tracer Bullet (P0) ✅ COMPLETE
 
 **Tracer bullet:** NP branch field split works end-to-end: separate city + number inputs → server fn parses cleanly → E2E tests pass with new selectors.
 
@@ -139,7 +139,7 @@ Give it:
 
 ---
 
-## Phase 2: Feedback System (P0)
+## Phase 2: Feedback System (P0) ✅ COMPLETE
 
 **Tracer bullet:** One page (home) has skeleton loading, button loading states, and toast feedback. Then roll out to all pages.
 
@@ -195,7 +195,7 @@ Merge all worktrees. Run `just e2e`.
 
 ---
 
-## Phase 3: The Assignment Reveal (P0)
+## Phase 3: The Assignment Reveal (P0) ✅ COMPLETE
 
 **Tracer bullet:** Participant sees their assignment with envelope animation on mobile. E2E test verifies the reveal renders.
 
@@ -227,7 +227,7 @@ Merge all worktrees. Run `just e2e`.
 
 ---
 
-## Phase 4: Admin Dashboard (P1)
+## Phase 4: Admin Dashboard (P1) ✅ COMPLETE
 
 ### 4.1 Phase Stepper component
 
@@ -264,7 +264,7 @@ Merge all three worktrees. Run `just e2e`. Delegate failures.
 
 ---
 
-## Phase 5: Mobile Navigation (P1)
+## Phase 5: Mobile Navigation (P1) ✅ COMPLETE
 
 ### 5.1 Hamburger menu
 
@@ -285,7 +285,7 @@ Merge all three worktrees. Run `just e2e`. Delegate failures.
 
 ---
 
-## Phase 6: Polish (P2)
+## Phase 6: Polish (P2) ✅ COMPLETE
 
 Launch a **swarm of parallel haiku audit agents**, each checking one concern:
 

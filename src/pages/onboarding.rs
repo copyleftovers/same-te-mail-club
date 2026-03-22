@@ -6,40 +6,28 @@ use leptos::prelude::*;
 
 /// Save the user's Nova Poshta delivery address and mark them as onboarded.
 ///
-/// Takes a single branch string like "Відділення №1, Київ" and parses city/number from it.
+/// Takes separate city and branch number inputs.
 ///
 /// # Errors
 ///
 /// Returns `Err` if the session is invalid, input is empty, or DB fails.
 #[server]
-pub async fn complete_onboarding(branch: String) -> Result<(), ServerFnError> {
+pub async fn complete_onboarding(city: String, np_number: String) -> Result<(), ServerFnError> {
     use crate::auth;
 
     let (pool, user) = auth::require_auth().await?;
 
-    let trimmed = branch.trim().to_owned();
-    if trimmed.is_empty() {
-        return Err(ServerFnError::new("Nova Poshta branch is required"));
+    let city = city.trim().to_owned();
+    if city.is_empty() {
+        return Err(ServerFnError::new("city is required"));
     }
-
-    // Parse number from branch text (e.g. "Відділення №1, Київ" → 1)
-    let number: i32 = trimmed
-        .chars()
-        .skip_while(|c: &char| !c.is_ascii_digit())
-        .take_while(char::is_ascii_digit)
-        .collect::<String>()
-        .parse()
-        .unwrap_or(1);
-
-    // Extract city: everything after the first ", " separator
-    // "Відділення №5, Київ" → "Київ"
-    // "№5, Київ" → "Київ"
-    // "Відділення №5" → "" (no city — store empty string)
-    let city = trimmed
-        .split_once(", ")
-        .map_or("", |x| x.1)
+    let number: i32 = np_number
         .trim()
-        .to_owned();
+        .parse()
+        .map_err(|_| ServerFnError::new("invalid branch number"))?;
+    if number < 1 {
+        return Err(ServerFnError::new("branch number must be positive"));
+    }
 
     // Upsert delivery address
     sqlx::query!(
@@ -83,6 +71,7 @@ pub fn OnboardingPage() -> impl IntoView {
     let (error_msg, set_error_msg) = signal(Option::<String>::None);
 
     let onboard_action = ServerAction::<CompleteOnboarding>::new();
+    let onboard_pending = onboard_action.pending();
 
     let hydrated = use_hydrated();
 
@@ -101,36 +90,60 @@ pub fn OnboardingPage() -> impl IntoView {
             <p>{t!(i18n, onboarding_description)}</p>
 
             <leptos::form::ActionForm action=onboard_action>
-                <div class="field">
-                    <label class="field-label" for="np-branch">
-                        {t!(i18n, onboarding_branch_label)}
-                    </label>
-                    <input
-                        class="field-input"
-                        id="np-branch"
-                        type="text"
-                        name="branch"
-                        placeholder=move || t_string!(i18n, onboarding_branch_placeholder)
-                        data-testid="branch-input"
-                        aria-invalid=move || error_msg.get().is_some()
-                        aria-describedby="np-branch-error"
-                    />
-                    <div
-                        id="np-branch-error"
-                        role="alert"
-                        aria-live="assertive"
-                        data-testid="action-error"
-                    >
-                        {move || error_msg.get().map(|msg| view! { <span>{msg}</span> })}
+                <div class="flex flex-col gap-(--density-space-md) sm:flex-row sm:gap-(--density-space-sm)">
+                    <div class="field sm:w-1/2">
+                        <label class="field-label" for="np-city">
+                            {t!(i18n, onboarding_city_label)}
+                        </label>
+                        <input
+                            class="field-input"
+                            type="text"
+                            id="np-city"
+                            name="city"
+                            value="Київ"
+                            required
+                            data-testid="np-city-input"
+                            aria-invalid=move || error_msg.get().is_some()
+                            aria-describedby="np-branch-error"
+                        />
                     </div>
+                    <div class="field sm:w-1/2">
+                        <label class="field-label" for="np-number">
+                            {t!(i18n, onboarding_np_number_label)}
+                        </label>
+                        <input
+                            class="field-input"
+                            id="np-number"
+                            type="text"
+                            inputmode="numeric"
+                            name="np_number"
+                            placeholder="123"
+                            required
+                            data-testid="np-number-input"
+                            aria-invalid=move || error_msg.get().is_some()
+                            aria-describedby="np-branch-error"
+                        />
+                    </div>
+                </div>
+                <div
+                    id="np-branch-error"
+                    role="alert"
+                    aria-live="assertive"
+                    data-testid="action-error"
+                >
+                    {move || error_msg.get().map(|msg| view! { <span>{msg}</span> })}
                 </div>
                 <button
                     class="btn"
                     type="submit"
                     data-testid="save-onboarding-button"
-                    disabled=move || !hydrated.get()
+                    disabled=move || onboard_pending.get() || !hydrated.get()
                 >
-                    {t!(i18n, onboarding_save_button)}
+                    {move || if onboard_pending.get() {
+                        "Зберігаю...".into_any()
+                    } else {
+                        t!(i18n, onboarding_save_button).into_any()
+                    }}
                 </button>
             </leptos::form::ActionForm>
         </div>
