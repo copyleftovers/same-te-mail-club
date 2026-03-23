@@ -50,9 +50,20 @@ pub fn PhaseStepper(
                             Phase::Cancelled => t!(i18n, season_phase_cancelled).into_any(),
                         };
 
-                        // Connector before step (except for first step)
+                        // Connector before step (except for first step).
+                        // Green when the preceding step is completed.
+                        // Uses <li> (not <div>) — <div> inside <ol> is invalid HTML
+                        // and causes browser re-parenting that breaks sibling selectors.
                         let connector = if idx > 0 {
-                            Some(view! { <div class="step-connector" aria-hidden="true"></div> })
+                            let prev_completed = phases[idx - 1] < current_phase;
+                            let connector_status = if prev_completed { "completed" } else { "pending" };
+                            Some(view! {
+                                <li
+                                    class="step-connector"
+                                    aria-hidden="true"
+                                    data-status=connector_status
+                                ></li>
+                            })
                         } else {
                             None
                         };

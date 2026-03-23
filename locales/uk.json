@@ -104,6 +104,7 @@
   "login_send_code_button": "Надіслати код",
   "login_otp_label": "Код з SMS",
   "login_verify_button": "Підтвердити",
+  "login_change_phone_button": "Змінити номер",
   "home_no_season": "Зараз немає активного сезону. Отримаєш SMS, коли відкриється наступний.",
   "home_preparing_body": "Створи свій лист і підтверди готовність до дедлайну.",
   "home_receipt_note_label": "Є що повідомити організатору? (необов'язково)",

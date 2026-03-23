@@ -187,9 +187,11 @@ pub fn App() -> impl IntoView {
 fn Header() -> impl IntoView {
     let is_dark = use_preferred_dark();
     let (menu_open, set_menu_open) = signal(false);
+    let pathname = leptos_router::hooks::use_location().pathname;
+    let is_admin_path = move || pathname.get().starts_with("/admin");
 
     view! {
-        <header class="app-header">
+        <header class=move || if is_admin_path() { "app-header app-header--admin" } else { "app-header" }>
             <a href="/">
                 <img
                     src=move || {
@@ -200,7 +202,7 @@ fn Header() -> impl IntoView {
                         }
                     }
                     alt="Саме Те"
-                    class="h-10 w-auto"
+                    class="w-auto"
                 />
             </a>
             <HeaderNav />
@@ -211,9 +213,9 @@ fn Header() -> impl IntoView {
                 data-testid="menu-toggle"
                 on:click=move |_| set_menu_open.update(|v| *v = !*v)
             >
-                <span class="block h-0.5 w-5 bg-current"></span>
-                <span class="block h-0.5 w-5 bg-current mt-1"></span>
-                <span class="block h-0.5 w-5 bg-current mt-1"></span>
+                <span class="block h-[3px] w-5 bg-current"></span>
+                <span class="block h-[3px] w-5 bg-current"></span>
+                <span class="block h-[3px] w-5 bg-current"></span>
             </button>
             <Show when=move || menu_open.get()>
                 <MobileMenu on_close=Callback::new(move |()| set_menu_open.set(false)) />
@@ -236,18 +238,40 @@ fn HeaderNav() -> impl IntoView {
     let logout_action =
         use_context::<ServerAction<Logout>>().expect("logout action must be provided");
 
-    let is_admin = move || pathname.get().starts_with("/admin");
+    let is_admin_page = move || pathname.get().starts_with("/admin");
     let show_logout = move || {
         !pathname.get().starts_with("/admin")
             && pathname.get() != "/login"
             && pathname.get() != "/onboarding"
     };
+    let current_user =
+        use_context::<Resource<Result<Option<crate::types::CurrentUser>, ServerFnError>>>()
+            .expect("CurrentUser resource must be provided");
+    let is_admin_user = move || {
+        current_user
+            .get()
+            .and_then(Result::ok)
+            .flatten()
+            .is_some_and(|u| u.role == crate::types::UserRole::Admin)
+    };
 
     view! {
-        <Show when=is_admin fallback=move || {
+        <Show when=is_admin_page fallback=move || {
             view! {
                 <Show when=show_logout>
                     <div class="header-nav">
+                        <Suspense fallback=|| ()>
+                            {move || is_admin_user().then(|| view! {
+                                <a
+                                    href="/admin"
+                                    class="btn"
+                                    data-variant="secondary"
+                                    data-size="sm"
+                                >
+                                    {t!(i18n, admin_nav_dashboard)}
+                                </a>
+                            })}
+                        </Suspense>
                         <leptos::form::ActionForm action=logout_action>
                             <button
                                 type="submit"
@@ -317,6 +341,13 @@ fn MobileMenu(on_close: Callback<()>) -> impl IntoView {
             data-testid="mobile-menu-overlay"
         ></div>
         <nav class="mobile-menu" data-testid="mobile-menu">
+            <button
+                class="mobile-menu-close"
+                aria-label="Close menu"
+                on:click=move |_| on_close.run(())
+            >
+                "\u{2715}"
+            </button>
             <a
                 href="/"
                 on:click=move |_| on_close.run(())

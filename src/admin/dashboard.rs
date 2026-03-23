@@ -169,32 +169,43 @@ fn render_season_detail(
         <section>
             <PhaseStepper current_phase=s.phase />
 
-            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 mb-6">
-                <div class="stat-card" data-testid="stat-phase">
-                    <div class="stat-label">{t!(i18n, dashboard_phase_label)}</div>
-                    <div class="stat-value text-base">
-                        <span class="badge" data-status=phase_status>
-                            {phase_display}
-                        </span>
-                    </div>
-                </div>
-
-                {s
-                    .theme
-                    .as_ref()
-                    .map(|theme_val| {
-                        view! {
-                            <div class="stat-card" data-testid="stat-theme">
-                                <div class="stat-label">{t!(i18n, dashboard_theme_label)}</div>
-                                <div class="stat-value text-lg">{theme_val.clone()}</div>
+            {if is_terminal {
+                view! {
+                    <div class="mb-6">
+                        <div class="stat-card" data-testid="stat-phase">
+                            <div class="stat-label">{t!(i18n, dashboard_phase_label)}</div>
+                            <div class="stat-value text-base">
+                                <span class="badge" data-status=phase_status>
+                                    {phase_display}
+                                </span>
                             </div>
-                        }
-                    })}
+                        </div>
+                    </div>
+                }.into_any()
+            } else {
+                view! {
+                    <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 mb-6">
+                        <div class="stat-card" data-testid="stat-phase">
+                            <div class="stat-label">{t!(i18n, dashboard_phase_label)}</div>
+                            <div class="stat-value text-base">
+                                <span class="badge" data-status=phase_status>
+                                    {phase_display}
+                                </span>
+                            </div>
+                        </div>
 
-                {if is_terminal {
-                    ().into_any()
-                } else {
-                    view! {
+                        {s
+                            .theme
+                            .as_ref()
+                            .map(|theme_val| {
+                                view! {
+                                    <div class="stat-card" data-testid="stat-theme">
+                                        <div class="stat-label">{t!(i18n, dashboard_theme_label)}</div>
+                                        <div class="stat-value text-lg">{theme_val.clone()}</div>
+                                    </div>
+                                }
+                            })}
+
                         <div class="stat-card" data-testid="stat-enrolled">
                             <div class="stat-label">{t!(i18n, dashboard_enrolled_label)}</div>
                             <div class="stat-value">{s.enrolled_count.to_string()}</div>
@@ -204,10 +215,9 @@ fn render_season_detail(
                             <div class="stat-label">{t!(i18n, dashboard_confirmed_label)}</div>
                             <div class="stat-value">{s.confirmed_count.to_string()}</div>
                         </div>
-                    }
-                        .into_any()
-                }}
-            </div>
+                    </div>
+                }.into_any()
+            }}
 
             {if s.not_received_count > 0 {
                 view! {

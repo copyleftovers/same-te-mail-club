@@ -911,7 +911,12 @@ fn render_home_state(
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
     match state {
-        HomeState::NoSeason => view! { <p>{t!(i18n, home_no_season)}</p> }.into_any(),
+        HomeState::NoSeason => view! {
+            <div class="empty-state">
+                <p class="empty-state-headline">{t!(i18n, home_no_season)}</p>
+            </div>
+        }
+        .into_any(),
 
         HomeState::EnrollmentOpen { deadline, theme } => {
             render_enrollment_open(deadline, theme.as_ref(), enroll_action, hydrated, i18n)

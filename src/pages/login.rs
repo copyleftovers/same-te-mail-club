@@ -183,7 +183,7 @@ pub fn LoginPage() -> impl IntoView {
     let otp_step = Memo::new(move |_| matches!(request_action.value().get(), Some(Ok(()))));
 
     view! {
-        <div class="prose-page flex flex-col items-center text-center min-h-[80svh] justify-center">
+        <div class="prose-page flex flex-col items-center text-center pt-[10svh]">
             <img
                 src="/logo.svg"
                 alt="Саме Те · Поштовий клуб"
@@ -208,7 +208,7 @@ pub fn LoginPage() -> impl IntoView {
                         />
                     </div>
                     <button
-                        class="btn"
+                        class="btn w-full"
                         type="submit"
                         data-testid="send-otp-button"
                         disabled=move || request_pending.get() || !hydrated.get()
@@ -244,10 +244,19 @@ pub fn LoginPage() -> impl IntoView {
                             data-otp
                         />
                     </div>
-                    <button class="btn" type="submit" data-testid="verify-otp-button">
+                    <button class="btn w-full" type="submit" data-testid="verify-otp-button">
                         {t!(i18n, login_verify_button)}
                     </button>
                 </form>
+                <button
+                    type="button"
+                    class="btn w-full mt-3"
+                    data-variant="secondary"
+                    data-testid="back-to-phone-button"
+                    on:click=move |_| request_action.value().set(None)
+                >
+                    {t!(i18n, login_change_phone_button)}
+                </button>
             </div>
         </div>
     }

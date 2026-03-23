@@ -232,6 +232,7 @@ fn ParticipantList(
                                     .into_any()
                             } else {
                                 view! {
+                                    <div class="data-table-wrapper">
                                     <table class="data-table">
                                         <thead>
                                             <tr>
@@ -320,6 +321,7 @@ fn ParticipantList(
                                             />
                                         </tbody>
                                     </table>
+                                    </div>
                                 }
                                     .into_any()
                             }
