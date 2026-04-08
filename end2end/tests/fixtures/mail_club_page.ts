@@ -129,7 +129,14 @@ export class MailClubPage {
   // ── Home Screen ──
 
   async goHome() {
-    await this.page.goto("/");
+    // Skip navigation if already on "/". After login(), the participant is
+    // already redirected to "/" with the page fully loaded. Calling goto("/")
+    // again forces a redundant full SSR reload + 14MB WASM re-download in dev
+    // mode, which intermittently exceeds the 15s navigation timeout.
+    const currentUrl = new URL(this.page.url());
+    if (currentUrl.pathname !== "/") {
+      await this.page.goto("/");
+    }
     // Wait for hydration by checking that the main content container is fully rendered.
     // The page has many states (NoSeason, EnrollmentOpen, Enrolled, etc.), many of which
     // have no buttons at all (50% of states). Waiting for "first button enabled" fails
