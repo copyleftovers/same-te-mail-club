@@ -86,9 +86,11 @@ export class MailClubPage {
     const logoutBtn = this.page.getByTestId("logout-button");
     await expect(logoutBtn).toBeEnabled();
     await this.clickAndWaitForResponse(logoutBtn, "logout");
-    // The logout action redirects to / which then redirects to /login (no session)
-    // Wait a moment for the client-side redirect to trigger
-    await this.page.waitForURL("/", { timeout: 5000 }).catch(() => {});
+    // The logout server function redirects to /, which then redirects to /login
+    // (no session). Wait for the final destination directly — waiting for the
+    // intermediate "/" would miss the second redirect.
+    await expect(this.page).toHaveURL(/\/login/);
+    await this.page.waitForLoadState("load");
   }
 
   async expectLoggedIn() {
@@ -124,6 +126,11 @@ export class MailClubPage {
     await this.page.getByTestId("save-onboarding-button").click();
     // Wait for redirect to complete - server function redirects to "/".
     await this.page.waitForURL("/", { timeout: 15000 });
+    // The server's complete_onboarding does a 302 redirect to "/". waitForURL
+    // resolves when the URL changes, but the browser may still be loading the
+    // redirect target. Without this wait, a subsequent navigation races with
+    // the in-progress page load.
+    await this.page.waitForLoadState("load");
   }
 
   // ── Home Screen ──
@@ -299,11 +306,17 @@ export class MailClubPage {
 
   async advanceSeason() {
     await this.page.goto("/admin/season");
-    // No visible DOM change to wait for — use URL-filtered POST wait.
+    // The advance action triggers a Resource refetch that re-renders the season
+    // panel (phase label changes, buttons may appear/disappear). However, the
+    // phase label has no data-testid, and the advance button stays visible for
+    // 3 of 4 transitions — so there is no single reliable DOM signal. Use the
+    // URL-filtered POST wait, then waitForLoadState to let the refetch settle
+    // before the caller navigates away.
     await this.clickAndWaitForResponse(
       this.page.getByTestId("advance-button"),
       "advance",
     );
+    await this.page.waitForLoadState("load");
   }
 
   async cancelSeason() {
@@ -355,7 +368,17 @@ export class MailClubPage {
   // ── Admin: dashboard ──
 
   async goToDashboard() {
-    await this.page.goto("/admin");
+    // Skip navigation if already on "/admin". After login(), the admin is
+    // already redirected to "/admin" with the page fully loaded. Calling
+    // goto("/admin") again forces a redundant full SSR reload + WASM
+    // re-download in dev mode, which can exceed the navigation timeout.
+    const currentUrl = new URL(this.page.url());
+    if (currentUrl.pathname !== "/admin") {
+      await this.page.goto("/admin");
+    }
+    // Wait for the main content container to be fully rendered, confirming
+    // navigation and hydration are complete.
+    await expect(this.page.locator("main")).toBeVisible({ timeout: 10_000 });
   }
 
   async expectDashboardContent(text: string | RegExp) {
