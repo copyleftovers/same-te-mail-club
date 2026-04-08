@@ -1,0 +1,4 @@
+# Work around Apple ld assertion failure with Rust thin LTO:
+# ld: Assertion failed: (name.size() <= maxLength)
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-ld_classic"]
