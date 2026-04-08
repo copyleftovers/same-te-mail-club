@@ -23,8 +23,8 @@ export default defineConfig({
 
   // Both reporters simultaneously: list for terminal visibility, html for failure analysis.
   reporter: process.env.CI
-    ? [["list"], ["html", { open: "never" }]]
-    : [["list"], ["html", { open: "on-failure" }]],
+    ? [["list"], ["html", { open: "never" }], ["json", { outputFile: "results.json" }]]
+    : [["list"], ["html", { open: "on-failure" }], ["json", { outputFile: "results.json" }]],
 
   use: {
     baseURL: "http://127.0.0.1:3000",

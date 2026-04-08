@@ -8,3 +8,10 @@
 .DS_Store
 *.log
 node_modules/
+
+# QA automation artifacts
+.ai-failures.json
+.healing-results.json
+.playwright/
+tests/seed.spec.ts
+end2end/results.json
