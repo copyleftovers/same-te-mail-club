@@ -38,10 +38,22 @@ e2e-rerun: _kill-stale
 # Build release with pre-compressed static assets
 build:
     cargo leptos build --release
+    @just _precompress --best
+
+# Serve release build
+serve: build
+    ./target/release/samete
+
+# Run E2E tests against release build
+e2e-release: _kill-stale db-reset db-seed
+    SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
+
+# Pre-compress static assets (quality: --best for release, -q 5 for dev)
+_precompress quality="--best":
     @for f in target/site/pkg/*.wasm target/site/pkg/*.js target/site/pkg/*.css; do \
         [ -f "$$f" ] || continue; \
-        brotli --best --keep --force "$$f"; \
-        gzip --best --keep --force "$$f"; \
+        brotli {{quality}} --keep --force "$$f"; \
+        gzip --keep --force "$$f"; \
     done
 
 # Reset database (drop, create, migrate)
