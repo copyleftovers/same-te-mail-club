@@ -59,3 +59,19 @@ Bind to all three on session start (treat as unified framework):
 | `just db-reset` | Drop, create, migrate database |
 | `just prepare` | Generate sqlx offline query data |
 | `bacon` | Continuous clippy. Keys: `s` SSR, `h` hydrate, `t` tests |
+
+**Environment:** `just e2e` requires `source .env.example` (or `.env`) for `DATABASE_URL`. Do not run `just` targets without it.
+
+## QA Automation
+
+The `/qa-run` skill orchestrates E2E test execution and locator healing. The existing suite lives in `end2end/` — bridge files at `tests/seed.spec.ts` and `.playwright/project-config.md` map the skill to this layout. All bridge artifacts are gitignored.
+
+**Pipeline phases:** PLAN and GENERATE are skipped (suite already exists). Only EXECUTE (run + classify failures) and HEAL (fix broken locators) run.
+
+**JSON reporter:** `end2end/playwright.config.ts` outputs `results.json` for structured agent parsing. The output file is gitignored.
+
+## E2E Pitfalls (Learned)
+
+- **Login race:** `login()` POM method must `waitForLoadState("load")` after the OTP verify redirect. Without it, subsequent `page.goto()` fires mid-redirect and SSR responses hang (Suspense never resolves).
+- **Redundant navigation:** `goHome()` skips `page.goto("/")` if already on `/`. The dev WASM bundle is ~14MB; redundant full reloads intermittently exceed the 15s `navigationTimeout`.
+- **Serial cascade:** All 58 tests run in one `test.describe.serial` block. If any test fails, all subsequent tests skip. Epic 6 (account management) is truly independent and could be split into a separate serial block to avoid cascade — not yet done.
