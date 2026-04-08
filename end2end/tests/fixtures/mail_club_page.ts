@@ -73,6 +73,13 @@ export class MailClubPage {
   async login(phone: string) {
     await this.attemptLogin(phone);
     await expect(this.page).not.toHaveURL(/\/login/);
+    // The OTP verify form is a native POST that triggers a 302 redirect.
+    // waitForResponse resolves on the 302, but the browser is still navigating
+    // to the redirect target (e.g. /admin). Without this wait, a subsequent
+    // page.goto() races with the in-progress redirect navigation, which can
+    // cause the server's SSR response to never complete (the goto cancels the
+    // redirect mid-stream, leaving Suspense boundaries unresolved).
+    await this.page.waitForLoadState("load");
   }
 
   async logout() {
