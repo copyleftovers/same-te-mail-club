@@ -79,7 +79,9 @@ export class MailClubPage {
     // page.goto() races with the in-progress redirect navigation, which can
     // cause the server's SSR response to never complete (the goto cancels the
     // redirect mid-stream, leaving Suspense boundaries unresolved).
-    await this.page.waitForLoadState("load");
+    // Use "domcontentloaded" not "load" — we only need the HTML committed,
+    // not the 14MB dev WASM bundle fully downloaded.
+    await this.page.waitForLoadState("domcontentloaded");
   }
 
   async logout() {
@@ -90,7 +92,7 @@ export class MailClubPage {
     // (no session). Wait for the final destination directly — waiting for the
     // intermediate "/" would miss the second redirect.
     await expect(this.page).toHaveURL(/\/login/);
-    await this.page.waitForLoadState("load");
+    await this.page.waitForLoadState("domcontentloaded");
   }
 
   async expectLoggedIn() {
@@ -130,7 +132,7 @@ export class MailClubPage {
     // resolves when the URL changes, but the browser may still be loading the
     // redirect target. Without this wait, a subsequent navigation races with
     // the in-progress page load.
-    await this.page.waitForLoadState("load");
+    await this.page.waitForLoadState("domcontentloaded");
   }
 
   // ── Home Screen ──
@@ -318,7 +320,7 @@ export class MailClubPage {
       this.page.getByTestId("advance-button"),
       "advance",
     );
-    await this.page.waitForLoadState("load");
+    await this.page.waitForLoadState("domcontentloaded");
   }
 
   async cancelSeason() {

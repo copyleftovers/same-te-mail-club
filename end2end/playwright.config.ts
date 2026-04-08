@@ -33,7 +33,9 @@ export default defineConfig({
 
     // Prevent individual actions from hanging on hydration/network issues.
     actionTimeout: 10_000,
-    navigationTimeout: 15_000,
+    // Dev WASM bundle is ~14MB; SSR can slow under sustained load.
+    // 30s gives headroom without masking real failures (passing tests are ~3s).
+    navigationTimeout: 30_000,
   },
 
   // Single browser — chromium only. Multi-browser is not worth the cost at this scale.
