@@ -7,9 +7,13 @@ import { MailClubPage } from "./fixtures/mail_club_page";
  * One file. Serial execution. Ordered by data dependency chain, not epic number.
  * Each test traces to a story number from spec/User Stories.md.
  *
- * Dependency chain:
+ * Dependency chain (main serial block):
  *   Epic 1 (auth) → Epic 4 (season) → Epic 2 (participate) →
- *   Epic 3 (assign) → Epic 5 (SMS) → Epic 6 (deactivate)
+ *   Epic 3 (assign) → Epic 5 (SMS) → Cancel Season
+ *
+ * Independent serial blocks (run even if main chain fails):
+ *   Account Management (Epic 6) — creates its own participant
+ *   Session Management (Logout) — only needs seeded admin + Epic 1 users
  *
  * Prerequisite: `just e2e` resets DB and seeds admin before this runs.
  *
@@ -539,41 +543,7 @@ test.describe.serial("The Mail Club", () => {
   });
 
   // ════════════════════════════════════════════
-  // BLOCK 8: Account Management (Epic 6)
-  // Story: 6.1
-  // ════════════════════════════════════════════
-
-  test.describe("Epic 6: Account Management", () => {
-    const DEACTIVATE_PHONE = "+380670000099";
-    const DEACTIVATE_NAME = "Деактивований Учасник";
-
-    // Setup: register a participant to deactivate
-    test("setup — register participant for deactivation", async ({ page }) => {
-      const app = new MailClubPage(page);
-      await app.login(ADMIN_PHONE);
-      await app.registerParticipant(DEACTIVATE_PHONE, DEACTIVATE_NAME);
-      await app.expectParticipantInList(DEACTIVATE_NAME);
-    });
-
-    // Story 6.1: Deactivate participant
-    test("6.1 — admin deactivates a participant", async ({ page }) => {
-      const app = new MailClubPage(page);
-      await app.login(ADMIN_PHONE);
-      await app.deactivateParticipant(DEACTIVATE_NAME);
-      await expect(page.getByTestId("inactive-status")).toBeVisible();
-    });
-
-    // Story 6.1 AC: deactivated account cannot sign in
-    test("6.1 — deactivated participant cannot sign in", async ({ page }) => {
-      const app = new MailClubPage(page);
-      await app.attemptLogin(DEACTIVATE_PHONE);
-      // Should remain on login — auth rejected
-      await expect(page).toHaveURL(/\/login/);
-    });
-  });
-
-  // ════════════════════════════════════════════
-  // BLOCK 9: Cancel Season
+  // BLOCK 8: Cancel Season
   // Verifies cancellation flow (no story number — derived from phase enum)
   // ════════════════════════════════════════════
 
@@ -605,36 +575,74 @@ test.describe.serial("The Mail Club", () => {
     });
   });
 
-  // ════════════════════════════════════════════
-  // BLOCK 10: Logout
-  // Verifies logout functionality (clears session, redirects to login)
-  // ════════════════════════════════════════════
+});
 
-  test.describe("Logout", () => {
-    test("logout — participant logs out and is redirected to login", async ({
-      page,
-    }) => {
-      const app = new MailClubPage(page);
-      // Login as participant
-      await app.login(PHONES.A);
-      await app.goHome();
-      // Logout
-      await app.logout();
-      // Should be at / which redirects to /login (no session)
-      await page.waitForURL(/\/login/);
-    });
+// ════════════════════════════════════════════════════
+// INDEPENDENT BLOCK: Account Management (Epic 6)
+// Story: 6.1
+// Creates its own participant — no dependency on season lifecycle.
+// ════════════════════════════════════════════════════
 
-    test("logout — admin logs out and is redirected to login", async ({
-      page,
-    }) => {
-      const app = new MailClubPage(page);
-      // Login as admin
-      await app.login(ADMIN_PHONE);
-      await app.goToDashboard();
-      // Logout
-      await app.logout();
-      // Should be at / which redirects to /login (no session)
-      await page.waitForURL(/\/login/);
-    });
+test.describe.serial("Account Management", () => {
+  const DEACTIVATE_PHONE = "+380670000099";
+  const DEACTIVATE_NAME = "Деактивований Учасник";
+
+  // Setup: register a participant to deactivate
+  test("setup — register participant for deactivation", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.login(ADMIN_PHONE);
+    await app.registerParticipant(DEACTIVATE_PHONE, DEACTIVATE_NAME);
+    await app.expectParticipantInList(DEACTIVATE_NAME);
+  });
+
+  // Story 6.1: Deactivate participant
+  test("6.1 — admin deactivates a participant", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.login(ADMIN_PHONE);
+    await app.deactivateParticipant(DEACTIVATE_NAME);
+    await expect(page.getByTestId("inactive-status")).toBeVisible();
+  });
+
+  // Story 6.1 AC: deactivated account cannot sign in
+  test("6.1 — deactivated participant cannot sign in", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.attemptLogin(DEACTIVATE_PHONE);
+    // Should remain on login — auth rejected
+    await expect(page).toHaveURL(/\/login/);
+  });
+});
+
+// ════════════════════════════════════════════════════
+// INDEPENDENT BLOCK: Session Management
+// Verifies logout functionality (clears session, redirects to login).
+// Uses PHONES.A (created in Epic 1) and ADMIN_PHONE (seeded).
+// Only tests session management — no dependency on season lifecycle.
+// ════════════════════════════════════════════════════
+
+test.describe.serial("Session Management", () => {
+  test("logout — participant logs out and is redirected to login", async ({
+    page,
+  }) => {
+    const app = new MailClubPage(page);
+    // Login as participant
+    await app.login(PHONES.A);
+    await app.goHome();
+    // Logout
+    await app.logout();
+    // Should be at / which redirects to /login (no session)
+    await page.waitForURL(/\/login/);
+  });
+
+  test("logout — admin logs out and is redirected to login", async ({
+    page,
+  }) => {
+    const app = new MailClubPage(page);
+    // Login as admin
+    await app.login(ADMIN_PHONE);
+    await app.goToDashboard();
+    // Logout
+    await app.logout();
+    // Should be at / which redirects to /login (no session)
+    await page.waitForURL(/\/login/);
   });
 });
