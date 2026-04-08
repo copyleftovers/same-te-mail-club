@@ -58,6 +58,19 @@ async fn main() {
         .layer(TraceLayer::new_for_http())
         .with_state(leptos_options);
 
+    if std::env::var("SAMETE_LOG_POOL").as_deref() == Ok("true") {
+        let pool = pool.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
+            loop {
+                interval.tick().await;
+                let size = pool.size() as usize;
+                let idle = pool.num_idle();
+                tracing::info!(size, idle, active = size.saturating_sub(idle), "pool");
+            }
+        });
+    }
+
     tracing::info!("listening on http://{}", &addr);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
