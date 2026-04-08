@@ -35,9 +35,14 @@ e2e-single pattern: _kill-stale db-reset db-seed
 e2e-rerun: _kill-stale
     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
 
-# Build release
+# Build release with pre-compressed static assets
 build:
     cargo leptos build --release
+    @for f in target/site/pkg/*.wasm target/site/pkg/*.js target/site/pkg/*.css; do \
+        [ -f "$$f" ] || continue; \
+        brotli --best --keep --force "$$f"; \
+        gzip --best --keep --force "$$f"; \
+    done
 
 # Reset database (drop, create, migrate)
 db-reset:
