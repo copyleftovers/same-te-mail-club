@@ -266,6 +266,8 @@ export class MailClubPage {
   async deactivateParticipant(name: string) {
     await this.page.goto("/admin/participants");
     const row = this.page.getByTestId("participant-row").filter({ hasText: name });
+    // Wait for hydration — the row being visible means data loaded and the page rendered.
+    await expect(row).toBeVisible();
     await row.getByTestId("deactivate-button").click();
     // Wait for refetch to complete — inactive status appears.
     await expect(this.page.getByTestId("inactive-status")).toBeVisible();
