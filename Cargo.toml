@@ -120,3 +120,6 @@ bin-default-features = false
 lib-features = ["hydrate"]
 lib-default-features = false
 lib-profile-release = "wasm-release"
+
+[patch.crates-io]
+leptos_config = { git = "https://github.com/ryzhakar/leptos", branch = "no-regex-config" }
