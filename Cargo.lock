@@ -1958,9 +1958,11 @@ dependencies = [
 [[package]]
 name = "leptos_config"
 version = "0.8.9"
-source = "git+https://github.com/ryzhakar/leptos?branch=no-regex-config#8ccbd3111f6825cf3f73dd53344941c68ba4702d"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19a2ac32008dda0d657f2147cc33336f4e743e091597db10f7a99d668e92a46d"
 dependencies = [
  "config",
+ "regex",
  "serde",
  "thiserror 2.0.18",
  "typed-builder",
