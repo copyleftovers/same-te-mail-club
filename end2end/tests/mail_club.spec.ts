@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/cached-context";
 import { MailClubPage } from "./fixtures/mail_club_page";
 
 /**
