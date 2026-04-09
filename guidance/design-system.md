@@ -1,6 +1,6 @@
 # Design System — Саме Те Mail Club
 
-Binding specification for all visual implementation. Derived from brand guidelines, landing page analysis, CSS pattern research, and font/logo system investigation (see `research/`).
+Binding specification for all visual implementation. Derived from brand guidelines, landing page analysis, CSS pattern research, and font/logo system investigation (see `ai-driven-research/same-te-design-system/`).
 
 This document defines **what** the visual system is. For **how** to implement it, see `guidance/frontend-protocol.md`.
 

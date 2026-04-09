@@ -267,7 +267,7 @@ Changes from landing page: `z-index: 1` (was 100), `opacity: 0.04` (was 0.09), `
 
 ## Sources
 
-All decisions trace to `research/`:
+All decisions trace to `ai-driven-research/same-te-design-system/surveys/`:
 - `brand-guidelines.md` — official PDF palette, typography, logo rules
 - `font-system.md` — woff2 file selection, weight rationale, @font-face declarations
 - `logo-system.md` — SVG variant mapping, app recommendations
