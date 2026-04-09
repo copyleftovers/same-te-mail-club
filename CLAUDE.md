@@ -79,7 +79,7 @@ The `/qa-run` skill orchestrates E2E test execution and locator healing. The exi
 - **Redundant navigation:** `goHome()` skips `page.goto("/")` if already on `/`. The dev WASM bundle is ~14MB; redundant full reloads intermittently exceed the 15s `navigationTimeout`.
 - **Serial cascade:** The main flow runs in one `test.describe.serial` block. Epic 6 (Account Management) and Session Management (Logout) are split into independent serial blocks to avoid cascade from main-flow failures.
 - **Pre-compressed WASM:** `end2end/precompress-and-test.sh` pre-compresses static assets (brotli + gzip) before every E2E run. `CompressionLayer` then serves `.br` files directly instead of re-compressing 14MB on the fly. Without this, SSR stalls under sustained load.
-- **Remaining flakiness:** Even with pre-compression, ~1 test per run may timeout on WASM hydration (30s `navigationTimeout`). Root cause under investigation — Docker Postgres latency is a suspect.
+- **Static asset caching:** `end2end/tests/fixtures/cached-context.ts` caches `.wasm`, `.js`, `.css`, `.woff2` responses to a temp dir on first download, serves from cache on subsequent tests. Import `test`/`expect` from this fixture, not `@playwright/test`. Eliminates 57 redundant 14MB WASM downloads per run.
 
 ## Operational Notes
 
@@ -88,7 +88,7 @@ The `/qa-run` skill orchestrates E2E test execution and locator healing. The exi
 - **Tool installation:** Use `cargo binstall`, not `cargo install`. Pre-built binaries, much faster.
 - **Autonomy:** Act as project owner. Install tools, manage deps, create files, make decisions freely. Only hesitate on truly dangerous operations (force push, dropping prod data).
 - **Schema design:** Enums over bools for expandable axes. Nullable timestamps as one-way latches (null = hasn't happened). Separate concerns into tables. No unnecessary nullability or denormalization.
-- **WASM bloat:** `leptos_config` pulls `regex` with full Unicode tables into client WASM. Actual size impact unverified — LTO may eliminate dead code. Upstream issue pending. A `[patch.crates-io]` attempt broke config parsing; needs more careful approach.
+- **WASM bloat (settled):** `leptos_config` pulls `regex` into client WASM dependency tree, but twiggy profiling confirmed LTO+wasm-opt eliminate the tables — no 500KB blob in the final binary. Production WASM is 471KB brotli. `opt-level = 'z'` beats `'s'` by 7.9%. Current config is at the optimization floor; remaining gains require `build-std` (nightly) or code splitting (`--split`).
 - **Manifesto loading:** Always `curl` the actual source texts from `github.com/ryzhakar/LLM_MANIFESTOS`. Never paraphrase from memory. Use `gh api` for individual files (raw URL naming is unreliable).
 - **Leptos MCP server:** Source at `~/leptos-mcp-server`. Tools: `list-sections`, `get-documentation`, `leptos-autofixer`. Prefer this over guessing at Leptos 0.8 APIs.
 - **E2E env vars:** `export DATABASE_URL="postgres://samete:samete@localhost/samete" SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true`

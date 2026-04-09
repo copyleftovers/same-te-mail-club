@@ -250,6 +250,16 @@ If the element is inside a conditional branch (`match`, `<Show>`, `<For>`), the 
 
 ## Writing a New Test
 
+### Imports
+
+Tests import `test` and `expect` from the **caching fixture**, not `@playwright/test`:
+
+```typescript
+import { test, expect } from "./fixtures/cached-context";
+```
+
+This fixture caches static assets (`.wasm`, `.js`, `.css`, `.woff2`) to a temp dir on first download and serves from cache on subsequent tests. Without it, the 14MB dev WASM bundle is re-downloaded 58 times per run.
+
 ### Template
 
 ```typescript
@@ -325,7 +335,8 @@ async expectSomeContent(text: string | RegExp) {
 - [ ] Waits for hydration (`toBeEnabled()`) if filling inputs before first click
 - [ ] Self-contained actions wait for their completion signal
 - [ ] Assertion-separated actions document what the caller should assert
-- [ ] All selectors use testids, roles, or labels — never CSS classes or tag structures
+- [ ] All selectors use testids — never CSS classes, roles with name, or tag structures
+- [ ] Methods that trigger 302 redirects (login, logout, completeOnboarding) wait for `domcontentloaded` after redirect
 
 ---
 
@@ -333,26 +344,34 @@ async expectSomeContent(text: string | RegExp) {
 
 ### Serial Execution
 
-All tests run in a single `test.describe.serial("The Mail Club", ...)` block. Tests share database state — each test depends on the DB state left by previous tests.
+The main lifecycle chain runs in `test.describe.serial("The Mail Club", ...)`. Tests share database state — each test depends on the DB state left by previous tests.
+
+Two independent blocks run separately and are **not affected** by main-chain failures:
+- `test.describe.serial("Account Management")` — registers its own participant, independent of season state
+- `test.describe.serial("Session Management")` — login/logout only, no season dependency
 
 **Why serial:** The test suite models a narrative (register → login → onboard → create season → enroll → confirm → assign → deliver → complete). Resetting the DB per test would require replaying the entire prefix, making the suite O(n²).
 
-**Consequence of failure:** If test N fails, all tests after N are skipped (they would encounter wrong DB state). On CI with `retries: 1`, Playwright restarts the entire serial group from test 1.
+**Consequence of failure:** If test N fails in a serial block, subsequent tests in **that block** are skipped. Independent blocks continue running.
 
 ### Block Organization
 
 Tests are grouped into `test.describe` blocks by epic/story for readability:
 
 ```
-Epic 1: Auth & Onboarding
-Epic 4: Season Management
-Story 2.1: Enrollment
-Story 2.2: Confirm Ready
-Epic 3: Assignment
-Stories 2.3–2.4: Delivery & Receipt
-Season Complete
-Epic 6: Account Management
-Cancel Season
+Main serial block ("The Mail Club"):
+  Epic 1: Auth & Onboarding
+  Epic 4: Season Management
+  Story 2.1: Enrollment
+  Story 2.2: Confirm Ready
+  Epic 3: Assignment
+  Stories 2.3–2.4: Delivery & Receipt
+  Season Complete
+  Cancel Season
+
+Independent serial blocks:
+  Account Management (Epic 6)
+  Session Management (Logout)
 ```
 
 **Block order follows the data dependency chain**, not epic numbers.
