@@ -1,5 +1,4 @@
 use sqlx::PgPool;
-use sqlx::postgres::PgPoolOptions;
 
 /// Create a Postgres connection pool.
 ///
@@ -7,11 +6,7 @@ use sqlx::postgres::PgPoolOptions;
 ///
 /// Returns `Err` if the connection cannot be established.
 pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
-    PgPoolOptions::new()
-        .max_connections(20)
-        .acquire_timeout(std::time::Duration::from_secs(5))
-        .connect(database_url)
-        .await
+    PgPool::connect(database_url).await
 }
 
 /// Run all pending migrations.

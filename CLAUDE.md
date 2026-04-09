@@ -55,6 +55,9 @@ Bind to all three on session start (treat as unified framework):
 | `just test` | Run unit tests |
 | `just clippy` | Run clippy (SSR) |
 | `just e2e` | Run Playwright E2E tests |
+| `just e2e-release` | E2E tests against release build |
+| `just build` | Build release with pre-compressed assets |
+| `just serve` | Build release + run binary |
 | `just check` | Full validation: fmt + clippy + test |
 | `just db-reset` | Drop, create, migrate database |
 | `just prepare` | Generate sqlx offline query data |
@@ -72,6 +75,20 @@ The `/qa-run` skill orchestrates E2E test execution and locator healing. The exi
 
 ## E2E Pitfalls (Learned)
 
-- **Login race:** `login()` POM method must `waitForLoadState("load")` after the OTP verify redirect. Without it, subsequent `page.goto()` fires mid-redirect and SSR responses hang (Suspense never resolves).
+- **Login race:** `login()` POM method must `waitForLoadState("domcontentloaded")` after the OTP verify redirect. Without it, subsequent `page.goto()` fires mid-redirect and SSR responses hang (Suspense never resolves).
 - **Redundant navigation:** `goHome()` skips `page.goto("/")` if already on `/`. The dev WASM bundle is ~14MB; redundant full reloads intermittently exceed the 15s `navigationTimeout`.
-- **Serial cascade:** All 58 tests run in one `test.describe.serial` block. If any test fails, all subsequent tests skip. Epic 6 (account management) is truly independent and could be split into a separate serial block to avoid cascade — not yet done.
+- **Serial cascade:** The main flow runs in one `test.describe.serial` block. Epic 6 (Account Management) and Session Management (Logout) are split into independent serial blocks to avoid cascade from main-flow failures.
+- **Pre-compressed WASM:** `end2end/precompress-and-test.sh` pre-compresses static assets (brotli + gzip) before every E2E run. `CompressionLayer` then serves `.br` files directly instead of re-compressing 14MB on the fly. Without this, SSR stalls under sustained load.
+- **Remaining flakiness:** Even with pre-compression, ~1 test per run may timeout on WASM hydration (30s `navigationTimeout`). Root cause under investigation — Docker Postgres latency is a suspect.
+
+## Operational Notes
+
+- **Postgres runs in Docker** via docker-compose, not as a native brew service. If Postgres appears down, check `docker compose up -d` first, not `brew services`.
+- **Commit style:** One-line conventional commits (e.g. `feat(auth): add OTP login flow`). No multi-line bodies. No `Co-Authored-By` or AI attribution.
+- **Tool installation:** Use `cargo binstall`, not `cargo install`. Pre-built binaries, much faster.
+- **Autonomy:** Act as project owner. Install tools, manage deps, create files, make decisions freely. Only hesitate on truly dangerous operations (force push, dropping prod data).
+- **Schema design:** Enums over bools for expandable axes. Nullable timestamps as one-way latches (null = hasn't happened). Separate concerns into tables. No unnecessary nullability or denormalization.
+- **WASM bloat:** `leptos_config` pulls `regex` with full Unicode tables into client WASM. Actual size impact unverified — LTO may eliminate dead code. Upstream issue pending. A `[patch.crates-io]` attempt broke config parsing; needs more careful approach.
+- **Manifesto loading:** Always `curl` the actual source texts from `github.com/ryzhakar/LLM_MANIFESTOS`. Never paraphrase from memory. Use `gh api` for individual files (raw URL naming is unreliable).
+- **Leptos MCP server:** Source at `~/leptos-mcp-server`. Tools: `list-sections`, `get-documentation`, `leptos-autofixer`. Prefer this over guessing at Leptos 0.8 APIs.
+- **E2E env vars:** `export DATABASE_URL="postgres://samete:samete@localhost/samete" SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true`
