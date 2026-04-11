@@ -1,4 +1,17 @@
 #[cfg(feature = "ssr")]
+async fn timeout_middleware(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::IntoResponse as _;
+    use std::time::Duration;
+    match tokio::time::timeout(Duration::from_secs(30), next.run(req)).await {
+        Ok(response) => response,
+        Err(_elapsed) => axum::http::StatusCode::GATEWAY_TIMEOUT.into_response(),
+    }
+}
+
+#[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
     use axum::Router;
@@ -56,6 +69,7 @@ async fn main() {
         .fallback(leptos_axum::file_and_error_handler(shell))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn(timeout_middleware))
         .with_state(leptos_options);
 
     if std::env::var("SAMETE_LOG_POOL").as_deref() == Ok("true") {
