@@ -70,6 +70,7 @@ jobs:
       DATABASE_URL: postgres://samete:samete@localhost/samete
       SAMETE_TEST_MODE: "true"
       SAMETE_SMS_DRY_RUN: "true"
+      SQLX_OFFLINE: "false"
 
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +92,7 @@ jobs:
             ${{ runner.os }}-cargo-e2e-
 
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@main
+        uses: cargo-bins/cargo-binstall@v1.18.1
 
       - name: Install cargo-leptos
         run: cargo binstall cargo-leptos --no-confirm
