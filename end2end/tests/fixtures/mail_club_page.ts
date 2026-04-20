@@ -72,15 +72,18 @@ export class MailClubPage {
 
   async login(phone: string) {
     await this.attemptLogin(phone);
-    await expect(this.page).not.toHaveURL(/\/login/);
-    // The OTP verify form is a native POST that triggers a 302 redirect.
-    // waitForResponse resolves on the 302, but the browser is still navigating
-    // to the redirect target (e.g. /admin). Without this wait, a subsequent
-    // page.goto() races with the in-progress redirect navigation, which can
-    // cause the server's SSR response to never complete (the goto cancels the
-    // redirect mid-stream, leaving Suspense boundaries unresolved).
-    // Use "domcontentloaded" not "load" — we only need the HTML committed,
-    // not the 14MB dev WASM bundle fully downloaded.
+    // After OTP verify, the server issues a native 302 redirect chain.
+    // For a non-onboarded participant: POST → 302 "/" → (AuthGuard SSR) → 302 "/onboarding".
+    // clickAndWaitForResponse (in attemptLogin) resolves on the POST 302 response —
+    // the browser is still mid-navigation. The prior "not.toHaveURL(/\/login/)" resolved
+    // as soon as the URL changed to the intermediate "/" (before the AuthGuard 302 fired),
+    // which caused flakiness on slow CI runners where the subsequent toHaveURL(/onboarding/)
+    // assertion beat the in-flight redirect.
+    // waitForLoadState("domcontentloaded") waits for DOMContentLoaded on the FINAL page
+    // after all redirects complete (intermediate 302 responses have no body, so
+    // DOMContentLoaded fires only on the terminal page).
+    // Use "domcontentloaded" not "load" — we only need the HTML committed, not the
+    // 14MB dev WASM bundle fully downloaded.
     await this.page.waitForLoadState("domcontentloaded");
   }
 
