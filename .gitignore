@@ -15,3 +15,4 @@ node_modules/
 .playwright/
 tests/seed.spec.ts
 end2end/results.json
+orchestration_log/recon/
