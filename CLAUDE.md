@@ -22,6 +22,19 @@ One of the workflows where this pattern lends itself beautifully is objective fa
 - @guidance/frontend-protocol.md — Tailwind v4 setup, CSS architecture, banned patterns (**binding**)
 - @end2end/README.md — E2E testing guide, POM contract, wait strategies (**binding**)
 
+## Orchestration Log
+
+Institutional memory lives at `orchestration_log/` at project root (NOT under `docs/`, overriding the orchestration plugin's default path).
+
+- `orchestration_log/reference/` — living docs, read at every ARRIVE:
+  - @orchestration_log/reference/conventions.md — model-tier overrides, dispatch rules, forbidden patterns
+  - @orchestration_log/reference/codebase_state.md — current architectural facts
+  - @orchestration_log/reference/deferred_items.md — known follow-ups
+- `orchestration_log/history/YYYY-MM-DD/session.md` — frozen session narratives, append-only
+- `orchestration_log/recon/` — disposable raw scouting data (gitignored)
+
+LEAVE protocol (session close, reference updates, session record) is governed by the `orchestration:session-close` skill, with the `orchestration_log/` path layout above overriding the skill's `docs/` default.
+
 ## Product Design
 
 → `spec/product/` — vision, personas, product decisions
