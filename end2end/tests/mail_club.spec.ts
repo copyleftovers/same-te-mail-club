@@ -575,6 +575,15 @@ test.describe.serial("The Mail Club", () => {
     });
   });
 
+  // ════════════════════════════════════════════
+  // BLOCK 9: Fallback Route (404)
+  // ════════════════════════════════════════════
+
+  test("404 — non-existent route shows not-found", async ({ page }) => {
+    await page.goto("/this-route-does-not-exist");
+    await expect(page.getByTestId("not-found")).toBeVisible();
+  });
+
 });
 
 // ════════════════════════════════════════════════════

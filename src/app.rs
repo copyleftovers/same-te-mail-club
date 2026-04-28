@@ -96,7 +96,9 @@ pub fn App() -> impl IntoView {
             <div class="flex min-h-dvh flex-col">
                 <Header />
                 <main class="flex-1">
-                    <Routes fallback=move || t!(i18n, app_not_found)>
+                    <Routes fallback=move || view! {
+                        <p data-testid="not-found">{t!(i18n, app_not_found)}</p>
+                    }>
                     <Route path=StaticSegment("login") view=LoginPage />
                     <Route
                         path=StaticSegment("onboarding")
