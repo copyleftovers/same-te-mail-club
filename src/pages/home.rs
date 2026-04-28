@@ -223,6 +223,16 @@ async fn resolve_delivery_state(
     }
 }
 
+// ── Pure helpers (testable without SSR context) ────────────────────────────────
+
+/// Returns `true` when `deadline` is in the past and `test_mode` is `false`.
+///
+/// Used by [`enroll_in_season`] and [`confirm_ready`] to gate deadline enforcement.
+/// Extracted so unit tests can exercise it without a server context.
+fn is_past_deadline(deadline: time::OffsetDateTime, test_mode: bool) -> bool {
+    !test_mode && deadline < time::OffsetDateTime::now_utc()
+}
+
 // ── Server functions ───────────────────────────────────────────────────────────
 
 /// Compute the home page state for the authenticated participant.
@@ -317,7 +327,7 @@ pub async fn enroll_in_season(city: String, np_number: String) -> Result<(), Ser
 
     // Deadline check — bypassed in test mode
     let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
-    if !test_mode && season.signup_deadline < time::OffsetDateTime::now_utc() {
+    if is_past_deadline(season.signup_deadline, test_mode) {
         return Err(ServerFnError::new("enrollment deadline has passed"));
     }
 
@@ -417,7 +427,7 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
 
     // Deadline check — bypassed in test mode
     let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
-    if !test_mode && season.confirm_deadline < time::OffsetDateTime::now_utc() {
+    if is_past_deadline(season.confirm_deadline, test_mode) {
         return Err(ServerFnError::new("confirmation deadline has passed"));
     }
 
@@ -1007,5 +1017,29 @@ fn render_home_state(
             </div>
         }
         .into_any(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_past_deadline;
+
+    #[test]
+    fn past_deadline_blocks_when_not_test_mode() {
+        let past = time::OffsetDateTime::now_utc() - time::Duration::hours(1);
+        assert!(is_past_deadline(past, false));
+    }
+
+    #[test]
+    fn past_deadline_allowed_in_test_mode() {
+        let past = time::OffsetDateTime::now_utc() - time::Duration::hours(1);
+        assert!(!is_past_deadline(past, true));
+    }
+
+    #[test]
+    fn future_deadline_allowed_regardless() {
+        let future = time::OffsetDateTime::now_utc() + time::Duration::hours(1);
+        assert!(!is_past_deadline(future, false));
+        assert!(!is_past_deadline(future, true));
     }
 }
