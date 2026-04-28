@@ -51,6 +51,9 @@ pub enum HomeState {
 
     /// Season is complete.
     Complete,
+
+    /// Season was cancelled by the organiser.
+    Cancelled,
 }
 
 // ── SSR-only row types ─────────────────────────────────────────────────────────
@@ -264,6 +267,7 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
 
         return match most_recent_phase {
             Some(Phase::Complete) => Ok(HomeState::Complete),
+            Some(Phase::Cancelled) => Ok(HomeState::Cancelled),
             _ => Ok(HomeState::NoSeason),
         };
     };
@@ -993,6 +997,14 @@ fn render_home_state(
         HomeState::Complete => view! {
             <h2>{t!(i18n, home_complete_heading)}</h2>
             <p>{t!(i18n, home_thanks_participation)}</p>
+        }
+        .into_any(),
+
+        HomeState::Cancelled => view! {
+            <div data-testid="season-cancelled">
+                <h2 class="font-display text-xl">{t!(i18n, home_season_cancelled_title)}</h2>
+                <p class="text-muted">{t!(i18n, home_season_cancelled_body)}</p>
+            </div>
         }
         .into_any(),
     }

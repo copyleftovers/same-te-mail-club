@@ -367,6 +367,14 @@ fn ActiveSeasonPanel(
     let cancel_pending = cancel_action.pending();
     let can_advance = status.phase.can_advance();
     let launched = status.launched;
+    let (confirming, set_confirming) = signal(false);
+
+    // Reset confirmation state when cancel action succeeds.
+    Effect::new(move |_| {
+        if let Some(Ok(())) = cancel_action.value().get() {
+            set_confirming.set(false);
+        }
+    });
     let phase_label = if launched {
         match status.phase {
             crate::types::Phase::Enrollment => t_string!(i18n, season_phase_enrollment),
@@ -456,24 +464,56 @@ fn ActiveSeasonPanel(
                 } else {
                     ().into_any()
                 }}
-                // Cancel button — available while launched
+                // Cancel button — two-step confirmation, available while launched
                 {if launched {
                     view! {
-                        <leptos::form::ActionForm action=cancel_action>
+                        <Show
+                            when=move || !confirming.get()
+                            fallback=move || {
+                                view! {
+                                    <div data-testid="cancel-confirmation">
+                                        <p>{t!(i18n, season_cancel_confirm_prompt)}</p>
+                                        <div class="flex flex-wrap gap-3 mt-2">
+                                            <leptos::form::ActionForm action=cancel_action>
+                                                <button
+                                                    class="btn"
+                                                    data-variant="destructive"
+                                                    type="submit"
+                                                    data-testid="cancel-confirm-button"
+                                                    disabled=move || cancel_pending.get() || !hydrated.get()
+                                                >
+                                                    {move || if cancel_pending.get() {
+                                                        "Скасовую...".into_any()
+                                                    } else {
+                                                        t!(i18n, season_cancel_confirm_yes).into_any()
+                                                    }}
+                                                </button>
+                                            </leptos::form::ActionForm>
+                                            <button
+                                                class="btn"
+                                                data-variant="secondary"
+                                                type="button"
+                                                data-testid="cancel-back-button"
+                                                on:click=move |_| set_confirming.set(false)
+                                            >
+                                                {t!(i18n, season_cancel_confirm_no)}
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        >
                             <button
                                 class="btn"
                                 data-variant="destructive"
-                                type="submit"
+                                type="button"
                                 data-testid="cancel-button"
-                                disabled=move || cancel_pending.get() || !hydrated.get()
+                                disabled=move || !hydrated.get()
+                                on:click=move |_| set_confirming.set(true)
                             >
-                                {move || if cancel_pending.get() {
-                                    "Скасовую...".into_any()
-                                } else {
-                                    t!(i18n, season_cancel_button).into_any()
-                                }}
+                                {t!(i18n, season_cancel_button)}
                             </button>
-                        </leptos::form::ActionForm>
+                        </Show>
                     }
                         .into_any()
                 } else {

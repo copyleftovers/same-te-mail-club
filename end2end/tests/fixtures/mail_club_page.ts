@@ -328,12 +328,13 @@ export class MailClubPage {
 
   async cancelSeason() {
     await this.page.goto("/admin/season");
+    await this.page.getByTestId("cancel-button").click();
+    await expect(this.page.getByTestId("cancel-confirmation")).toBeVisible();
     await this.clickAndWaitForResponse(
-      this.page.getByTestId("cancel-button"),
+      this.page.getByTestId("cancel-confirm-button"),
       "cancel_season",
     );
-    // Wait for cancel to complete.
-    await expect(this.page.getByTestId("cancel-button")).not.toBeVisible();
+    await expect(this.page.getByTestId("cancel-confirm-button")).not.toBeVisible();
   }
 
   // ── Admin: assignments (Stories 3.1, 3.3) ──

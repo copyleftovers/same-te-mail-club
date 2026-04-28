@@ -566,12 +566,12 @@ test.describe.serial("The Mail Club", () => {
       await app.expectDashboardContent(/cancelled|скасовано|no active|create/i);
     });
 
-    // Architecture Home Screen: no active season
+    // Architecture Home Screen: cancelled season — Story 4.3 AC
     test("home screen — no active season after cancel", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.goHome();
-      await app.expectHomeContent(/no season|немає сезону|SMS/i);
+      await expect(app.page.getByTestId("season-cancelled")).toBeVisible();
     });
   });
 
