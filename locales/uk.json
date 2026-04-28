@@ -68,6 +68,7 @@
   "season_confirmed_label": "Підтверджено",
   "season_launch_button": "Запустити",
   "season_advance_button": "Далі",
+  "season_advance_blocked_hint": "Спочатку опублікуй призначення на сторінці Розподілу.",
   "season_cancel_button": "Скасувати",
   "season_cancel_confirm_prompt": "Ви впевнені? Це вплине на всіх зареєстрованих учасників.",
   "season_cancel_confirm_yes": "Так, скасувати",
@@ -140,5 +141,9 @@
   "app_title": "Саме Те",
   "app_not_found": "Сторінку не знайдено.",
   "home_reveal_button_label": "Натисни, щоб побачити свого отримувача",
-  "home_revealed_label": "Отримувача розкрито"
+  "home_revealed_label": "Отримувача розкрито",
+  "sms_count_active_users": "→ {{ count }} активних користувачів",
+  "sms_count_unnotified_senders": "→ {{ count }} не отримали повідомлення",
+  "sms_count_unconfirmed_enrolled": "→ {{ count }} не підтвердили готовність",
+  "sms_count_no_response": "→ {{ count }} без відповіді"
 }

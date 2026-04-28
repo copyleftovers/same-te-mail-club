@@ -19,6 +19,22 @@ pub struct SmsReport {
     pub failed_phones: Vec<String>,
 }
 
+/// Target counts for each SMS batch type.
+///
+/// Returned before the organizer sends — lets them know how many recipients
+/// each SMS batch will reach without having to trigger the send to find out.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SmsCounts {
+    /// Active participants who will receive the season-open notification.
+    pub active_user_count: i64,
+    /// Senders in the current assignment/delivery season not yet notified.
+    pub unnotified_sender_count: i64,
+    /// Enrolled users in the preparation phase who have not confirmed ready.
+    pub unconfirmed_enrolled_count: i64,
+    /// Recipients in the delivery phase who have not responded.
+    pub no_response_count: i64,
+}
+
 /// SSR-only row type for assignment notification targets.
 #[cfg(feature = "ssr")]
 struct AssignmentTarget {
@@ -295,12 +311,78 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     })
 }
 
+/// Story 4.4: Target counts for each SMS batch type (admin only).
+///
+/// Fetched before the organizer sends so they know how many people will receive
+/// each message. Counts are live: they update after each send.
+///
+/// # Errors
+///
+/// Returns `Err` if the caller is not admin or DB fails.
+#[server]
+pub async fn get_sms_counts() -> Result<SmsCounts, ServerFnError> {
+    use crate::auth;
+
+    let (pool, _user) = auth::require_admin().await?;
+
+    let active_user_count = sqlx::query_scalar!(
+        r#"SELECT COUNT(*) AS "count!: i64" FROM users WHERE status = 'active' AND role = 'participant'"#,
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(db_err)?;
+
+    let unnotified_sender_count = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) AS "count!: i64"
+        FROM assignments a
+        JOIN seasons s ON a.season_id = s.id
+        WHERE s.phase IN ('assignment', 'delivery') AND a.notified_at IS NULL
+        "#,
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(db_err)?;
+
+    let unconfirmed_enrolled_count = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) AS "count!: i64"
+        FROM enrollments e
+        JOIN seasons s ON e.season_id = s.id
+        WHERE s.phase = 'preparation' AND e.confirmed_ready_at IS NULL
+        "#,
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(db_err)?;
+
+    let no_response_count = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) AS "count!: i64"
+        FROM assignments a
+        JOIN seasons s ON a.season_id = s.id
+        WHERE s.phase = 'delivery' AND a.receipt_status = 'no_response'
+        "#,
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(db_err)?;
+
+    Ok(SmsCounts {
+        active_user_count,
+        unnotified_sender_count,
+        unconfirmed_enrolled_count,
+        no_response_count,
+    })
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /// Admin SMS batch trigger page.
 ///
 /// Each button fires one batch SMS job; result shown in `sms-report`.
 /// Uses four separate actions so the result of each is tracked independently.
+/// Target counts are displayed adjacent to each button and refresh after each send.
 #[component]
 pub fn SmsPage() -> impl IntoView {
     let i18n = use_i18n();
@@ -311,6 +393,18 @@ pub fn SmsPage() -> impl IntoView {
     let receipt_nudge_action = ServerAction::<SendReceiptNudgeSms>::new();
 
     let hydrated = use_hydrated();
+
+    // Counts refetch whenever any SMS action completes (version changes).
+    // Sum all four action versions so any one of them triggers a refetch.
+    let counts = Resource::new(
+        move || {
+            season_open_action.version().get()
+                + assignment_action.version().get()
+                + confirm_nudge_action.version().get()
+                + receipt_nudge_action.version().get()
+        },
+        |_| get_sms_counts(),
+    );
 
     // Toast feedback for successful SMS sends
     Effect::new(move |_| {
@@ -349,14 +443,29 @@ pub fn SmsPage() -> impl IntoView {
                 i18n,
             )}
 
-            {render_sms_triggers(
-                season_open_action,
-                assignment_action,
-                confirm_nudge_action,
-                receipt_nudge_action,
-                hydrated,
-                i18n,
-            )}
+            <Suspense fallback=|| ()>
+                {move || {
+                    let c = counts.get().and_then(Result::ok);
+                    let active_user_count = c.as_ref().map_or(0, |x| x.active_user_count);
+                    let unnotified_sender_count =
+                        c.as_ref().map_or(0, |x| x.unnotified_sender_count);
+                    let unconfirmed_enrolled_count =
+                        c.as_ref().map_or(0, |x| x.unconfirmed_enrolled_count);
+                    let no_response_count = c.as_ref().map_or(0, |x| x.no_response_count);
+                    render_sms_triggers(
+                        season_open_action,
+                        assignment_action,
+                        confirm_nudge_action,
+                        receipt_nudge_action,
+                        hydrated,
+                        i18n,
+                        active_user_count,
+                        unnotified_sender_count,
+                        unconfirmed_enrolled_count,
+                        no_response_count,
+                    )
+                }}
+            </Suspense>
         </div>
     }
 }
@@ -420,7 +529,10 @@ fn render_sms_status(
     }
 }
 
-/// Renders the four SMS trigger sections.
+/// Renders the four SMS trigger sections with live target counts.
+// Four parallel sections (open, assign, confirm-nudge, receipt-nudge) × button + count span
+// each. Extracting further would scatter a flat structure into 4+ tiny helpers with no gain.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn render_sms_triggers(
     season_open_action: ServerAction<SendSeasonOpenSms>,
     assignment_action: ServerAction<SendAssignmentSms>,
@@ -428,6 +540,10 @@ fn render_sms_triggers(
     receipt_nudge_action: ServerAction<SendReceiptNudgeSms>,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+    active_user_count: i64,
+    unnotified_sender_count: i64,
+    unconfirmed_enrolled_count: i64,
+    no_response_count: i64,
 ) -> impl IntoView {
     let season_open_pending = season_open_action.pending();
     let assignment_pending = assignment_action.pending();
@@ -436,89 +552,148 @@ fn render_sms_triggers(
 
     view! {
         <section class="flex flex-col gap-3">
-            // Story 5.3: Season-open — target all active users
-            <div class="sms-trigger">
-                <h2>{t!(i18n, sms_season_open_section_title)}</h2>
-                <p>{t!(i18n, sms_season_open_target)}</p>
-                <leptos::form::ActionForm action=season_open_action>
-                    <button
-                        class="btn"
-                        data-size="sm"
-                        type="submit"
-                        data-testid="send-season-open-button"
-                        disabled=move || season_open_pending.get() || !hydrated.get()
+            {render_sms_section(
+                t!(i18n, sms_season_open_section_title),
+                t!(i18n, sms_season_open_target),
+                view! {
+                    <leptos::form::ActionForm action=season_open_action>
+                        <button
+                            class="btn"
+                            data-size="sm"
+                            type="submit"
+                            data-testid="send-season-open-button"
+                            disabled=move || season_open_pending.get() || !hydrated.get()
+                        >
+                            {move || if season_open_pending.get() {
+                                "Надсилаю...".into_any()
+                            } else {
+                                t!(i18n, common_send_button).into_any()
+                            }}
+                        </button>
+                    </leptos::form::ActionForm>
+                },
+                view! {
+                    <span
+                        class="text-sm text-[--color-text-muted]"
+                        data-testid="sms-count-active-users"
                     >
-                        {move || if season_open_pending.get() {
-                            "Надсилаю...".into_any()
-                        } else {
-                            t!(i18n, common_send_button).into_any()
-                        }}
-                    </button>
-                </leptos::form::ActionForm>
-            </div>
+                        {t!(i18n, sms_count_active_users, count = active_user_count)}
+                    </span>
+                },
+            )}
 
-            // Story 5.1: Assignment notification — target senders with notified_at IS NULL
-            <div class="sms-trigger">
-                <h2>{t!(i18n, sms_assignment_section_title)}</h2>
-                <p>{t!(i18n, sms_assignment_target)}</p>
-                <leptos::form::ActionForm action=assignment_action>
-                    <button
-                        class="btn"
-                        data-size="sm"
-                        type="submit"
-                        data-testid="send-assignment-button"
-                        disabled=move || assignment_pending.get() || !hydrated.get()
+            {render_sms_section(
+                t!(i18n, sms_assignment_section_title),
+                t!(i18n, sms_assignment_target),
+                view! {
+                    <leptos::form::ActionForm action=assignment_action>
+                        <button
+                            class="btn"
+                            data-size="sm"
+                            type="submit"
+                            data-testid="send-assignment-button"
+                            disabled=move || assignment_pending.get() || !hydrated.get()
+                        >
+                            {move || if assignment_pending.get() {
+                                "Надсилаю...".into_any()
+                            } else {
+                                t!(i18n, common_send_button).into_any()
+                            }}
+                        </button>
+                    </leptos::form::ActionForm>
+                },
+                view! {
+                    <span
+                        class="text-sm text-[--color-text-muted]"
+                        data-testid="sms-count-unnotified-senders"
                     >
-                        {move || if assignment_pending.get() {
-                            "Надсилаю...".into_any()
-                        } else {
-                            t!(i18n, common_send_button).into_any()
-                        }}
-                    </button>
-                </leptos::form::ActionForm>
-            </div>
+                        {t!(i18n, sms_count_unnotified_senders, count = unnotified_sender_count)}
+                    </span>
+                },
+            )}
 
-            // Story 5.4: Pre-deadline nudge — target unconfirmed enrolled
-            <div class="sms-trigger">
-                <h2>{t!(i18n, sms_confirm_nudge_section_title)}</h2>
-                <p>{t!(i18n, sms_confirm_nudge_target)}</p>
-                <leptos::form::ActionForm action=confirm_nudge_action>
-                    <button
-                        class="btn"
-                        data-size="sm"
-                        type="submit"
-                        data-testid="send-confirm-nudge-button"
-                        disabled=move || confirm_nudge_pending.get() || !hydrated.get()
+            {render_sms_section(
+                t!(i18n, sms_confirm_nudge_section_title),
+                t!(i18n, sms_confirm_nudge_target),
+                view! {
+                    <leptos::form::ActionForm action=confirm_nudge_action>
+                        <button
+                            class="btn"
+                            data-size="sm"
+                            type="submit"
+                            data-testid="send-confirm-nudge-button"
+                            disabled=move || confirm_nudge_pending.get() || !hydrated.get()
+                        >
+                            {move || if confirm_nudge_pending.get() {
+                                "Надсилаю...".into_any()
+                            } else {
+                                t!(i18n, common_send_button).into_any()
+                            }}
+                        </button>
+                    </leptos::form::ActionForm>
+                },
+                view! {
+                    <span
+                        class="text-sm text-[--color-text-muted]"
+                        data-testid="sms-count-unconfirmed-enrolled"
                     >
-                        {move || if confirm_nudge_pending.get() {
-                            "Надсилаю...".into_any()
-                        } else {
-                            t!(i18n, common_send_button).into_any()
-                        }}
-                    </button>
-                </leptos::form::ActionForm>
-            </div>
+                        {t!(
+                            i18n,
+                            sms_count_unconfirmed_enrolled,
+                            count = unconfirmed_enrolled_count
+                        )}
+                    </span>
+                },
+            )}
 
-            // Story 5.2: Receipt nudge — target recipients with no_response
-            <div class="sms-trigger">
-                <h2>{t!(i18n, sms_receipt_nudge_section_title)}</h2>
-                <p>{t!(i18n, sms_receipt_nudge_target)}</p>
-                <leptos::form::ActionForm action=receipt_nudge_action>
-                    <button
-                        class="btn"
-                        data-size="sm"
-                        type="submit"
-                        data-testid="send-receipt-nudge-button"
-                        disabled=move || receipt_nudge_pending.get() || !hydrated.get()
+            {render_sms_section(
+                t!(i18n, sms_receipt_nudge_section_title),
+                t!(i18n, sms_receipt_nudge_target),
+                view! {
+                    <leptos::form::ActionForm action=receipt_nudge_action>
+                        <button
+                            class="btn"
+                            data-size="sm"
+                            type="submit"
+                            data-testid="send-receipt-nudge-button"
+                            disabled=move || receipt_nudge_pending.get() || !hydrated.get()
+                        >
+                            {move || if receipt_nudge_pending.get() {
+                                "Надсилаю...".into_any()
+                            } else {
+                                t!(i18n, common_send_button).into_any()
+                            }}
+                        </button>
+                    </leptos::form::ActionForm>
+                },
+                view! {
+                    <span
+                        class="text-sm text-[--color-text-muted]"
+                        data-testid="sms-count-no-response"
                     >
-                        {move || if receipt_nudge_pending.get() {
-                            "Надсилаю...".into_any()
-                        } else {
-                            t!(i18n, common_send_button).into_any()
-                        }}
-                    </button>
-                </leptos::form::ActionForm>
-            </div>
+                        {t!(i18n, sms_count_no_response, count = no_response_count)}
+                    </span>
+                },
+            )}
         </section>
+    }
+}
+
+/// Renders a single SMS trigger section: heading, description, button, and count.
+fn render_sms_section(
+    title: impl IntoView,
+    description: impl IntoView,
+    button: impl IntoView,
+    count_label: impl IntoView,
+) -> impl IntoView {
+    view! {
+        <div class="sms-trigger">
+            <h2>{title}</h2>
+            <p>{description}</p>
+            <div class="flex items-center gap-3">
+                {button}
+                {count_label}
+            </div>
+        </div>
     }
 }

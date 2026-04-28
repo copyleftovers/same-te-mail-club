@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(*) AS \"count!: i64\"\n        FROM enrollments e\n        JOIN seasons s ON e.season_id = s.id\n        WHERE s.phase = 'preparation' AND e.confirmed_ready_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "47e5169fd6057f5b1bf1bb4503cb860ca9e88e6d9d5d5e6b1d19d56e74f2e97e"
+}
