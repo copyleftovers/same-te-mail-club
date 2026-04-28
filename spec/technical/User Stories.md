@@ -258,24 +258,86 @@ Then the season transitions to 'cancelled' and participants see that the season 
 - The cancel button uses destructive styling to signal severity
 - Cancel is only available in the UI after launch (unlaunched seasons are recreated, not cancelled)
 
-### Story 4.4: View season health at a glance
+### Story 4.4: See SMS target counts before sending
 
-**Outcome:** The organizer sees the current state and can make timely decisions without navigating to multiple admin pages.
+**Outcome:** The organizer knows exactly how many people will receive an SMS before triggering the send.
 
 ```
-Given the organizer opens the admin area
-When they view the dashboard
-Then they see the current phase, enrollment count, confirmation count, and any active alerts
+Given the organizer is about to send an SMS batch
+When they look at the send button
+Then they see the target count adjacent to it
 ```
 
 **AC:**
-- The dashboard is the admin landing page (`/admin`)
-- When no season exists: "no active season" with a link to season creation
-- When a non-terminal season exists: current phase (with visual stepper), theme (if set), enrolled count, confirmed count
-- When any participant has reported non-receipt: an alert surfaces to trigger the forwarding protocol
-- For terminal phases (complete, cancelled): reduced display with a "create new season" link
-- The dashboard shows the most recent season regardless of phase, including terminal ones, so the organizer sees final state before creating a new one
-- Read-only — no actions from the dashboard; all actions require navigating to the relevant admin page
+- Season-open SMS shows "→ N active users" before the button
+- Assignment SMS shows "→ N senders (M not yet notified)" before the button
+- Confirm nudge shows "→ N unconfirmed enrolled" before the button
+- Receipt nudge shows "→ N recipients with no response" before the button
+- Counts update after each send (reflecting the new state)
+
+### Story 4.5: Manage everything from one admin page
+
+**Outcome:** The organizer completes any season workflow without navigating between pages.
+
+```
+Given the organizer needs to check data and take action
+When they open /admin
+Then all relevant data and actions for the current phase are on one page
+```
+
+**AC:**
+- Single page at `/admin` with two sections: season (phase-aware) and participants
+- Season section content morphs by phase — enrollment shows enrolled count + advance button, assignment shows cycle visualization + generate/release, etc.
+- Participant registration, listing, and deactivation are always visible below
+- When no season exists, the create-season form appears in the season section
+- Terminal phases (complete, cancelled) show a summary with "create new season" option
+- All existing `data-testid` values preserved — E2E suite passes without POM changes
+
+### Story 4.6: See only relevant SMS actions per phase
+
+**Outcome:** The organizer cannot accidentally trigger an SMS that is irrelevant to the current phase.
+
+```
+Given the organizer is in a specific season phase
+When they look for SMS actions
+Then only the SMS actions relevant to that phase are visible
+```
+
+**AC:**
+- Enrollment phase: only season-open SMS visible
+- Preparation phase: only confirm nudge SMS visible
+- Delivery phase: assignment SMS and receipt nudge SMS visible
+- Other phases: no SMS actions shown
+- Irrelevant SMS buttons are hidden, not disabled — the organizer doesn't see options that don't apply
+
+### Story 4.7: Advance phase only when prerequisites are met
+
+**Outcome:** The organizer cannot accidentally skip a prerequisite step when advancing the season phase.
+
+```
+Given the organizer wants to advance to the next phase
+When the prerequisite for that transition has not been completed
+Then the advance button is disabled with a reason
+```
+
+**AC:**
+- Assignment → Delivery: advance disabled until assignments are released
+- Other transitions: advance enabled when the phase is reachable (existing server-side validation remains the final guard)
+
+### Story 4.8: Swap assignments by name, not UUID
+
+**Outcome:** The organizer selects participants by name when swapping assignments, instead of typing raw UUIDs.
+
+```
+Given the organizer wants to swap two participants' assignments
+When they open the swap form
+Then they select from dropdowns populated with participant names from the cycle
+```
+
+**AC:**
+- Swap form uses two `<select>` dropdowns populated from the cycle visualization
+- Each option shows the participant name with the UUID as the hidden value
+- The swap form is only visible after assignments are generated
 
 ---
 
