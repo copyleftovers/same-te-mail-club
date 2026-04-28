@@ -40,7 +40,7 @@ pub enum HomeState {
 
     /// Delivery phase, assignment exists, receipt not yet confirmed.
     Assigned {
-        season_id: String,
+        season_id: uuid::Uuid,
         recipient_name: String,
         recipient_phone: String,
         recipient_city: String,
@@ -216,7 +216,7 @@ async fn resolve_delivery_state(
             Ok(HomeState::ReceiptConfirmed)
         }
         _ => Ok(HomeState::Assigned {
-            season_id: season_id.to_string(),
+            season_id,
             recipient_name: a.recipient_name,
             recipient_phone: a.recipient_phone,
             recipient_city: a.nova_poshta_city,
@@ -730,39 +730,6 @@ fn render_enrollment_open(
     .into_any()
 }
 
-// Arguments mirror the Leptos render-function pattern: data + actions + signals.
-// Clippy's 7-argument limit is not meaningful here — these are all load-bearing.
-#[allow(clippy::too_many_arguments)]
-fn render_assigned_view(
-    season_id: &str,
-    recipient_name: &str,
-    recipient_phone: &str,
-    recipient_city: &str,
-    recipient_branch_number: i32,
-    receipt_action: ServerAction<ConfirmReceipt>,
-    hydrated: ReadSignal<bool>,
-    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
-    revealed: ReadSignal<bool>,
-    set_revealed: WriteSignal<bool>,
-    confetti_active: ReadSignal<bool>,
-    set_confetti_active: WriteSignal<bool>,
-) -> AnyView {
-    render_envelope_reveal(
-        season_id,
-        recipient_name,
-        recipient_phone,
-        recipient_city,
-        recipient_branch_number,
-        receipt_action,
-        hydrated,
-        i18n,
-        revealed,
-        set_revealed,
-        confetti_active,
-        set_confetti_active,
-    )
-}
-
 fn render_receipt_form(
     receipt_action: ServerAction<ConfirmReceipt>,
     receipt_pending: Memo<bool>,
@@ -1033,8 +1000,8 @@ fn render_home_state(
             recipient_phone,
             recipient_city,
             recipient_branch_number,
-        } => render_assigned_view(
-            &season_id,
+        } => render_envelope_reveal(
+            &season_id.to_string(),
             &recipient_name,
             &recipient_phone,
             &recipient_city,
