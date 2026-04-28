@@ -2,7 +2,7 @@
 
 Authoritative reference for writing, maintaining, and debugging Playwright E2E tests in this Leptos 0.8 project. Read this before touching any test file.
 
-For deep-dive research and alternative patterns, see `end2end/e2e-research.md`.
+For deep-dive research and alternative patterns, see `archive/e2e-research.md`.
 
 ---
 
@@ -534,7 +534,7 @@ A flaky test is a test with a missing wait. Find the missing synchronization poi
 
 ### Project-Specific
 
-- `end2end/e2e-research.md` — deep-dive research document with alternative patterns, timeout hierarchy, and Leptos-specific gotchas.
+- `archive/e2e-research.md` — deep-dive research document with alternative patterns, timeout hierarchy, and Leptos-specific gotchas.
 - `guidance/leptos-idioms.md` — Leptos 0.8 patterns used in this codebase, including the hydration gate and ActionForm conventions.
 - `archive/spec/E2E Test Blueprint.md` — original prescriptive test design doc (archived; tests are now built).
 - `spec/technical/User Stories.md` — acceptance criteria that tests are derived from. Every test traces to a story number.

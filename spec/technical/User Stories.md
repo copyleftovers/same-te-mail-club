@@ -321,7 +321,6 @@ Then the participant cannot enroll in future seasons and does not receive season
 
 - **In-app social graph management:** Organizer edits database directly in season 1; in-app UI for defining/editing known groups deferred until team grows
 - **Season status view:** Participant sees where they are in the current season (enrolled, confirmed, assigned, received). Currently implied by which actions are available, but no explicit "here's what's happening" screen
-- **Organizer dashboard:** Season health at a glance — enrolled count, confirmed count, received count, outstanding actions. Organizer queries the database directly in season 1
 - **Season history view:** Participant sees their past seasons, who they sent to, who sent to them → deferred until multi-season data exists
 - **Meetup scheduling/RSVP:** Handled manually in season 1
 - **Participant profiles:** No profiles — identity is revealed through mail and meetups, not through an app

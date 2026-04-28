@@ -1,6 +1,6 @@
 # Codebase State
 
-Last updated: 2026-04-20
+Last updated: 2026-04-27
 
 ## Module Inventory
 
@@ -24,8 +24,8 @@ Last updated: 2026-04-20
 ## E2E Test Suite
 
 - **Total:** 58 tests across 3 serial blocks
-- **Pass rate:** ~~58/58 (verified 2026-04-10)~~ — superseded 2026-04-20: prior claim was based on a single run (against project conventions). UNSTABLE as of 2026-04-20 — fresh 3-run verification returned 0/3 green; failures are SSR/hydration timeouts at 30s on `/login`, post-login redirects, and `/admin/*` pages. Last reliably-stable date unknown; D7 tracks investigation. Suite ran 58 tests; structure preserved.
-- **Runtime:** 54.8s (dev), 18.2s (release) — based on green runs; current runtime indeterminate
+- **Pass rate:** 58/58 — CI-verified stable (3 consecutive green runs as of 2026-04-27)
+- **Runtime:** 18.2s (release, CI)
 - **Structure:** Main lifecycle chain (53 tests) + Account Management (3) + Session Management (2)
 - **Fixture:** `cached-context.ts` caches WASM/JS/CSS/fonts across tests
 - **Pre-compression:** `precompress-and-test.sh` runs before every E2E
@@ -46,22 +46,9 @@ Last updated: 2026-04-20
 - macOS linker: classic (`-Wl,-ld_classic`) due to Apple ld assertion bug with thin LTO
 - GitHub Actions CI: `.github/workflows/ci.yml` — `check` job + `e2e` job with Postgres service
 
-## SSR Timeout
-
-- REMOVED 2026-04-20 — the router-wide `tokio::time::timeout` middleware was incompatible with Leptos Suspense streaming (futures dropped mid-render leave Suspense boundaries unresolved, identical to Playwright's own 30s navigation timeout). D1 reopened. Future approach: per-Resource timeouts inside Suspense rather than router-level middleware.
-
 ## Known Limitations
 
-1. Leptos SSR has no timeout — D1 reopened 2026-04-20 (prior 30s middleware reverted, see SSR Timeout section)
+1. Leptos SSR has no per-Resource timeout (router-level middleware was incompatible with Suspense streaming)
 2. `leptos_config` pulls `regex` into WASM dependency tree (LTO eliminates it, but compilation is slower)
-3. Docker Postgres adds latency vs native — may contribute to marginal E2E flakiness
-4. `CompressionLayer` still re-compresses SSR HTML on the fly (small, fast — not a bottleneck)
-5. ~~No CI pipeline~~ — RESOLVED: GitHub Actions pipeline added
-6. E2E suite UNSTABLE as of 2026-04-20 — D7 tracks SSR/hydration timeout investigation
-7. CI runs `check` job only as of 2026-04-20 — D8 tracks re-adding `e2e` job once D7 closes
-
-## Next Actions (Priority Order)
-
-1. Close D7: root-cause + fix the E2E suite SSR/hydration flakiness (Phase A in progress)
-2. Close D8: re-add `e2e` job to CI workflow once D7 closes and 3 consecutive green runs are demonstrated
-3. File upstream issue: `leptos_config` regex dependency (low priority — LTO handles it)
+3. Docker Postgres adds latency vs native
+4. `CompressionLayer` re-compresses SSR HTML on the fly (small, fast — not a bottleneck)

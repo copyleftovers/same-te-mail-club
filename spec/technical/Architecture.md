@@ -58,7 +58,7 @@ This architecture is governed by two manifestos, active for the duration of desi
 | Database | sqlx | 0.8.x | Compile-time checked queries, Postgres-native. Features: `runtime-tokio`, `postgres`, `macros`, `uuid`, `time` |
 | HTTP client | reqwest | 0.13.x | TurboSMS API calls. Features: `json` |
 | Async runtime | tokio | 1.x | Features: `full` |
-| Error types | thiserror | 1.x | Typed error enums for domain and infra errors |
+| Error types | thiserror | 2.x | Typed error enums for domain and infra errors |
 | Error propagation | anyhow | 1.x | `.context()` in application logic |
 | Serialization | serde | 1.x | Features: `derive` |
 | JSON | serde_json | 1.x | Request/response bodies |
@@ -354,15 +354,25 @@ src/
   phone.rs             — Phone number normalization and validation
   db.rs                — PgPool setup, migration, shared query helpers
   types.rs             — Shared domain types (Phase, UserRole, UserStatus, ReceiptStatus enums)
+  assignment.rs        — Assignment algorithm (cohort splitting, cycle generation, social scoring)
+  date_format.rs       — Date formatting utilities for display
+  hooks.rs             — Shared Leptos reactive hooks
+  i18n.rs              — Localisation helpers
+  pages.rs             — pages module declaration
 
   pages/
     login.rs           — Phone input + OTP verification
     onboarding.rs      — Nova Poshta city + branch number selection
-    season.rs          — Participant season view (enroll, confirm, assignment, receipt)
-    home.rs            — Landing / current state
+    home.rs            — Participant dashboard: all season states (enroll, confirm, assignment, receipt)
+
+  components/
+    mod.rs             — components module declaration
+    stepper.rs         — Step progress indicator component
+    toast.rs           — Toast notification component
 
   admin/
     mod.rs             — Admin route tree
+    nav.rs             — Admin navigation component
     dashboard.rs       — Season overview, confirmed count, action buttons
     participants.rs    — Register new, list, deactivate
     season.rs          — Create, launch, advance phase
@@ -370,7 +380,7 @@ src/
     sms.rs             — Trigger SMS batches (assignment notifications, nudges, season-open)
 ```
 
-One file per module. No `mod.rs` pattern (except `admin/mod.rs` for the route subtree). Public types in `types.rs`, re-exported from `lib.rs` where needed.
+One file per module. No `mod.rs` pattern (except `admin/mod.rs` and `components/mod.rs`). Public types in `types.rs`, re-exported from `lib.rs` where needed.
 
 ### Context Injection
 
@@ -394,8 +404,7 @@ Any server function:
 |------|-----------|------|---------|---------|
 | `/login` | Login | No | Async | Phone input + OTP |
 | `/onboarding` | Onboarding | Yes | Async | Nova Poshta branch (first login only) |
-| `/` | Home | Yes | Async | Current season state, next action |
-| `/season` | Season | Yes | Async | Enroll, confirm, view assignment, confirm receipt |
+| `/` | Home | Yes | Async | Current season state + next action (enroll, confirm, assignment, receipt — all in one component) |
 
 **Admin routes:**
 

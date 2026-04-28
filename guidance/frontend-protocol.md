@@ -267,10 +267,4 @@ Changes from landing page: `z-index: 1` (was 100), `opacity: 0.04` (was 0.09), `
 
 ## Sources
 
-All decisions trace to `ai-driven-research/same-te-design-system/surveys/`:
-- `brand-guidelines.md` — official PDF palette, typography, logo rules
-- `font-system.md` — woff2 file selection, weight rationale, @font-face declarations
-- `logo-system.md` — SVG variant mapping, app recommendations
-- `tailwind-setup.md` — cargo-leptos integration, v4 config, source detection
-- `css-patterns.md` — token architecture, component patterns, variant system, form styling
-- `landing-page-analysis.md` — contrast failures, clipping, grain behavior, app-scale concerns
+All decisions in this document trace to structured research surveys (brand guidelines, font system, logo system, Tailwind setup, CSS patterns, landing page analysis) conducted during design system development. The original research artifacts are not preserved in the repository — their conclusions are fully encoded in this document and `guidance/design-system.md`.

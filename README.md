@@ -45,12 +45,17 @@ just dev
 | `just dev` | Start dev server with hot reload |
 | `just test` | Run unit tests |
 | `just clippy` | Run clippy on all targets |
-| `just e2e` | Run Playwright E2E tests |
-| `just build` | Release build |
+| `just e2e` | Run Playwright E2E tests (full pipeline: reset DB, seed, build, test) |
+| `just e2e-single <pattern>` | Run a single test by grep pattern (includes DB reset and rebuild) |
+| `just e2e-rerun` | Re-run E2E without DB reset (server must already be running) |
+| `just e2e-release` | E2E tests against release build |
+| `just build` | Release build with pre-compressed static assets |
+| `just serve` | Build release and run the binary |
 | `just check` | Full validation (fmt + clippy + test) |
 | `just db-migrate` | Run pending migrations |
 | `just db-reset` | Drop, create, and migrate database |
 | `just db-new <name>` | Create a new migration |
+| `just db-seed` | Insert test admin user (used by E2E pipeline) |
 | `just prepare` | Generate sqlx offline query data |
 | `bacon` | Continuous clippy (default: SSR target) |
 
@@ -60,22 +65,34 @@ Bacon keybindings: `s` (SSR clippy), `h` (hydrate clippy), `t` (tests).
 
 ```
 src/
-  main.rs       — SSR entry point, server setup
-  lib.rs        — WASM hydrate entry point
-  app.rs        — shell(), App component, route definitions
-  auth.rs       — OTP flow, session management, CSRF
-  sms.rs        — TurboSMS API client
-  config.rs     — Config from environment variables
-  error.rs      — AppError enum
-  phone.rs      — Phone number normalization
-  db.rs         — PgPool setup, migrations
-  types.rs      — Phase enum, newtypes, shared domain types
-  pages/        — Participant-facing page components
-  admin/        — Organizer-facing admin components
+  main.rs         — SSR entry point, server setup
+  lib.rs          — WASM hydrate entry point
+  app.rs          — shell(), App component, route definitions
+  auth.rs         — OTP flow, session management
+  sms.rs          — TurboSMS API client
+  config.rs       — Config from environment variables
+  error.rs        — AppError enum
+  phone.rs        — Phone number normalization
+  db.rs           — PgPool setup, migrations
+  types.rs        — Phase enum, newtypes, shared domain types
+  assignment.rs   — Assignment algorithm
+  date_format.rs  — Date formatting utilities
+  hooks.rs        — Shared Leptos hooks
+  i18n.rs         — i18n setup
+  pages.rs        — Page module declarations
+  pages/          — Participant-facing page components
+  admin/          — Organizer-facing admin components
+  components/     — Shared UI components
+spec/           — Product specs, user stories, architecture
+guidance/       — Binding implementation rules
+orchestration_log/ — Session state and institutional memory
 migrations/     — sqlx SQL migrations
 end2end/        — Playwright E2E tests
-style/          — CSS
-public/         — Static assets
+style/          — Tailwind CSS
+public/         — Static assets (fonts, logos)
+locales/        — i18n translation files
+seed/           — Test data SQL
+archive/        — Consumed specs and research
 ```
 
 ## Spec
