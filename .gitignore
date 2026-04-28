@@ -16,3 +16,4 @@ node_modules/
 tests/seed.spec.ts
 end2end/results.json
 orchestration_log/recon/
+orchestration_log/reference/implementation_plan.md
