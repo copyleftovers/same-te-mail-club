@@ -294,7 +294,11 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
         Phase::Preparation => resolve_preparation_state(&pool, user.id, &season, confirm_str).await,
         Phase::Assignment => Ok(HomeState::Assigning),
         Phase::Delivery => resolve_delivery_state(&pool, user.id, season.id).await,
-        Phase::Complete | Phase::Cancelled => Ok(HomeState::Complete),
+        // Cancelled is excluded by the SQL WHERE predicate; only Complete reaches here
+        Phase::Complete => Ok(HomeState::Complete),
+        Phase::Cancelled => {
+            unreachable!("cancelled seasons are excluded by the SQL WHERE predicate")
+        }
     }
 }
 
@@ -583,9 +587,6 @@ pub fn HomePage() -> impl IntoView {
                 set_revealed.set(true);
             }
         }
-        // On SSR, just track the resource to satisfy the reactive dependency.
-        #[cfg(feature = "ssr")]
-        let _ = home_state.get();
     });
 
     // Toast feedback for successful actions
@@ -844,42 +845,43 @@ fn render_envelope_reveal(
 ) -> AnyView {
     let receipt_pending = receipt_action.pending();
 
-    // Capture the season-scoped localStorage key for use in the reveal closure.
-    // Only used on the client side; the format!() call is gated to avoid the
-    // dead-code lint on the SSR build. The parameter itself is named with a
-    // leading underscore on SSR via cfg_attr to silence the unused-variable lint.
-    #[cfg(not(feature = "ssr"))]
-    let ls_key = format!("assignment_revealed_{season_id}");
-    // Suppress unused-parameter lint on SSR where season_id is client-only.
+    // Suppress unused-parameter lints on SSR where these are client-only.
     #[cfg(feature = "ssr")]
-    let _ = season_id;
+    let _ = (season_id, set_revealed, set_confetti_active);
 
-    // ls_key is a String (non-Copy). Clone it into each event closure so both the
-    // click handler and the keydown handler can each capture their own copy.
+    // Shared reveal closure: guards against re-reveal, updates signals, persists to
+    // localStorage, and schedules confetti teardown. Defined once and called from both
+    // the click handler and the keydown handler to eliminate duplication.
     #[cfg(not(feature = "ssr"))]
-    let ls_key_click = ls_key.clone();
-    #[cfg(not(feature = "ssr"))]
-    let ls_key_kd = ls_key;
+    let do_reveal = {
+        let ls_key = format!("assignment_revealed_{season_id}");
+        move || {
+            if !revealed.get_untracked() {
+                set_revealed.set(true);
+                set_confetti_active.set(true);
+                if let Some(window) = web_sys::window()
+                    && let Ok(Some(storage)) = window.local_storage()
+                {
+                    let _ = storage.set_item(&ls_key, "true");
+                }
+                leptos::prelude::set_timeout(
+                    move || set_confetti_active.set(false),
+                    std::time::Duration::from_millis(1200),
+                );
+            }
+        }
+    };
+    #[cfg(feature = "ssr")]
+    let do_reveal = move || {};
 
     let on_keydown = {
         #[cfg(not(feature = "ssr"))]
         {
+            let do_reveal = do_reveal.clone();
             move |ev: web_sys::KeyboardEvent| {
                 if ev.key() == "Enter" || ev.key() == " " {
                     ev.prevent_default();
-                    if !revealed.get_untracked() {
-                        set_revealed.set(true);
-                        set_confetti_active.set(true);
-                        if let Some(window) = web_sys::window()
-                            && let Ok(Some(storage)) = window.local_storage()
-                        {
-                            let _ = storage.set_item(&ls_key_kd, "true");
-                        }
-                        leptos::prelude::set_timeout(
-                            move || set_confetti_active.set(false),
-                            std::time::Duration::from_millis(1200),
-                        );
-                    }
+                    do_reveal();
                 }
             }
         }
@@ -911,24 +913,7 @@ fn render_envelope_reveal(
             } else {
                 t_string!(i18n, home_reveal_button_label)
             }
-            on:click=move |_| {
-                if !revealed.get_untracked() {
-                    set_revealed.set(true);
-                    set_confetti_active.set(true);
-                    #[cfg(not(feature = "ssr"))]
-                    {
-                        if let Some(window) = web_sys::window()
-                            && let Ok(Some(storage)) = window.local_storage()
-                        {
-                            let _ = storage.set_item(&ls_key_click, "true");
-                        }
-                        leptos::prelude::set_timeout(
-                            move || set_confetti_active.set(false),
-                            std::time::Duration::from_millis(1200),
-                        );
-                    }
-                }
-            }
+            on:click=move |_| do_reveal()
             on:keydown=on_keydown
         >
             <div class="envelope-body" aria-hidden="true">
@@ -1077,8 +1062,8 @@ fn render_home_state(
 
         HomeState::Cancelled => view! {
             <div data-testid="season-cancelled">
-                <h2 class="font-display text-xl">{t!(i18n, home_season_cancelled_title)}</h2>
-                <p class="text-muted">{t!(i18n, home_season_cancelled_body)}</p>
+                <h2>{t!(i18n, home_season_cancelled_title)}</h2>
+                <p class="text-(--color-text-muted)">{t!(i18n, home_season_cancelled_body)}</p>
             </div>
         }
         .into_any(),
@@ -1106,5 +1091,11 @@ mod tests {
         let future = time::OffsetDateTime::now_utc() + time::Duration::hours(1);
         assert!(!is_past_deadline(future, false));
         assert!(!is_past_deadline(future, true));
+    }
+
+    #[test]
+    fn deadline_exactly_now_is_not_blocked() {
+        let now = time::OffsetDateTime::now_utc();
+        assert!(!is_past_deadline(now, false));
     }
 }
