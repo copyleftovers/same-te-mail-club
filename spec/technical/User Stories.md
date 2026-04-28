@@ -50,6 +50,23 @@ Then their Nova Poshta branch is saved and they can enroll in seasons
 - Participant can update their branch later (during season enrollment or in settings)
 - Onboarding completes only once — returning participants skip it
 
+### Story 1.4: Sign out
+
+**Outcome:** The session is destroyed and the device is no longer authenticated.
+
+```
+Given an authenticated user (participant or admin)
+When they click the logout button
+Then their session is destroyed server-side and they are redirected to the login page
+```
+
+**AC:**
+- Logout is available on every authenticated page (both participant and admin navigation)
+- The server function deletes the session row from the database — server-side invalidation, not just cookie clearing
+- After logout, the user is redirected to the login page
+- Logout always succeeds — a corrupt or already-expired session never traps the user
+- Both participant and admin share the same logout mechanism
+
 ---
 
 ## Epic 2: Participate in a Season
@@ -107,6 +124,12 @@ Then they see their recipient's real name, phone number, and Nova Poshta branch
 - An SMS nudge is sent when assignment is available
 - The participant sees ONLY their own recipient — no other cohort information
 - No information about who is sending TO them
+- Assignment details are initially hidden inside an interactive envelope element
+- The participant must click, tap, or press Enter/Space to reveal their recipient
+- A brief celebratory animation plays on first reveal (suppressed under `prefers-reduced-motion: reduce`)
+- The reveal state is persisted per season — each new season delivers a fresh reveal experience
+- On subsequent visits within the same season, details are shown immediately without animation
+- The envelope is keyboard-accessible (`role="button"`, `tabindex="0"`, `aria-expanded`)
 
 ### Story 2.4: Confirm mail received
 
@@ -215,6 +238,45 @@ Then enrollment opens and all pool members receive an SMS notification
 - Enrollment opens immediately upon launch
 - The organizer can preview before launching but cannot un-launch
 
+### Story 4.3: Cancel a season
+
+**Outcome:** The system returns to a clean state when proceeding is infeasible.
+
+```
+Given an active season in any non-terminal phase
+When the organizer cancels the season
+Then the season transitions to 'cancelled' and participants see that the season was cancelled
+```
+
+**AC:**
+- Only the organizer can cancel — admin role required
+- Cancellation succeeds from any non-terminal phase (enrollment, preparation, assignment, delivery)
+- Terminal phases (complete, cancelled) cannot be cancelled again
+- Cancellation requires a confirmation step before submitting (destructive action affecting enrolled participants)
+- After cancellation, participants see a distinct "season cancelled" state, not the generic "no active season" message
+- No SMS notification on cancellation — participants discover the state change passively
+- The cancel button uses destructive styling to signal severity
+- Cancel is only available in the UI after launch (unlaunched seasons are recreated, not cancelled)
+
+### Story 4.4: View season health at a glance
+
+**Outcome:** The organizer sees the current state and can make timely decisions without navigating to multiple admin pages.
+
+```
+Given the organizer opens the admin area
+When they view the dashboard
+Then they see the current phase, enrollment count, confirmation count, and any active alerts
+```
+
+**AC:**
+- The dashboard is the admin landing page (`/admin`)
+- When no season exists: "no active season" with a link to season creation
+- When a non-terminal season exists: current phase (with visual stepper), theme (if set), enrolled count, confirmed count
+- When any participant has reported non-receipt: an alert surfaces to trigger the forwarding protocol
+- For terminal phases (complete, cancelled): reduced display with a "create new season" link
+- The dashboard shows the most recent season regardless of phase, including terminal ones, so the organizer sees final state before creating a new one
+- Read-only — no actions from the dashboard; all actions require navigating to the relevant admin page
+
 ---
 
 ## Epic 5: SMS Notifications
@@ -315,6 +377,10 @@ Then the participant cannot enroll in future seasons and does not receive season
                                                                                                                          2.4 (receive-confirm) → 5.2 (SMS)
 
 4.1 (create season) → 4.2 (launch season) → 5.3 (season-open SMS) → 2.1 (enroll)
+
+1.4 (sign out) — available from any authenticated state, no dependency chain
+4.3 (cancel season) — branches from any non-terminal phase after 4.2; alternative to proceeding
+4.4 (dashboard) — depends on 4.1 (season must exist); read-only view
 ```
 
 ## Deferred Stories
