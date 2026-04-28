@@ -40,6 +40,7 @@ pub enum HomeState {
 
     /// Delivery phase, assignment exists, receipt not yet confirmed.
     Assigned {
+        season_id: String,
         recipient_name: String,
         recipient_phone: String,
         recipient_city: String,
@@ -215,6 +216,7 @@ async fn resolve_delivery_state(
             Ok(HomeState::ReceiptConfirmed)
         }
         _ => Ok(HomeState::Assigned {
+            season_id: season_id.to_string(),
             recipient_name: a.recipient_name,
             recipient_phone: a.recipient_phone,
             recipient_city: a.nova_poshta_city,
@@ -561,6 +563,31 @@ pub fn HomePage() -> impl IntoView {
     let hydrated = use_hydrated();
     let set_toast = use_toast();
 
+    // Envelope reveal signals live at component level, outside Suspense, so they
+    // survive resource refetches without being re-created (see Finding 4 triage).
+    let (revealed, set_revealed) = signal(false);
+    let (confetti_active, set_confetti_active) = signal(false);
+
+    // Read localStorage once per component lifetime. The season_id is not yet
+    // available here, so we track it reactively via home_state below.
+    // The Effect below fires whenever home_state resolves with an Assigned variant,
+    // ensuring we always use the season-scoped key.
+    Effect::new(move |_| {
+        #[cfg(not(feature = "ssr"))]
+        if let Some(Ok(HomeState::Assigned { ref season_id, .. })) = home_state.get() {
+            let key = format!("assignment_revealed_{season_id}");
+            if let Some(window) = web_sys::window()
+                && let Ok(Some(storage)) = window.local_storage()
+                && let Ok(Some(_)) = storage.get_item(&key)
+            {
+                set_revealed.set(true);
+            }
+        }
+        // On SSR, just track the resource to satisfy the reactive dependency.
+        #[cfg(feature = "ssr")]
+        let _ = home_state.get();
+    });
+
     // Toast feedback for successful actions
     Effect::new(move |_| {
         if let Some(Ok(())) = enroll_action.value().get() {
@@ -617,6 +644,10 @@ pub fn HomePage() -> impl IntoView {
                                     receipt_action,
                                     hydrated,
                                     i18n,
+                                    revealed,
+                                    set_revealed,
+                                    confetti_active,
+                                    set_confetti_active,
                                 )
                             }
                         })
@@ -698,7 +729,11 @@ fn render_enrollment_open(
     .into_any()
 }
 
+// Arguments mirror the Leptos render-function pattern: data + actions + signals.
+// Clippy's 7-argument limit is not meaningful here — these are all load-bearing.
+#[allow(clippy::too_many_arguments)]
 fn render_assigned_view(
+    season_id: &str,
     recipient_name: &str,
     recipient_phone: &str,
     recipient_city: &str,
@@ -706,8 +741,13 @@ fn render_assigned_view(
     receipt_action: ServerAction<ConfirmReceipt>,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+    revealed: ReadSignal<bool>,
+    set_revealed: WriteSignal<bool>,
+    confetti_active: ReadSignal<bool>,
+    set_confetti_active: WriteSignal<bool>,
 ) -> AnyView {
     render_envelope_reveal(
+        season_id,
         recipient_name,
         recipient_phone,
         recipient_city,
@@ -715,6 +755,10 @@ fn render_assigned_view(
         receipt_action,
         hydrated,
         i18n,
+        revealed,
+        set_revealed,
+        confetti_active,
+        set_confetti_active,
     )
 }
 
@@ -779,34 +823,13 @@ fn render_receipt_form(
     }
 }
 
-fn setup_envelope_reveal() -> (
-    ReadSignal<bool>,
-    WriteSignal<bool>,
-    ReadSignal<bool>,
-    WriteSignal<bool>,
-) {
-    let (revealed, set_revealed) = signal(false);
-    let (confetti_active, set_confetti_active) = signal(false);
-
-    // Check localStorage for already_seen state on client-side only
-    Effect::new(move |_| {
-        #[cfg(not(feature = "ssr"))]
-        {
-            if let Some(window) = web_sys::window()
-                && let Ok(Some(storage)) = window.local_storage()
-            {
-                let key = "assignment_revealed";
-                if let Ok(Some(_)) = storage.get_item(key) {
-                    set_revealed.set(true);
-                }
-            }
-        }
-    });
-
-    (revealed, set_revealed, confetti_active, set_confetti_active)
-}
-
+// Arguments mirror the Leptos render-function pattern: data + actions + signals.
+// Clippy's 7-argument limit is not meaningful here — these are all load-bearing.
+// The function body exceeds 100 lines because it contains a large view! macro block
+// which cannot be split without introducing artificial intermediate functions.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn render_envelope_reveal(
+    season_id: &str,
     recipient_name: &str,
     recipient_phone: &str,
     recipient_city: &str,
@@ -814,33 +837,29 @@ fn render_envelope_reveal(
     receipt_action: ServerAction<ConfirmReceipt>,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+    revealed: ReadSignal<bool>,
+    set_revealed: WriteSignal<bool>,
+    confetti_active: ReadSignal<bool>,
+    set_confetti_active: WriteSignal<bool>,
 ) -> AnyView {
     let receipt_pending = receipt_action.pending();
-    let (revealed, set_revealed, confetti_active, set_confetti_active) = setup_envelope_reveal();
 
-    let on_reveal = move |()| {
-        if !revealed.get_untracked() {
-            set_revealed.set(true);
-            set_confetti_active.set(true);
+    // Capture the season-scoped localStorage key for use in the reveal closure.
+    // Only used on the client side; the format!() call is gated to avoid the
+    // dead-code lint on the SSR build. The parameter itself is named with a
+    // leading underscore on SSR via cfg_attr to silence the unused-variable lint.
+    #[cfg(not(feature = "ssr"))]
+    let ls_key = format!("assignment_revealed_{season_id}");
+    // Suppress unused-parameter lint on SSR where season_id is client-only.
+    #[cfg(feature = "ssr")]
+    let _ = season_id;
 
-            // Save to localStorage
-            #[cfg(not(feature = "ssr"))]
-            {
-                if let Some(window) = web_sys::window()
-                    && let Ok(Some(storage)) = window.local_storage()
-                {
-                    let key = "assignment_revealed";
-                    let _ = storage.set_item(key, "true");
-                }
-            }
-
-            // Confetti auto-dismiss after 1.5s
-            leptos::prelude::set_timeout(
-                move || set_confetti_active.set(false),
-                std::time::Duration::from_millis(1500),
-            );
-        }
-    };
+    // ls_key is a String (non-Copy). Clone it into each event closure so both the
+    // click handler and the keydown handler can each capture their own copy.
+    #[cfg(not(feature = "ssr"))]
+    let ls_key_click = ls_key.clone();
+    #[cfg(not(feature = "ssr"))]
+    let ls_key_kd = ls_key;
 
     let on_keydown = {
         #[cfg(not(feature = "ssr"))]
@@ -848,7 +867,19 @@ fn render_envelope_reveal(
             move |ev: web_sys::KeyboardEvent| {
                 if ev.key() == "Enter" || ev.key() == " " {
                     ev.prevent_default();
-                    on_reveal(());
+                    if !revealed.get_untracked() {
+                        set_revealed.set(true);
+                        set_confetti_active.set(true);
+                        if let Some(window) = web_sys::window()
+                            && let Ok(Some(storage)) = window.local_storage()
+                        {
+                            let _ = storage.set_item(&ls_key_kd, "true");
+                        }
+                        leptos::prelude::set_timeout(
+                            move || set_confetti_active.set(false),
+                            std::time::Duration::from_millis(1200),
+                        );
+                    }
                 }
             }
         }
@@ -875,8 +906,29 @@ fn render_envelope_reveal(
             role="button"
             tabindex="0"
             attr:aria-expanded=move || if revealed.get() { "true" } else { "false" }
-            attr:aria-label="Tap to reveal your recipient"
-            on:click=move |_| on_reveal(())
+            attr:aria-label=move || if revealed.get() {
+                t_string!(i18n, home_revealed_label)
+            } else {
+                t_string!(i18n, home_reveal_button_label)
+            }
+            on:click=move |_| {
+                if !revealed.get_untracked() {
+                    set_revealed.set(true);
+                    set_confetti_active.set(true);
+                    #[cfg(not(feature = "ssr"))]
+                    {
+                        if let Some(window) = web_sys::window()
+                            && let Ok(Some(storage)) = window.local_storage()
+                        {
+                            let _ = storage.set_item(&ls_key_click, "true");
+                        }
+                        leptos::prelude::set_timeout(
+                            move || set_confetti_active.set(false),
+                            std::time::Duration::from_millis(1200),
+                        );
+                    }
+                }
+            }
             on:keydown=on_keydown
         >
             <div class="envelope-body" aria-hidden="true">
@@ -916,6 +968,9 @@ fn render_envelope_reveal(
     .into_any()
 }
 
+// Arguments mirror the Leptos render-function pattern: state + actions + signals.
+// Clippy's 7-argument limit is not meaningful here — these are all load-bearing.
+#[allow(clippy::too_many_arguments)]
 fn render_home_state(
     state: HomeState,
     enroll_action: ServerAction<EnrollInSeason>,
@@ -923,6 +978,10 @@ fn render_home_state(
     receipt_action: ServerAction<ConfirmReceipt>,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+    revealed: ReadSignal<bool>,
+    set_revealed: WriteSignal<bool>,
+    confetti_active: ReadSignal<bool>,
+    set_confetti_active: WriteSignal<bool>,
 ) -> AnyView {
     match state {
         HomeState::NoSeason => view! {
@@ -984,11 +1043,13 @@ fn render_home_state(
         .into_any(),
 
         HomeState::Assigned {
+            season_id,
             recipient_name,
             recipient_phone,
             recipient_city,
             recipient_branch_number,
         } => render_assigned_view(
+            &season_id,
             &recipient_name,
             &recipient_phone,
             &recipient_city,
@@ -996,6 +1057,10 @@ fn render_home_state(
             receipt_action,
             hydrated,
             i18n,
+            revealed,
+            set_revealed,
+            confetti_active,
+            set_confetti_active,
         ),
 
         HomeState::ReceiptConfirmed => view! {

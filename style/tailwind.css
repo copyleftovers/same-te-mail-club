@@ -1097,8 +1097,19 @@
     transform: translateY(0);
   }
 
+  /* Revealed envelope: disable pointer events on the whole card so clicks on
+     recipient info do not re-trigger the reveal handler. Interactive children
+     (phone link, .info-link) get pointer-events: auto to remain clickable. */
+  .reveal-envelope[aria-expanded="true"] {
+    pointer-events: none;
+  }
+
   .reveal-envelope[aria-expanded="true"] .envelope-body {
     pointer-events: none;
+  }
+
+  .reveal-envelope[aria-expanded="true"] .info-link {
+    pointer-events: auto;
   }
 
   .envelope-recipient {
@@ -1111,35 +1122,44 @@
   }
 
   /* ── Confetti ─────────────────────────────────────────────────── */
+  /* z-index: 60 — above modals (50) and dropdowns (40). Confetti is a brief
+     celebratory overlay; nothing sits above it during the delivery phase. */
   .confetti {
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: 60;
     opacity: 0;
+    background: radial-gradient(
+      ellipse at center,
+      oklch(from var(--color-brand-orange) l c h / 0.55) 0%,
+      oklch(from var(--color-brand-pink) l c h / 0.35) 35%,
+      oklch(from var(--color-brand-blue) l c h / 0.2) 60%,
+      transparent 75%
+    );
   }
 
+  /* Scale-and-fade burst: reads as a celebratory pop rather than a wipe. */
   .confetti[data-active="true"] {
-    animation: confetti-burst 1.2s ease-out forwards;
-    background-image:
-      radial-gradient(circle, var(--color-brand-orange) 20%, transparent 20%),
-      radial-gradient(circle, var(--color-brand-pink) 15%, transparent 15%),
-      radial-gradient(circle, var(--color-brand-blue) 18%, transparent 18%),
-      radial-gradient(circle, var(--color-brand-orange) 12%, transparent 12%),
-      radial-gradient(circle, var(--color-brand-pink) 20%, transparent 20%);
-    background-size: 8px 8px, 6px 6px, 10px 10px, 5px 5px, 7px 7px;
+    animation: confetti-burst 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
 
   @keyframes confetti-burst {
     0% {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    20% {
       opacity: 1;
-      background-position:
-        50% 50%, 30% 40%, 70% 45%, 40% 55%, 60% 35%;
+      transform: scale(1.05);
+    }
+    60% {
+      opacity: 0.85;
+      transform: scale(1);
     }
     100% {
       opacity: 0;
-      background-position:
-        50% 120%, 10% 110%, 90% 115%, 20% 125%, 80% 105%;
+      transform: scale(1.15);
     }
   }
 

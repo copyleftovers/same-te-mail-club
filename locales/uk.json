@@ -138,5 +138,7 @@
   "assignments_sender_a_label": "Відправник А (UUID)",
   "assignments_sender_b_label": "Відправник Б (UUID)",
   "app_title": "Саме Те",
-  "app_not_found": "Сторінку не знайдено."
+  "app_not_found": "Сторінку не знайдено.",
+  "home_reveal_button_label": "Натисни, щоб побачити свого отримувача",
+  "home_revealed_label": "Отримувача розкрито"
 }

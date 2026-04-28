@@ -135,7 +135,7 @@ This is the CSS-equivalent of cva. No JS needed.
 - **Unlayered CSS.** Everything inside `@layer` or `@utility`.
 - **Hardcoded color values.** Every color references a token or semantic alias. No `#FB4417`, no `rgb(251, 68, 23)`. If you need an opacity variant, use `oklch(from var(--token) l c h / alpha)`.
 - **Ad-hoc spacing values.** Use Tailwind's spacing scale. If a specific value is needed, add it to `@theme` with a name.
-- **`z-index` without documentation.** The grain overlay is `z-index: 1`. Modals/toasts are `z-index: 50`. Dropdowns are `z-index: 40`. Document any new layer.
+- **`z-index` without documentation.** The grain overlay is `z-index: 1`. Dropdowns are `z-index: 40`. Mobile menu overlay is `z-index: 40`. Modals/toasts are `z-index: 50`. Confetti burst overlay is `z-index: 60` (above modals; nothing sits above confetti during the delivery phase). Document any new layer.
 - **`overflow-x: hidden` on `body`.** Use `overflow-x: clip` on an inner wrapper if needed. `overflow: hidden` on `body` breaks `position: fixed` in Safari.
 - **`!important`**. If you need it, the specificity is wrong. Fix the specificity.
 
