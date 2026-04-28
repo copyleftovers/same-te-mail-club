@@ -771,8 +771,19 @@ fn render_preview(
             // Swap UI — only before release and when assignments exist.
             {if has_assignments && is_assignment_phase {
                 let sid = season_id.clone();
+                let all_links: Vec<AssignmentLink> = p
+                    .cohorts
+                    .iter()
+                    .flat_map(|c| c.chain.iter().cloned())
+                    .collect();
                 view! {
-                    <SwapForm swap_action=swap_action season_id=sid hydrated=hydrated i18n=i18n />
+                    <SwapForm
+                        swap_action=swap_action
+                        season_id=sid
+                        hydrated=hydrated
+                        i18n=i18n
+                        links=all_links
+                    />
                 }
                     .into_any()
             } else {
@@ -968,7 +979,10 @@ fn SwapForm(
     season_id: String,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+    links: Vec<AssignmentLink>,
 ) -> impl IntoView {
+    let options_a = links.clone();
+    let options_b = links;
     view! {
         <section data-testid="override-available">
             <h3>{t!(i18n, assignments_swap_title)}</h3>
@@ -979,27 +993,45 @@ fn SwapForm(
                     <label class="field-label" for="sender-a">
                         {t!(i18n, assignments_sender_a_label)}
                     </label>
-                    <input
+                    <select
                         class="field-input"
                         id="sender-a"
-                        type="text"
                         name="sender_a"
                         data-testid="sender-a-input"
                         required=true
-                    />
+                    >
+                        <option value="">{t!(i18n, assignments_select_sender)}</option>
+                        {options_a
+                            .iter()
+                            .map(|link| {
+                                let id = link.sender_id.clone();
+                                let name = link.sender_name.clone();
+                                view! { <option value=id>{name}</option> }
+                            })
+                            .collect_view()}
+                    </select>
                 </div>
                 <div class="field">
                     <label class="field-label" for="sender-b">
                         {t!(i18n, assignments_sender_b_label)}
                     </label>
-                    <input
+                    <select
                         class="field-input"
                         id="sender-b"
-                        type="text"
                         name="sender_b"
                         data-testid="sender-b-input"
                         required=true
-                    />
+                    >
+                        <option value="">{t!(i18n, assignments_select_sender)}</option>
+                        {options_b
+                            .iter()
+                            .map(|link| {
+                                let id = link.sender_id.clone();
+                                let name = link.sender_name.clone();
+                                view! { <option value=id>{name}</option> }
+                            })
+                            .collect_view()}
+                    </select>
                 </div>
                 <button
                     class="btn"

@@ -348,18 +348,11 @@ export class MailClubPage {
 
   async swapAssignment(senderNameA: string, senderNameB: string) {
     await this.page.goto("/admin/assignments");
-    // Sanitize names the same way Rust does: lowercase + spaces to hyphens.
-    const sanitizeA = senderNameA.toLowerCase().replace(/ /g, "-");
-    const sanitizeB = senderNameB.toLowerCase().replace(/ /g, "-");
-    const nodeA = this.page.getByTestId(`node-${sanitizeA}`);
-    const nodeB = this.page.getByTestId(`node-${sanitizeB}`);
-    const idA = await nodeA.getAttribute("data-user-id");
-    const idB = await nodeB.getAttribute("data-user-id");
-    if (!idA || !idB) throw new Error("Could not read user IDs from cycle nodes");
     // Wait for hydration — swap button disabled until WASM loads.
     await expect(this.page.getByTestId("swap-button")).toBeEnabled();
-    await this.page.getByTestId("sender-a-input").fill(idA);
-    await this.page.getByTestId("sender-b-input").fill(idB);
+    // Select by label (participant name) — the <select> options use sender names as text.
+    await this.page.getByTestId("sender-a-input").selectOption({ label: senderNameA });
+    await this.page.getByTestId("sender-b-input").selectOption({ label: senderNameB });
     // The swap action returns (). The preview Resource refetches via swap_action.version()
     // and re-renders the cycle visualization — use URL-filtered POST wait then
     // assert cycle-visualization visible to confirm refetch completed.
