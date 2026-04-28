@@ -566,6 +566,17 @@ test.describe.serial("The Mail Club", () => {
       await app.expectDashboardContent(/signup|реєстрація/i);
     });
 
+    test("cancel — back button dismisses confirmation", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      await page.goto("/admin/season");
+      await page.getByTestId("cancel-button").click();
+      await expect(page.getByTestId("cancel-confirmation")).toBeVisible();
+      await page.getByTestId("cancel-back-button").click();
+      await expect(page.getByTestId("cancel-confirmation")).not.toBeVisible();
+      await expect(page.getByTestId("cancel-button")).toBeVisible();
+    });
+
     test("cancel — admin cancels the season", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
