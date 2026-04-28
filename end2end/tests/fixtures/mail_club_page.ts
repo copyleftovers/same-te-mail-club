@@ -250,7 +250,7 @@ export class MailClubPage {
   // ── Admin: participants (Story 1.1) ──
 
   async registerParticipant(phone: string, name: string) {
-    await this.page.goto("/admin/participants");
+    await this.page.goto("/admin");
     // Wait for hydration.
     await expect(this.page.getByTestId("register-button")).toBeEnabled();
     await this.page.getByTestId("reg-phone-input").fill(phone);
@@ -269,7 +269,7 @@ export class MailClubPage {
   }
 
   async deactivateParticipant(name: string) {
-    await this.page.goto("/admin/participants");
+    await this.page.goto("/admin");
     const row = this.page.getByTestId("participant-row").filter({ hasText: name });
     // Wait for hydration — the row being visible means data loaded and the page rendered.
     await expect(row).toBeVisible();
@@ -285,7 +285,7 @@ export class MailClubPage {
     confirmDeadline: string,
     theme?: string,
   ) {
-    await this.page.goto("/admin/season");
+    await this.page.goto("/admin");
     // Wait for hydration.
     await expect(this.page.getByTestId("create-season-button")).toBeEnabled();
     await this.page.getByTestId("signup-deadline-input").fill(signupDeadline);
@@ -302,7 +302,7 @@ export class MailClubPage {
   }
 
   async launchSeason() {
-    await this.page.goto("/admin/season");
+    await this.page.goto("/admin");
     await this.clickAndWaitForResponse(
       this.page.getByTestId("launch-button"),
       "launch_season",
@@ -312,7 +312,7 @@ export class MailClubPage {
   }
 
   async advanceSeason() {
-    await this.page.goto("/admin/season");
+    await this.page.goto("/admin");
     // The advance action triggers a Resource refetch that re-renders the season
     // panel (phase label changes, buttons may appear/disappear). However, the
     // phase label has no data-testid, and the advance button stays visible for
@@ -327,7 +327,7 @@ export class MailClubPage {
   }
 
   async cancelSeason() {
-    await this.page.goto("/admin/season");
+    await this.page.goto("/admin");
     await this.page.getByTestId("cancel-button").click();
     await expect(this.page.getByTestId("cancel-confirmation")).toBeVisible();
     await this.clickAndWaitForResponse(
@@ -340,14 +340,14 @@ export class MailClubPage {
   // ── Admin: assignments (Stories 3.1, 3.3) ──
 
   async generateAssignments() {
-    await this.page.goto("/admin/assignments");
+    await this.page.goto("/admin");
     await this.page.getByTestId("generate-button").click();
     // Wait for refetch to complete — cycle visualization appears.
     await expect(this.page.getByTestId("cycle-visualization")).toBeVisible();
   }
 
   async swapAssignment(senderNameA: string, senderNameB: string) {
-    await this.page.goto("/admin/assignments");
+    await this.page.goto("/admin");
     // Wait for hydration — swap button disabled until WASM loads.
     await expect(this.page.getByTestId("swap-button")).toBeEnabled();
     // Select by label (participant name) — the <select> options use sender names as text.
@@ -372,7 +372,7 @@ export class MailClubPage {
   async triggerSms(
     type: "season-open" | "assignment" | "confirm-nudge" | "receipt-nudge",
   ) {
-    await this.page.goto("/admin/sms");
+    await this.page.goto("/admin");
     await this.page.getByTestId(`send-${type}-button`).click();
     // Wait for refetch to complete — SMS report appears.
     await expect(this.page.getByTestId("sms-report")).toBeVisible();

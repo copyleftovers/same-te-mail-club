@@ -144,7 +144,7 @@ test.describe.serial("The Mail Club", () => {
     test("1.1 — non-admin cannot access admin pages", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
-      await page.goto("/admin/participants");
+      await page.goto("/admin");
       await expect(page).not.toHaveURL(/\/admin/);
     });
   });
@@ -180,7 +180,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.1 — second active season is rejected", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin/season");
+      await page.goto("/admin");
       // Create form should NOT be visible (season already exists)
       await expect(page.getByTestId("create-season-button")).not.toBeVisible();
       // Management panel should be visible instead
@@ -189,7 +189,7 @@ test.describe.serial("The Mail Club", () => {
 
     // Story 4.1 AC: only admin can create seasons
     test("4.1 — non-admin cannot access season management", async ({ page }) => {
-      await page.goto("/admin/season");
+      await page.goto("/admin");
       await expect(page).toHaveURL(/\/login/);
     });
 
@@ -207,7 +207,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.7 — advance not blocked in enrollment phase", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin/season");
+      await page.goto("/admin");
       // Wait for Suspense to resolve — advance-button must be visible first.
       await expect(page.getByTestId("advance-button")).toBeVisible();
       await expect(page.getByTestId("advance-blocked-hint")).not.toBeVisible();
@@ -219,7 +219,7 @@ test.describe.serial("The Mail Club", () => {
       await app.login(ADMIN_PHONE);
       // Story 4.4-A: active user count visible on SMS page
       // Story 4.4-D: all four count spans present simultaneously (smoke)
-      await page.goto("/admin/sms");
+      await page.goto("/admin");
       await app.expectSmsCountVisible("sms-count-active-users");
       await app.expectSmsCountVisible("sms-count-unnotified-senders");
       await app.expectSmsCountVisible("sms-count-unconfirmed-enrolled");
@@ -328,7 +328,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.4 — confirm-nudge count shows unconfirmed enrolled participants", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin/sms");
+      await page.goto("/admin");
       await app.expectSmsCountVisible("sms-count-unconfirmed-enrolled");
       // All 3 enrolled participants have not yet confirmed ready.
       await app.expectSmsCount("sms-count-unconfirmed-enrolled", "3");
@@ -421,7 +421,7 @@ test.describe.serial("The Mail Club", () => {
     test("3.1 — admin sees confirmed count before generating", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin/assignments");
+      await page.goto("/admin");
       // Confirmed count should be visible (3 participants)
       await expect(page.getByTestId("confirmed-count")).toBeVisible();
     });
@@ -431,7 +431,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.7 — advance blocked before assignments are generated", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin/season");
+      await page.goto("/admin");
       // Wait for Suspense to resolve — advance-button must be present.
       await expect(page.getByTestId("advance-button")).toBeVisible();
       await app.expectAdvanceBlocked();
@@ -445,7 +445,7 @@ test.describe.serial("The Mail Club", () => {
       await app.generateAssignments();
       await app.expectCycleVisualization();
       // Story 4.7-B: advance is now unblocked since assignments exist in DB.
-      await page.goto("/admin/season");
+      await page.goto("/admin");
       await expect(page.getByTestId("advance-button")).toBeVisible();
       await app.expectAdvanceEnabled();
     });
@@ -464,7 +464,7 @@ test.describe.serial("The Mail Club", () => {
     test("3.3 — swap UI available to admin", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin/assignments");
+      await page.goto("/admin");
       await expect(page.getByTestId("override-available")).toBeVisible();
       // Story 4.8-A: sender-a-input and sender-b-input are <select> elements rendered inside override-available.
       await expect(page.getByTestId("sender-a-input")).toBeVisible();
@@ -485,7 +485,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
       // Story 4.4-C before send: count > 0 (3 senders not yet notified).
-      await page.goto("/admin/sms");
+      await page.goto("/admin");
       await app.expectSmsCountVisible("sms-count-unnotified-senders");
       await expect(
         page.getByTestId("sms-count-unnotified-senders"),
@@ -620,7 +620,7 @@ test.describe.serial("The Mail Club", () => {
     test("cancel — back button dismisses confirmation", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin/season");
+      await page.goto("/admin");
       await page.getByTestId("cancel-button").click();
       await expect(page.getByTestId("cancel-confirmation")).toBeVisible();
       await page.getByTestId("cancel-back-button").click();
