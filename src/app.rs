@@ -8,10 +8,7 @@ use leptos_router::{
 use leptos_use::use_preferred_dark;
 
 use crate::{
-    admin::{
-        assignments::AssignmentsPage, dashboard::DashboardPage, nav::AdminNav,
-        participants::ParticipantsPage, season::SeasonManagePage, sms::SmsPage,
-    },
+    admin::{nav::AdminNav, page::AdminPage},
     components::toast::{Toast, provide_toast_context},
     pages::{
         home::HomePage,
@@ -120,55 +117,15 @@ pub fn App() -> impl IntoView {
                             }
                         }
                     />
-                    // Admin routes — flat list, exact matching.
-                    // Each tuple path matches exactly (no prefix overlap with
-                    // `StaticSegment("admin")`).
+                    // Unified admin page — single route, all admin functionality.
+                    // Sub-routes (/admin/season, /admin/participants, /admin/assignments,
+                    // /admin/sms) have been removed; content is now phase-aware on /admin.
                     <Route
                         path=StaticSegment("admin")
                         view=move || {
                             view! {
                                 <AdminGuard>
-                                    <DashboardPage />
-                                </AdminGuard>
-                            }
-                        }
-                    />
-                    <Route
-                        path=(StaticSegment("admin"), StaticSegment("season"))
-                        view=move || {
-                            view! {
-                                <AdminGuard>
-                                    <SeasonManagePage />
-                                </AdminGuard>
-                            }
-                        }
-                    />
-                    <Route
-                        path=(StaticSegment("admin"), StaticSegment("participants"))
-                        view=move || {
-                            view! {
-                                <AdminGuard>
-                                    <ParticipantsPage />
-                                </AdminGuard>
-                            }
-                        }
-                    />
-                    <Route
-                        path=(StaticSegment("admin"), StaticSegment("assignments"))
-                        view=move || {
-                            view! {
-                                <AdminGuard>
-                                    <AssignmentsPage />
-                                </AdminGuard>
-                            }
-                        }
-                    />
-                    <Route
-                        path=(StaticSegment("admin"), StaticSegment("sms"))
-                        view=move || {
-                            view! {
-                                <AdminGuard>
-                                    <SmsPage />
+                                    <AdminPage />
                                 </AdminGuard>
                             }
                         }
