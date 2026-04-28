@@ -984,6 +984,7 @@ fn SwapForm(
                         id="sender-a"
                         type="text"
                         name="sender_a"
+                        data-testid="sender-a-input"
                         required=true
                     />
                 </div>
@@ -996,6 +997,7 @@ fn SwapForm(
                         id="sender-b"
                         type="text"
                         name="sender_b"
+                        data-testid="sender-b-input"
                         required=true
                     />
                 </div>
