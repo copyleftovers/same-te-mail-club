@@ -406,65 +406,6 @@ pub async fn swap_assignment(
     Ok(())
 }
 
-/// Confirm and lock assignments (admin only).
-///
-/// Validates that assignments exist for the active season in Assignment phase.
-/// Does NOT advance the phase — the organizer uses `advance_season` to move to
-/// Delivery, which is what makes assignments visible to participants.
-///
-/// This function is a pre-flight check: call it to confirm the assignment set
-/// is ready before hitting "Advance" to release it to participants.
-///
-/// # Errors
-///
-/// Returns `Err` if caller is not admin, no active season in Assignment phase,
-/// or no assignments generated yet.
-#[server(ReleaseAssignments)]
-pub async fn release_assignments() -> Result<(), ServerFnError> {
-    use crate::{auth, types::Phase};
-
-    let (pool, _user) = auth::require_admin().await?;
-
-    let season = sqlx::query_as!(
-        ActiveSeasonRow,
-        r#"
-        SELECT id, phase AS "phase: Phase"
-        FROM seasons
-        WHERE phase NOT IN ('complete', 'cancelled')
-          AND launched_at IS NOT NULL
-        "#,
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("no active launched season found"))?;
-
-    if season.phase != Phase::Assignment {
-        return Err(ServerFnError::new(
-            "season must be in assignment phase to release assignments",
-        ));
-    }
-
-    // Verify assignments exist.
-    let count = sqlx::query_scalar!(
-        r#"SELECT COUNT(*) AS "count!: i64" FROM assignments WHERE season_id = $1"#,
-        season.id,
-    )
-    .fetch_one(&pool)
-    .await
-    .map_err(db_err)?;
-
-    if count == 0 {
-        return Err(ServerFnError::new(
-            "no assignments to release — generate assignments first",
-        ));
-    }
-
-    // Assignments are confirmed/locked. Phase advance (Assignment → Delivery)
-    // happens separately via advance_season, which is what makes them visible.
-    Ok(())
-}
-
 /// Get assignment preview for the active season (admin only).
 ///
 /// Returns the current assignments with cycle visualization data,
@@ -615,28 +556,20 @@ fn render_confirmed_count(
 
 /// Admin assignments page (Epic 3: Stories 3.1, 3.2, 3.3).
 ///
-/// Shows confirmed count, generate button, cycle visualization, swap UI,
-/// and release button.
+/// Shows confirmed count, generate button, cycle visualization, and swap UI.
 #[component]
 pub fn AssignmentsPage() -> impl IntoView {
     let i18n = use_i18n();
     let set_toast = use_toast();
     let generate_action = ServerAction::<GenerateAssignments>::new();
     let swap_action = ServerAction::<SwapAssignment>::new();
-    let release_action = ServerAction::<ReleaseAssignments>::new();
 
     // Load confirmed count.
     let confirmed_count = Resource::new(|| (), |()| get_confirmed_count());
 
     // Load assignment preview, refetch after any mutation.
     let preview = Resource::new(
-        move || {
-            (
-                generate_action.version().get(),
-                swap_action.version().get(),
-                release_action.version().get(),
-            )
-        },
+        move || (generate_action.version().get(), swap_action.version().get()),
         |_| get_assignment_preview(),
     );
 
@@ -646,8 +579,6 @@ pub fn AssignmentsPage() -> impl IntoView {
     Effect::new(move |_| {
         if let Some(Ok(_)) = generate_action.value().get() {
             set_toast.set(Some("Призначення згенеровано!".into()));
-        } else if let Some(Ok(())) = release_action.value().get() {
-            set_toast.set(Some("Призначення опубліковано!".into()));
         }
     });
 
@@ -661,24 +592,8 @@ pub fn AssignmentsPage() -> impl IntoView {
                     .value()
                     .get()
                     .and_then(Result::err)
-                    .or_else(|| swap_action.value().get().and_then(Result::err))
-                    .or_else(|| release_action.value().get().and_then(Result::err));
+                    .or_else(|| swap_action.value().get().and_then(Result::err));
                 err.map(|e| view! { <p class="alert">{e.to_string()}</p> })
-            }}
-
-            // Release confirmation — shown after successful release_assignments() call
-            {move || {
-                release_action
-                    .value()
-                    .get()
-                    .and_then(Result::ok)
-                    .map(|()| {
-                        view! {
-                            <p data-testid="released-status">
-                                {t!(i18n, assignments_released_advance_note)}
-                            </p>
-                        }
-                    })
             }}
 
             {render_confirmed_count(confirmed_count, i18n)}
@@ -706,7 +621,6 @@ pub fn AssignmentsPage() -> impl IntoView {
                                     p,
                                     generate_action,
                                     swap_action,
-                                    release_action,
                                     hydrated,
                                     i18n,
                                 )
@@ -718,14 +632,13 @@ pub fn AssignmentsPage() -> impl IntoView {
     }
 }
 
-/// Render the assignment preview with generate/swap/release controls.
+/// Render the assignment preview with generate/swap controls.
 ///
 /// Extracted from `AssignmentsPage` to stay within the line limit.
 fn render_preview(
     p: &AssignmentPreview,
     generate_action: ServerAction<GenerateAssignments>,
     swap_action: ServerAction<SwapAssignment>,
-    release_action: ServerAction<ReleaseAssignments>,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
@@ -733,11 +646,10 @@ fn render_preview(
     let has_assignments = !p.cohorts.is_empty() && !p.cohorts.iter().all(|c| c.chain.is_empty());
     let season_id = p.season_id.clone();
     let generate_pending = generate_action.pending();
-    let release_pending = release_action.pending();
 
     view! {
         <div>
-            // Generate or Released status.
+            // Generate button or released status note.
             {if is_assignment_phase {
                 view! {
                     <leptos::form::ActionForm action=generate_action>
@@ -768,7 +680,7 @@ fn render_preview(
             } else {
                 ().into_any()
             }}
-            // Swap UI — only before release and when assignments exist.
+            // Swap UI — only in assignment phase and when assignments exist.
             {if has_assignments && is_assignment_phase {
                 let sid = season_id.clone();
                 let all_links: Vec<AssignmentLink> = p
@@ -784,28 +696,6 @@ fn render_preview(
                         i18n=i18n
                         links=all_links
                     />
-                }
-                    .into_any()
-            } else {
-                ().into_any()
-            }}
-            // Release button — only when assignments exist and not yet released.
-            {if has_assignments && is_assignment_phase {
-                view! {
-                    <leptos::form::ActionForm action=release_action>
-                        <button
-                            class="btn"
-                            type="submit"
-                            data-testid="release-button"
-                            disabled=move || release_pending.get() || !hydrated.get()
-                        >
-                            {move || if release_pending.get() {
-                                "Публікую...".into_any()
-                            } else {
-                                t!(i18n, assignments_release_button).into_any()
-                            }}
-                        </button>
-                    </leptos::form::ActionForm>
                 }
                     .into_any()
             } else {

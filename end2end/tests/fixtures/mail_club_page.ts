@@ -363,14 +363,6 @@ export class MailClubPage {
     await expect(this.page.getByTestId("cycle-visualization")).toBeVisible();
   }
 
-  async releaseAssignments() {
-    await this.page.getByTestId("release-button").click();
-    // Wait for refetch to complete — released status text appears.
-    await expect(
-      this.page.getByTestId("released-status"),
-    ).toBeVisible();
-  }
-
   async expectCycleVisualization() {
     await expect(this.page.getByTestId("cycle-visualization")).toBeVisible();
   }

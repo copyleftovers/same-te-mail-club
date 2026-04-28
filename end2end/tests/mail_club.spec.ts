@@ -450,8 +450,8 @@ test.describe.serial("The Mail Club", () => {
       await app.expectAdvanceEnabled();
     });
 
-    // Story 3.3 AC: assignments not visible to participants before release
-    test("3.3 — participant cannot see assignment before release", async ({ page }) => {
+    // Story 3.3 AC: assignments not visible to participants before delivery
+    test("3.3 — participant cannot see assignment before delivery", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.goHome();
@@ -477,15 +477,6 @@ test.describe.serial("The Mail Club", () => {
       await app.login(ADMIN_PHONE);
       await app.swapAssignment(NAMES.A, NAMES.B);
       await app.expectCycleVisualization();
-    });
-
-    // Story 3.3: Release assignments
-    test("3.3 — admin releases assignments", async ({ page }) => {
-      const app = new MailClubPage(page);
-      await app.login(ADMIN_PHONE);
-      await page.goto("/admin/assignments");
-      await app.releaseAssignments();
-      await expect(page.getByTestId("released-status")).toBeVisible();
     });
 
     // Story 5.1: Assignment SMS
