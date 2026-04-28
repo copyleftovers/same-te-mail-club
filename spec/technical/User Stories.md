@@ -199,7 +199,7 @@ Then they can swap individual sender→recipient pairings while maintaining cycl
 **AC:**
 - Swaps must preserve the single-loop topology (the app validates this)
 - The organizer sees the full graph for each cohort
-- Assignments are not released to participants until the organizer confirms
+- Assignments become visible to participants when the organizer advances to Delivery phase (advance is the release)
 
 ---
 
@@ -287,7 +287,7 @@ Then all relevant data and actions for the current phase are on one page
 
 **AC:**
 - Single page at `/admin` with two sections: season (phase-aware) and participants
-- Season section content morphs by phase — enrollment shows enrolled count + advance button, assignment shows cycle visualization + generate/release, etc.
+- Season section content morphs by phase — enrollment shows enrolled count + advance button, assignment shows cycle visualization + generate, etc.
 - Participant registration, listing, and deactivation are always visible below
 - When no season exists, the create-season form appears in the season section
 - Terminal phases (complete, cancelled) show a summary with "create new season" option
@@ -321,7 +321,7 @@ Then the advance button is disabled with a reason
 ```
 
 **AC:**
-- Assignment → Delivery: advance disabled until assignments are released
+- Assignment → Delivery: advance disabled until assignments are generated
 - Other transitions: advance enabled when the phase is reachable (existing server-side validation remains the final guard)
 
 ### Story 4.8: Swap assignments by name, not UUID
