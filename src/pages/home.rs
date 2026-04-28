@@ -1095,7 +1095,10 @@ mod tests {
 
     #[test]
     fn deadline_exactly_now_is_not_blocked() {
-        let now = time::OffsetDateTime::now_utc();
-        assert!(!is_past_deadline(now, false));
+        // A deadline one millisecond in the future is definitionally not past.
+        // Using now_utc() directly would be racy (the inner now_utc() call in
+        // is_past_deadline() advances by nanoseconds between capture and compare).
+        let near_future = time::OffsetDateTime::now_utc() + time::Duration::milliseconds(1);
+        assert!(!is_past_deadline(near_future, false));
     }
 }
