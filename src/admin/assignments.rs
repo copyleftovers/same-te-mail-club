@@ -26,6 +26,7 @@ pub struct CohortPreview {
 /// A single sender→recipient link in the cycle.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AssignmentLink {
+    pub sender_id: String,
     pub sender_name: String,
     pub recipient_name: String,
 }
@@ -162,6 +163,7 @@ async fn store_and_build_preview(
             .map_err(db_err)?;
 
             chain.push(AssignmentLink {
+                sender_id: sender_id.to_string(),
                 sender_name: names.get(&sender_id).cloned().unwrap_or_default(),
                 recipient_name: names.get(&recipient_id).cloned().unwrap_or_default(),
             });
@@ -534,6 +536,7 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
     for _ in 0..assignments.len() {
         if let Some(a) = next_map.get(&current) {
             chain.push(AssignmentLink {
+                sender_id: a.sender_id.to_string(),
                 sender_name: a.sender_name.clone(),
                 recipient_name: a.recipient_name.clone(),
             });
@@ -902,6 +905,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
             let name = link.sender_name.clone();
             let sanitized = name.to_lowercase().replace(' ', "-");
             let testid = format!("node-{sanitized}");
+            let user_id = link.sender_id.clone();
 
             view! {
                 <g>
@@ -913,6 +917,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                         stroke="var(--color-surface-raised)"
                         stroke-width="2"
                         data-testid=testid
+                        data-user-id=user_id
                     />
                     <text
                         x=cx

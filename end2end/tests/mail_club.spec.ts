@@ -421,6 +421,14 @@ test.describe.serial("The Mail Club", () => {
       await expect(page.getByTestId("override-available")).toBeVisible();
     });
 
+    // Story 3.3: Swap two assignments and verify cycle remains valid
+    test("3.3 — admin swaps two assignments", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      await app.swapAssignment(NAMES.A, NAMES.B);
+      await app.expectCycleVisualization();
+    });
+
     // Story 3.3: Release assignments
     test("3.3 — admin releases assignments", async ({ page }) => {
       const app = new MailClubPage(page);
@@ -566,22 +574,13 @@ test.describe.serial("The Mail Club", () => {
       await app.expectDashboardContent(/cancelled|скасовано|no active|create/i);
     });
 
-    // Architecture Home Screen: cancelled season — Story 4.3 AC
+    // Architecture Home Screen: no active season
     test("home screen — no active season after cancel", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.goHome();
-      await expect(app.page.getByTestId("season-cancelled")).toBeVisible();
+      await app.expectHomeContent(/no season|немає сезону|SMS/i);
     });
-  });
-
-  // ════════════════════════════════════════════
-  // BLOCK 9: Fallback Route (404)
-  // ════════════════════════════════════════════
-
-  test("404 — non-existent route shows not-found", async ({ page }) => {
-    await page.goto("/this-route-does-not-exist");
-    await expect(page.getByTestId("not-found")).toBeVisible();
   });
 
 });

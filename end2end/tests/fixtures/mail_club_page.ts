@@ -328,13 +328,12 @@ export class MailClubPage {
 
   async cancelSeason() {
     await this.page.goto("/admin/season");
-    await this.page.getByTestId("cancel-button").click();
-    await expect(this.page.getByTestId("cancel-confirmation")).toBeVisible();
     await this.clickAndWaitForResponse(
-      this.page.getByTestId("cancel-confirm-button"),
+      this.page.getByTestId("cancel-button"),
       "cancel_season",
     );
-    await expect(this.page.getByTestId("cancel-confirm-button")).not.toBeVisible();
+    // Wait for cancel to complete.
+    await expect(this.page.getByTestId("cancel-button")).not.toBeVisible();
   }
 
   // ── Admin: assignments (Stories 3.1, 3.3) ──
@@ -343,6 +342,30 @@ export class MailClubPage {
     await this.page.goto("/admin/assignments");
     await this.page.getByTestId("generate-button").click();
     // Wait for refetch to complete — cycle visualization appears.
+    await expect(this.page.getByTestId("cycle-visualization")).toBeVisible();
+  }
+
+  async swapAssignment(senderNameA: string, senderNameB: string) {
+    await this.page.goto("/admin/assignments");
+    // Sanitize names the same way Rust does: lowercase + spaces to hyphens.
+    const sanitizeA = senderNameA.toLowerCase().replace(/ /g, "-");
+    const sanitizeB = senderNameB.toLowerCase().replace(/ /g, "-");
+    const nodeA = this.page.getByTestId(`node-${sanitizeA}`);
+    const nodeB = this.page.getByTestId(`node-${sanitizeB}`);
+    const idA = await nodeA.getAttribute("data-user-id");
+    const idB = await nodeB.getAttribute("data-user-id");
+    if (!idA || !idB) throw new Error("Could not read user IDs from cycle nodes");
+    // Wait for hydration — swap button disabled until WASM loads.
+    await expect(this.page.getByTestId("swap-button")).toBeEnabled();
+    await this.page.getByTestId("sender-a-input").fill(idA);
+    await this.page.getByTestId("sender-b-input").fill(idB);
+    // The swap action returns (). The preview Resource refetches via swap_action.version()
+    // and re-renders the cycle visualization — use URL-filtered POST wait then
+    // assert cycle-visualization visible to confirm refetch completed.
+    await this.clickAndWaitForResponse(
+      this.page.getByTestId("swap-button"),
+      "swap_assignment",
+    );
     await expect(this.page.getByTestId("cycle-visualization")).toBeVisible();
   }
 
