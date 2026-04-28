@@ -390,6 +390,30 @@ export class MailClubPage {
     await expect(this.page.getByTestId("sms-report")).toBeVisible();
   }
 
+  // ── Admin: SMS counts (Story 4.4) ──
+
+  async expectSmsCountVisible(testid: string): Promise<void> {
+    await expect(this.page.getByTestId(testid)).toBeVisible();
+  }
+
+  async expectSmsCount(testid: string, expectedText: string): Promise<void> {
+    await expect(this.page.getByTestId(testid)).toContainText(expectedText);
+  }
+
+  // ── Admin: season advance gating (Story 4.7) ──
+
+  async expectAdvanceBlocked(): Promise<void> {
+    await expect(this.page.getByTestId("advance-blocked-hint")).toBeVisible();
+    await expect(this.page.getByTestId("advance-button")).toBeDisabled();
+  }
+
+  async expectAdvanceEnabled(): Promise<void> {
+    await expect(
+      this.page.getByTestId("advance-blocked-hint"),
+    ).not.toBeVisible();
+    await expect(this.page.getByTestId("advance-button")).toBeEnabled();
+  }
+
   // ── Admin: dashboard ──
 
   async goToDashboard() {
