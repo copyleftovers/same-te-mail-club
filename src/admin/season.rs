@@ -19,6 +19,12 @@ pub struct SeasonStatus {
     pub launched: bool,
     pub enrolled_count: i64,
     pub confirmed_count: i64,
+    /// True when assignments have been generated for this season.
+    ///
+    /// The advance button (Assignment → Delivery) is disabled until this is true.
+    /// `release_assignments` is a pre-flight check that only succeeds when
+    /// assignments exist; the actual phase advance is what makes them visible.
+    pub assignments_released: bool,
 }
 
 // ── SSR-only row types ─────────────────────────────────────────────────────────
@@ -39,6 +45,7 @@ struct SeasonStatusRow {
     launched: bool,
     enrolled_count: i64,
     confirmed_count: i64,
+    assignments_released: bool,
 }
 
 // ── Server functions ───────────────────────────────────────────────────────────
@@ -257,10 +264,12 @@ pub async fn get_season_status() -> Result<Option<SeasonStatus>, ServerFnError> 
             s.confirm_deadline,
             s.theme,
             (s.launched_at IS NOT NULL) AS "launched!: bool",
-            COUNT(e.user_id) AS "enrolled_count!: i64",
-            COUNT(e.confirmed_ready_at) AS "confirmed_count!: i64"
+            COUNT(DISTINCT e.user_id) AS "enrolled_count!: i64",
+            COUNT(DISTINCT e.confirmed_ready_at) AS "confirmed_count!: i64",
+            (COUNT(DISTINCT a.sender_id) > 0) AS "assignments_released!: bool"
         FROM seasons s
         LEFT JOIN enrollments e ON e.season_id = s.id
+        LEFT JOIN assignments a ON a.season_id = s.id
         WHERE s.phase NOT IN ('complete', 'cancelled')
         GROUP BY s.id
         "#,
@@ -278,6 +287,7 @@ pub async fn get_season_status() -> Result<Option<SeasonStatus>, ServerFnError> 
         launched: r.launched,
         enrolled_count: r.enrolled_count,
         confirmed_count: r.confirmed_count,
+        assignments_released: r.assignments_released,
     }))
 }
 
@@ -367,6 +377,10 @@ fn ActiveSeasonPanel(
     let cancel_pending = cancel_action.pending();
     let can_advance = status.phase.can_advance();
     let launched = status.launched;
+    // Advance from Assignment → Delivery requires assignments to have been generated first.
+    // `assignments_released` is true when at least one assignment row exists for this season.
+    let advance_blocked =
+        status.phase == crate::types::Phase::Assignment && !status.assignments_released;
     let (confirming, set_confirming) = signal(false);
 
     // Reset confirmation state when cancel action succeeds.
@@ -444,21 +458,36 @@ fn ActiveSeasonPanel(
                 // Advance button — only when launched and phase can advance
                 {if launched && can_advance {
                     view! {
-                        <leptos::form::ActionForm action=advance_action>
-                            <button
-                                class="btn"
-                                data-variant="secondary"
-                                type="submit"
-                                data-testid="advance-button"
-                                disabled=move || advance_pending.get() || !hydrated.get()
-                            >
-                                {move || if advance_pending.get() {
-                                    "Просуваю...".into_any()
-                                } else {
-                                    t!(i18n, season_advance_button).into_any()
-                                }}
-                            </button>
-                        </leptos::form::ActionForm>
+                        <div class="flex flex-col gap-1">
+                            <leptos::form::ActionForm action=advance_action>
+                                <button
+                                    class="btn"
+                                    data-variant="secondary"
+                                    type="submit"
+                                    data-testid="advance-button"
+                                    disabled=move || advance_pending.get() || !hydrated.get() || advance_blocked
+                                >
+                                    {move || if advance_pending.get() {
+                                        "Просуваю...".into_any()
+                                    } else {
+                                        t!(i18n, season_advance_button).into_any()
+                                    }}
+                                </button>
+                            </leptos::form::ActionForm>
+                            {if advance_blocked {
+                                view! {
+                                    <p
+                                        class="text-xs text-(--color-text-muted)"
+                                        data-testid="advance-blocked-hint"
+                                    >
+                                        {t!(i18n, season_advance_blocked_hint)}
+                                    </p>
+                                }
+                                    .into_any()
+                            } else {
+                                ().into_any()
+                            }}
+                        </div>
                     }
                         .into_any()
                 } else {
