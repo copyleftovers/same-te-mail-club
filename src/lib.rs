@@ -27,6 +27,9 @@ pub mod assignment;
 #[cfg(feature = "ssr")]
 pub mod date_format;
 
+#[cfg(feature = "ssr")]
+pub mod invite_codes;
+
 pub mod admin;
 
 #[cfg(feature = "hydrate")]
