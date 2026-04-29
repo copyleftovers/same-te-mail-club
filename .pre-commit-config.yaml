@@ -7,6 +7,9 @@ repos:
                 args: [--features, ssr]
             -   id: clippy
                 args: [--fix, --allow-staged, --features, ssr, --, -D, warnings]
+            -   id: clippy
+                name: clippy-hydrate
+                args: [--fix, --allow-staged, --target, wasm32-unknown-unknown, --features, hydrate, --no-default-features, --, -D, warnings]
 
     -   repo: https://github.com/pre-commit/pre-commit-hooks
         rev: v4.6.0
