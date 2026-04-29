@@ -24,7 +24,7 @@ Then an account is created with the verified phone number and they proceed to on
 - The system records which distributor's code was redeemed (referral tracking)
 - Legal name is required (matching government ID — needed for Nova Poshta parcel pickup)
 - A phone number with a deactivated account cannot re-register — the unique constraint is the enforcement; re-entry requires a different phone number plus a new code
-- Codes are word-based: 2-3 Ukrainian words joined by dashes (memorable, typeable from a physical card)
+- Codes are word-based: 2 Ukrainian words joined by dashes (memorable, typeable from a physical card)
 - Codes do not expire — a physical card is valid until used or revoked
 
 ### Story 1.2: Sign in with phone number

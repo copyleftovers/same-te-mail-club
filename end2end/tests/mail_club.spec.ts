@@ -30,6 +30,13 @@ const PHONES = {
   C: "+380670000004",
 };
 
+// Extra phones for edge-case rejection tests (invite code flow only)
+const EXTRA_PHONES = {
+  INVALID_CODE_TEST: "+380670000005",
+  USED_CODE_TEST: "+380670000006",
+  REVOKED_CODE_TEST: "+380670000007",
+};
+
 const NAMES = {
   A: "Тестова Людина А",
   B: "Тестова Людина Б",
@@ -37,7 +44,6 @@ const NAMES = {
 };
 
 const CITY_KYIV = "Київ";
-const CITY_BROVARY = "Бровари";
 const CITY_LVIV = "Львів";
 const BRANCH_1 = "1";
 const BRANCH_5 = "5";
@@ -54,29 +60,119 @@ const SIGNUP_DEADLINE = futureDeadline(7);
 const CONFIRM_DEADLINE = futureDeadline(21);
 const SEASON_THEME = "Перший сезон";
 
+// Invite codes generated during the test run.
+// Populated in "1.5 — admin generates invite codes" and consumed by subsequent
+// self-registration and rejection tests. Module-level so serial tests share state.
+const CODES: { A: string; B: string; C: string; DEACTIVATE: string; REVOKED: string } = {
+  A: "",
+  B: "",
+  C: "",
+  DEACTIVATE: "",
+  REVOKED: "",
+};
+
 test.describe.serial("The Mail Club", () => {
   // ════════════════════════════════════════════
   // BLOCK 1: Auth & Onboarding (Epic 1)
-  // Stories: 1.1, 1.2, 1.3
+  // Stories: 1.1, 1.2, 1.3, 1.5, 1.6
   // ════════════════════════════════════════════
 
   test.describe("Epic 1: Join the Community", () => {
-    // Story 1.1: Organizer registers new participants
-    test("1.1 — admin registers participants", async ({ page }) => {
+    // Story 1.5: Admin generates invite codes for participants
+    test("1.5 — admin generates invite codes for participants", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
 
-      await app.registerParticipant(PHONES.A, NAMES.A);
-      await app.registerParticipant(PHONES.B, NAMES.B);
-      await app.registerParticipant(PHONES.C, NAMES.C);
+      // Generate three codes for the main participants (A, B, C).
+      // In a freshly seeded DB the only active user is the admin — the
+      // distributor dropdown auto-selects the first (only) available option.
+      CODES.A = await app.generateInviteCode();
+      CODES.B = await app.generateInviteCode();
+      CODES.C = await app.generateInviteCode();
+
+      // Codes must be non-empty strings.
+      expect(CODES.A.length).toBeGreaterThan(0);
+      expect(CODES.B.length).toBeGreaterThan(0);
+      expect(CODES.C.length).toBeGreaterThan(0);
     });
 
-    // Story 1.1 AC: duplicate phone rejected
-    test("1.1 — duplicate phone number is rejected", async ({ page }) => {
+    // Story 1.5 AC: generated codes appear in admin list with unused status
+    test("1.5 — generated codes appear in admin list with unused status", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await app.registerParticipant(PHONES.A, "Дублікат");
-      await expect(page.getByTestId("action-error")).toContainText(/already exists|існує/i);
+      await page.goto("/admin");
+
+      // All three codes from the previous test should be visible as unused.
+      await app.expectInviteCodeStatus(CODES.A, "unused");
+      await app.expectInviteCodeStatus(CODES.B, "unused");
+      await app.expectInviteCodeStatus(CODES.C, "unused");
+    });
+
+    // Story 1.6: Admin revokes an unused code (4th code — used for revocation test)
+    test("1.6 — admin revokes an unused code", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+
+      // Generate a 4th code specifically to revoke.
+      CODES.REVOKED = await app.generateInviteCode();
+      expect(CODES.REVOKED.length).toBeGreaterThan(0);
+
+      // Revoke it.
+      await app.revokeInviteCode(CODES.REVOKED);
+
+      // Status must change to revoked.
+      await app.expectInviteCodeStatus(CODES.REVOKED, "revoked");
+    });
+
+    // Story 1.1: Participant A self-registers with invite code
+    test("1.1 — participant A self-registers with invite code", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.selfRegister(PHONES.A, CODES.A, NAMES.A);
+      // selfRegister completes at /onboarding (first-time login requires onboarding).
+      await app.expectRedirectedToOnboarding();
+    });
+
+    // Story 1.1 AC: invalid invite code is rejected
+    test("1.1 — invalid invite code is rejected", async ({ page }) => {
+      const app = new MailClubPage(page);
+
+      // Use a phone not in the system to reach the invite code step.
+      await app.reachInviteCodeStep(EXTRA_PHONES.INVALID_CODE_TEST);
+      await page.getByTestId("invite-code-input").fill("invalid-garbage-code");
+      await page.getByTestId("submit-invite-code-button").click();
+
+      // Error is displayed; the form stays on the invite code step.
+      await expect(page.getByTestId("invite-code-error")).toBeVisible();
+      // Name collection step must NOT have appeared.
+      await expect(page.getByTestId("legal-name-input")).not.toBeVisible();
+    });
+
+    // Story 1.6 AC: revoked code cannot be redeemed
+    test("1.6 — revoked code cannot be redeemed", async ({ page }) => {
+      const app = new MailClubPage(page);
+
+      await app.reachInviteCodeStep(EXTRA_PHONES.REVOKED_CODE_TEST);
+      await page.getByTestId("invite-code-input").fill(CODES.REVOKED);
+      await page.getByTestId("submit-invite-code-button").click();
+
+      // The revoked code must be rejected with an error.
+      await expect(page.getByTestId("invite-code-error")).toBeVisible();
+      await expect(page.getByTestId("legal-name-input")).not.toBeVisible();
+    });
+
+    // Story 1.1 AC: used invite code is rejected on second attempt
+    test("1.1 — used invite code is rejected", async ({ page }) => {
+      const app = new MailClubPage(page);
+
+      // CODES.A was used by participant A in a previous test.
+      // Try to redeem it with a different phone.
+      await app.reachInviteCodeStep(EXTRA_PHONES.USED_CODE_TEST);
+      await page.getByTestId("invite-code-input").fill(CODES.A);
+      await page.getByTestId("submit-invite-code-button").click();
+
+      // Code was already used — must show error.
+      await expect(page.getByTestId("invite-code-error")).toBeVisible();
+      await expect(page.getByTestId("legal-name-input")).not.toBeVisible();
     });
 
     // Story 1.2: Sign in with phone number
@@ -119,21 +215,19 @@ test.describe.serial("The Mail Club", () => {
       await app.expectRedirectedToHome();
     });
 
-    // Setup: onboard remaining participants (B and C)
-    test("setup — onboard participants B and C", async ({ page }) => {
+    // Setup: self-register and onboard participant B
+    test("setup — self-register participant B", async ({ page }) => {
       const app = new MailClubPage(page);
-
-      await app.login(PHONES.B);
+      await app.selfRegister(PHONES.B, CODES.B, NAMES.B);
       await app.expectRedirectedToOnboarding();
       await app.completeOnboarding(CITY_KYIV, BRANCH_1);
       await app.expectRedirectedToHome();
-
-      // Fresh browser context for C — need new page
     });
 
-    test("setup — onboard participant C", async ({ page }) => {
+    // Setup: self-register and onboard participant C
+    test("setup — self-register participant C", async ({ page }) => {
       const app = new MailClubPage(page);
-      await app.login(PHONES.C);
+      await app.selfRegister(PHONES.C, CODES.C, NAMES.C);
       await app.expectRedirectedToOnboarding();
       await app.completeOnboarding(CITY_KYIV, BRANCH_1);
       await app.expectRedirectedToHome();
@@ -218,7 +312,9 @@ test.describe.serial("The Mail Club", () => {
 
       // Participants section visible on same page
       await expect(page.getByTestId("participant-list")).toBeVisible();
-      await expect(page.getByTestId("register-button")).toBeVisible();
+
+      // Invite code generation section visible (replaced old register form)
+      await expect(page.getByTestId("generate-code-button")).toBeVisible();
 
       // Phase controls visible — Enrollment phase shows the season-open SMS button
       await expect(page.getByTestId("send-season-open-button")).toBeVisible();
@@ -758,11 +854,26 @@ test.describe.serial("Account Management", () => {
   const DEACTIVATE_PHONE = "+380670000099";
   const DEACTIVATE_NAME = "Деактивований Учасник";
 
-  // Setup: register a participant to deactivate
-  test("setup — register participant for deactivation", async ({ page }) => {
+  // Setup: admin generates a code, then participant self-registers
+  test("setup — generate invite code for deactivation target", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await app.registerParticipant(DEACTIVATE_PHONE, DEACTIVATE_NAME);
+    CODES.DEACTIVATE = await app.generateInviteCode();
+    expect(CODES.DEACTIVATE.length).toBeGreaterThan(0);
+  });
+
+  test("setup — deactivation target self-registers", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.selfRegister(DEACTIVATE_PHONE, CODES.DEACTIVATE, DEACTIVATE_NAME);
+    // Registration completes at /onboarding — participant exists.
+    await expect(page).toHaveURL(/\/onboarding/);
+  });
+
+  // Verify the participant appears in the admin list before deactivation.
+  test("setup — deactivation target appears in participant list", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.login(ADMIN_PHONE);
+    await page.goto("/admin");
     await app.expectParticipantInList(DEACTIVATE_NAME);
   });
 

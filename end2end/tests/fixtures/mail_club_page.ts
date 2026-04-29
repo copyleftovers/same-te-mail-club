@@ -247,21 +247,155 @@ export class MailClubPage {
     }
   }
 
-  // ── Admin: participants (Story 1.1) ──
+  // ── Invite codes (Stories 1.1, 1.5, 1.6) ──
 
-  async registerParticipant(phone: string, name: string) {
+  /**
+   * Generate a new invite code from the admin page.
+   *
+   * Navigates to /admin, selects the distributor from the dropdown (by visible
+   * name), clicks generate, waits for the generated code display to appear, and
+   * returns the raw code string.
+   *
+   * If distributorName is omitted, the first option in the list is selected.
+   * In a freshly seeded DB the only option is the admin ("Організатор").
+   */
+  async generateInviteCode(distributorName?: string): Promise<string> {
     await this.page.goto("/admin");
-    // Wait for hydration.
-    await expect(this.page.getByTestId("register-button")).toBeEnabled();
-    await this.page.getByTestId("reg-phone-input").fill(phone);
-    await this.page.getByTestId("reg-name-input").fill(name);
-    await this.page.getByTestId("register-button").click();
-    // Wait for either success (name appears) or error (error message).
-    // Whichever happens first, the action has completed.
-    await Promise.race([
-      expect(this.page.getByTestId("participant-name-cell").filter({hasText: name})).toBeVisible(),
-      expect(this.page.getByTestId("action-error")).toBeVisible(),
-    ]);
+    // Wait for hydration — generate-code-button is the gate.
+    await expect(this.page.getByTestId("generate-code-button")).toBeEnabled();
+
+    const select = this.page.getByTestId("distributor-select");
+    if (distributorName) {
+      await select.selectOption({ label: distributorName });
+    } else {
+      // Select the first non-placeholder option (index 1 — index 0 is the empty prompt).
+      const options = await select.locator("option").all();
+      if (options.length > 1) {
+        const val = await options[1].getAttribute("value");
+        if (val) {
+          await select.selectOption(val);
+        }
+      }
+    }
+
+    await this.page.getByTestId("generate-code-button").click();
+    // Wait for the generated code display to appear.
+    await expect(this.page.getByTestId("generated-code-display")).toBeVisible();
+    // Read and return the code string.
+    const code = await this.page.getByTestId("generated-code-value").textContent();
+    return (code ?? "").trim();
+  }
+
+  /**
+   * Navigate to the invite code step for a new (unregistered) phone.
+   *
+   * Performs the phone → OTP steps and waits for the invite code input to be
+   * ready. Returns without submitting the invite code, so the caller can test
+   * various code values (valid, invalid, revoked, used).
+   *
+   * Precondition: `phone` must NOT have an existing account in the DB.
+   */
+  async reachInviteCodeStep(phone: string) {
+    await this.page.goto("/login");
+
+    const sendBtn = this.page.getByTestId("send-otp-button");
+    await expect(sendBtn).toBeEnabled();
+    await this.page.getByTestId("phone-input").fill(phone);
+    await this.clickAndWaitForResponse(sendBtn, "request_otp");
+
+    await expect(this.page.getByTestId("otp-input")).toBeVisible();
+    await this.page.getByTestId("otp-input").fill(TEST_OTP);
+    const verifyBtn = this.page.getByTestId("verify-otp-button");
+    await this.clickAndWaitForResponse(verifyBtn, "verify_otp_code");
+    // After the native POST, the browser follows the 302 redirect back to /login.
+    // We cannot use waitForLoadState("domcontentloaded") here because the redirect
+    // goes back to the same URL (/login). waitForLoadState would resolve immediately
+    // since the page already reached domcontentloaded on the initial load.
+    // Instead, wait for the invite-code-step div to become visible — this only
+    // happens when the reloaded /login SSR sees the pending_phone cookie and
+    // renders is_pending=true (step 3).
+    await expect(this.page.getByTestId("invite-code-step")).toBeVisible();
+
+    // Wait for hydration — submit button is the gate for the invite code step.
+    await expect(this.page.getByTestId("submit-invite-code-button")).toBeEnabled();
+  }
+
+  /**
+   * Self-register a new participant using an invite code.
+   *
+   * Step 1: Enter phone on login page, request OTP.
+   * Step 2: Enter OTP (test mode: always "000000"). Native form POST → server
+   *         sets pending_phone cookie and redirects back to /login.
+   * Step 3: Enter invite code. ActionForm calls validate_invite_code.
+   * Step 4: Enter name. ActionForm calls register_with_code → redirects to /onboarding.
+   *
+   * Completes at /onboarding (caller can then call completeOnboarding).
+   */
+  async selfRegister(phone: string, code: string, name: string) {
+    // Steps 1 + 2: Navigate to invite code step.
+    await this.reachInviteCodeStep(phone);
+
+    // Step 3: Enter invite code and submit.
+    await this.page.getByTestId("invite-code-input").fill(code);
+    await this.page.getByTestId("submit-invite-code-button").click();
+    // Wait for name collection step to appear (code validated successfully).
+    await expect(this.page.getByTestId("legal-name-input")).toBeVisible();
+
+    // Step 4: Name collection — fill name and submit.
+    await this.page.getByTestId("legal-name-input").fill(name);
+    await this.page.getByTestId("create-account-button").click();
+    // register_with_code redirects to /onboarding on success.
+    await this.page.waitForURL(/\/onboarding/);
+    await this.page.waitForLoadState("domcontentloaded");
+  }
+
+  /**
+   * Revoke an unused invite code from the admin page.
+   *
+   * Navigates to /admin, finds the invite-code-row containing the code string,
+   * clicks its revoke button, and waits for the status badge to change.
+   */
+  async revokeInviteCode(codeString: string) {
+    await this.page.goto("/admin");
+    // Wait for the invite code list to be populated.
+    await expect(this.page.getByTestId("invite-code-list")).toBeVisible();
+    const row = this.page.getByTestId("invite-code-row").filter({
+      has: this.page.getByTestId("invite-code-cell").filter({ hasText: codeString }),
+    });
+    await expect(row).toBeVisible();
+    await row.getByTestId("invite-code-revoke-button").click();
+    // Wait for the status badge in this row to reflect the revoked state.
+    // The revoke action updates the list resource, which re-renders the row.
+    await expect(row.getByTestId("invite-code-status-badge")).not.toHaveAttribute(
+      "data-status",
+      "unused",
+    );
+  }
+
+  /**
+   * Assert the status badge of a specific invite code row.
+   *
+   * Finds the invite-code-row containing the code string and asserts that the
+   * invite-code-status-badge has the expected data-status attribute value.
+   */
+  async expectInviteCodeStatus(codeString: string, expectedStatus: string) {
+    const row = this.page.getByTestId("invite-code-row").filter({
+      has: this.page.getByTestId("invite-code-cell").filter({ hasText: codeString }),
+    });
+    await expect(row.getByTestId("invite-code-status-badge")).toHaveAttribute(
+      "data-status",
+      expectedStatus,
+    );
+  }
+
+  /**
+   * Assert that the invite code input step is visible.
+   *
+   * Used to verify that the user has landed on the invite code step of the
+   * self-registration flow.
+   */
+  async expectSelfRegistrationPrompt() {
+    await expect(this.page.getByTestId("invite-code-input")).toBeVisible();
   }
 
   async expectParticipantInList(name: string) {
