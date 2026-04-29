@@ -567,7 +567,6 @@ pub async fn logout() -> Result<(), ServerFnError> {
 /// called on page load. This works during SSR and after hydration.
 #[component]
 pub fn LoginPage() -> impl IntoView {
-    let i18n = use_i18n();
     let request_action = ServerAction::<RequestOtp>::new();
 
     // Hydration gate — buttons stay disabled until WASM hydrates.
@@ -593,8 +592,15 @@ pub fn LoginPage() -> impl IntoView {
     });
 
     // Detect whether the current request has a pending_phone cookie (new-account flow).
-    // This Resource runs server-side during SSR and client-side after hydration.
-    let pending_registration = Resource::new(|| (), |()| check_pending_registration());
+    // Read synchronously during SSR for hydration stability — a Resource would re-fetch
+    // on the client and momentarily flash is_pending=false, hiding the invite-code step.
+    #[cfg(feature = "ssr")]
+    let is_pending = leptos::context::use_context::<http::request::Parts>()
+        .and_then(|parts| extract_pending_phone_cookie(&parts))
+        .is_some();
+    #[cfg(not(feature = "ssr"))]
+    let is_pending = false;
+    let (is_pending_signal, _) = signal(is_pending);
 
     // Client-side signal: the invite code entered in step 3.
     // None = step 3 shown; Some(code) = step 4 shown.
@@ -611,29 +617,16 @@ pub fn LoginPage() -> impl IntoView {
                 class="h-20 w-auto mb-8"
             />
 
-            <Suspense fallback=move || view! {
-                <div class="text-(--color-text-muted) text-sm">
-                    {t!(i18n, common_loading)}
-                </div>
-            }>
-                {move || {
-                    let is_pending = pending_registration.get()
-                        .and_then(Result::ok)
-                        .unwrap_or(false);
-                    view! {
-                        <LoginStepRouter
-                            is_pending=is_pending
-                            otp_step=otp_step
-                            hydrated=hydrated
-                            request_action=request_action
-                            submitted_phone=submitted_phone
-                            entered_code=entered_code
-                            set_entered_code=set_entered_code
-                            register_action=register_action
-                        />
-                    }
-                }}
-            </Suspense>
+            <LoginStepRouter
+                is_pending=is_pending_signal.get()
+                otp_step=otp_step
+                hydrated=hydrated
+                request_action=request_action
+                submitted_phone=submitted_phone
+                entered_code=entered_code
+                set_entered_code=set_entered_code
+                register_action=register_action
+            />
         </div>
     }
 }
