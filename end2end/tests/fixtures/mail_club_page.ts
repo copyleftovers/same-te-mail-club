@@ -318,6 +318,9 @@ export class MailClubPage {
 
     // Wait for hydration — submit button is the gate for the invite code step.
     await expect(this.page.getByTestId("submit-invite-code-button")).toBeEnabled();
+    // Extra safety: ensure the input itself is attached and editable.
+    // Hydration may replace the SSR input node after the button becomes enabled.
+    await expect(this.page.getByTestId("invite-code-input")).toBeEditable();
   }
 
   /**
@@ -336,10 +339,22 @@ export class MailClubPage {
     await this.reachInviteCodeStep(phone);
 
     // Step 3: Enter invite code and submit.
+    // fill() is safe because reachInviteCodeStep confirmed toBeEditable().
     await this.page.getByTestId("invite-code-input").fill(code);
-    await this.page.getByTestId("submit-invite-code-button").click();
+    // Use clickAndWaitForResponse so we know the server processed the code
+    // before asserting on the DOM change that follows. A plain click() leaves a
+    // race window where fill() may target a pre-hydration element that WASM
+    // replaces during the server round-trip, causing the server to receive an
+    // empty code string.
+    await this.clickAndWaitForResponse(
+      this.page.getByTestId("submit-invite-code-button"),
+      "validate_invite_code",
+    );
     // Wait for name collection step to appear (code validated successfully).
     await expect(this.page.getByTestId("legal-name-input")).toBeVisible();
+    // Wait for the name step's submit button to be enabled (hydration gate for
+    // the register_with_code ActionForm).
+    await expect(this.page.getByTestId("create-account-button")).toBeEnabled();
 
     // Step 4: Name collection — fill name and submit.
     await this.page.getByTestId("legal-name-input").fill(name);

@@ -192,9 +192,8 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
             // the invite code form with the OTP-verified phone preserved.
             let response_options =
                 leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
-            let cookie = format!(
-                "pending_phone={normalized}; HttpOnly; SameSite=Strict; Max-Age=300; Path=/"
-            );
+            let cookie =
+                format!("pending_phone={normalized}; SameSite=Strict; Max-Age=300; Path=/");
             response_options.append_header(
                 axum::http::header::SET_COOKIE,
                 axum::http::HeaderValue::from_str(&cookie)
@@ -468,7 +467,7 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
     );
 
     // Clear the pending_phone cookie
-    let clear_cookie = "pending_phone=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/";
+    let clear_cookie = "pending_phone=; SameSite=Strict; Max-Age=0; Path=/";
     response_options.append_header(
         axum::http::header::SET_COOKIE,
         axum::http::HeaderValue::from_str(clear_cookie)
@@ -592,14 +591,26 @@ pub fn LoginPage() -> impl IntoView {
     });
 
     // Detect whether the current request has a pending_phone cookie (new-account flow).
-    // Read synchronously during SSR for hydration stability — a Resource would re-fetch
-    // on the client and momentarily flash is_pending=false, hiding the invite-code step.
-    #[cfg(feature = "ssr")]
-    let is_pending = leptos::context::use_context::<http::request::Parts>()
-        .and_then(|parts| extract_pending_phone_cookie(&parts))
-        .is_some();
-    #[cfg(not(feature = "ssr"))]
-    let is_pending = false;
+    // Must produce the same value on SSR and client to avoid hydration mismatch.
+    // The cookie is intentionally NOT HttpOnly so the client can read it via document.cookie.
+    let is_pending = {
+        #[cfg(feature = "ssr")]
+        {
+            leptos::context::use_context::<http::request::Parts>()
+                .and_then(|parts| extract_pending_phone_cookie(&parts))
+                .is_some()
+        }
+        #[cfg(not(feature = "ssr"))]
+        {
+            {
+                use leptos::wasm_bindgen::JsCast;
+                leptos::prelude::document()
+                    .unchecked_into::<leptos::web_sys::HtmlDocument>()
+                    .cookie()
+                    .is_ok_and(|c| c.contains("pending_phone="))
+            }
+        }
+    };
     let (is_pending_signal, _) = signal(is_pending);
 
     // Client-side signal: the invite code entered in step 3.
