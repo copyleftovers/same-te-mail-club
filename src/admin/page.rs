@@ -1425,7 +1425,17 @@ fn InviteCodesSection(
                                                                 }}
                                                             </td>
                                                             <td data-testid="invite-code-redeemer-cell">
-                                                                {code.redeemer_name.clone().unwrap_or_default()}
+                                                                {match (code.redeemer_name.clone(), code.redeemed_at) {
+                                                                    (Some(name), Some(dt)) => {
+                                                                        #[cfg(feature = "ssr")]
+                                                                        let date_str = crate::date_format::format_date_uk(dt);
+                                                                        #[cfg(not(feature = "ssr"))]
+                                                                        let date_str = dt.to_string();
+                                                                        format!("{name} ({date_str})")
+                                                                    }
+                                                                    (Some(name), None) => name,
+                                                                    _ => String::new(),
+                                                                }}
                                                             </td>
                                                             <td>
                                                                 {if code.status

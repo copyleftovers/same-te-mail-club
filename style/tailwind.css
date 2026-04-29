@@ -305,6 +305,18 @@
     color: var(--color-brand-black);
   }
 
+  .badge[data-status="unused"] {
+    background: var(--color-success);
+  }
+
+  .badge[data-status="used"] {
+    background: var(--color-brand-gray);
+  }
+
+  .badge[data-status="revoked"] {
+    background: var(--color-error);
+  }
+
   .prose-page {
     max-width: 65ch;
     margin-inline: auto;

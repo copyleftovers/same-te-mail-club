@@ -24,6 +24,8 @@ pub struct InviteCodeRow {
     pub distributor_name: String,
     pub status: InviteCodeStatus,
     pub redeemer_name: Option<String>,
+    /// Timestamp when the code was redeemed (populated when status is `Used`).
+    pub redeemed_at: Option<time::OffsetDateTime>,
     pub created_at: time::OffsetDateTime,
 }
 
@@ -47,6 +49,7 @@ struct InviteCodeQueryRow {
     distributor_name: String,
     status: InviteCodeStatus,
     redeemer_name: Option<String>,
+    redeemed_at: Option<time::OffsetDateTime>,
     created_at: time::OffsetDateTime,
 }
 
@@ -140,6 +143,7 @@ pub async fn list_invite_codes() -> Result<Vec<InviteCodeRow>, ServerFnError> {
             d.name AS distributor_name,
             ic.status AS "status: InviteCodeStatus",
             r.name AS redeemer_name,
+            ic.redeemed_at,
             ic.created_at
         FROM invite_codes ic
         JOIN users d ON d.id = ic.distributor_id
@@ -159,6 +163,7 @@ pub async fn list_invite_codes() -> Result<Vec<InviteCodeRow>, ServerFnError> {
             distributor_name: r.distributor_name,
             status: r.status,
             redeemer_name: r.redeemer_name,
+            redeemed_at: r.redeemed_at,
             created_at: r.created_at,
         })
         .collect())
@@ -183,16 +188,20 @@ pub async fn revoke_invite_code(id: uuid::Uuid) -> Result<(), ServerFnError> {
 
     let (pool, _admin) = auth::require_admin().await?;
 
-    // Fetch current status to validate the transition.
+    // Use a transaction with SELECT ... FOR UPDATE to prevent a race between
+    // revoke and concurrent redemption.
+    let mut tx = pool.begin().await.map_err(db_err)?;
+
     let status = sqlx::query_scalar!(
         r#"
         SELECT status AS "status: InviteCodeStatus"
         FROM invite_codes
         WHERE id = $1
+        FOR UPDATE
         "#,
         id,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(db_err)?;
 
@@ -219,9 +228,11 @@ pub async fn revoke_invite_code(id: uuid::Uuid) -> Result<(), ServerFnError> {
         "#,
         id,
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await
     .map_err(db_err)?;
+
+    tx.commit().await.map_err(db_err)?;
 
     Ok(())
 }

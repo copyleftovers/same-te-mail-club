@@ -94,8 +94,9 @@ pub async fn request_otp(phone: String) -> Result<RequestOtpOutcome, ServerFnErr
 ///
 /// Branches on account existence:
 /// - Account exists and is active → create session, redirect to `/admin` or `/`
-/// - Account exists but deactivated → session created but `current_user` guard
-///   rejects it immediately; user is bounced back to `/login` (existing behavior)
+/// - Account exists but deactivated → redirect to `/login` silently (no cookie set).
+///   The user sees the login page with no indication of why — prevents phone enumeration
+///   from the invite-code registration path.
 /// - No account → set a short-lived `pending_phone` cookie (HttpOnly, 5 min)
 ///   containing the verified phone, redirect to `/login` so the UI can show
 ///   the invite code step
@@ -126,55 +127,82 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
         return Ok(false);
     }
 
-    // OTP valid. Now check if an active user exists.
-    let active_user_id = sqlx::query_scalar!(
-        r#"SELECT id FROM users WHERE phone = $1 AND status = 'active'"#,
+    // OTP valid. Now check for any existing user row (any status) for this phone.
+    // We must distinguish three cases:
+    //   1. Active user → create session, redirect to home/admin
+    //   2. Deactivated user → redirect to /login without setting pending_phone cookie
+    //      (prevents leaking that the phone exists via the invite-code error path)
+    //   3. Unknown phone → set pending_phone cookie, redirect to /login for invite step
+    let existing_status: Option<String> = sqlx::query_scalar!(
+        r#"SELECT status::TEXT FROM users WHERE phone = $1"#,
         normalized,
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
+    .flatten();
 
-    if let Some(user_id) = active_user_id {
-        // Existing active account — create session and redirect
-        let raw_token = auth::create_session(&pool, user_id)
+    match existing_status.as_deref() {
+        Some("active") => {
+            // Existing active account — create session and redirect
+            let user_id = sqlx::query_scalar!(
+                r#"SELECT id FROM users WHERE phone = $1 AND status = 'active'"#,
+                normalized,
+            )
+            .fetch_one(&pool)
             .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
+            .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
-        let response_options = leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
-        let cookie =
-            format!("session={raw_token}; HttpOnly; SameSite=Strict; Max-Age=7776000; Path=/");
-        response_options.append_header(
-            axum::http::header::SET_COOKIE,
-            axum::http::HeaderValue::from_str(&cookie)
-                .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
-        );
+            let raw_token = auth::create_session(&pool, user_id)
+                .await
+                .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-        let is_admin = sqlx::query_scalar!(
-            r#"SELECT role = 'admin' AS "is_admin!" FROM users WHERE id = $1"#,
-            user_id
-        )
-        .fetch_optional(&pool)
-        .await
-        .unwrap_or(None)
-        .unwrap_or(false);
+            let response_options =
+                leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
+            let cookie =
+                format!("session={raw_token}; HttpOnly; SameSite=Strict; Max-Age=7776000; Path=/");
+            response_options.append_header(
+                axum::http::header::SET_COOKIE,
+                axum::http::HeaderValue::from_str(&cookie)
+                    .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
+            );
 
-        leptos_axum::redirect(if is_admin { "/admin" } else { "/" });
-        Ok(true)
-    } else {
-        // No active account (either unknown phone or deactivated).
-        // Set a short-lived pending_phone cookie so the login page can
-        // render the invite code form with the verified phone preserved.
-        let response_options = leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
-        let cookie =
-            format!("pending_phone={normalized}; HttpOnly; SameSite=Strict; Max-Age=300; Path=/");
-        response_options.append_header(
-            axum::http::header::SET_COOKIE,
-            axum::http::HeaderValue::from_str(&cookie)
-                .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
-        );
-        leptos_axum::redirect("/login");
-        Ok(false)
+            let is_admin = sqlx::query_scalar!(
+                r#"SELECT role = 'admin' AS "is_admin!" FROM users WHERE id = $1"#,
+                user_id
+            )
+            .fetch_optional(&pool)
+            .await
+            .unwrap_or(None)
+            .unwrap_or(false);
+
+            leptos_axum::redirect(if is_admin { "/admin" } else { "/" });
+            Ok(true)
+        }
+        Some(_) => {
+            // Deactivated user — redirect silently without setting pending_phone.
+            // This prevents a deactivated phone from entering the invite-code
+            // registration path, which would hit a UNIQUE constraint and reveal
+            // that the phone was already registered.
+            leptos_axum::redirect("/login");
+            Ok(false)
+        }
+        None => {
+            // Unknown phone — set pending_phone cookie so the login page renders
+            // the invite code form with the OTP-verified phone preserved.
+            let response_options =
+                leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
+            let cookie = format!(
+                "pending_phone={normalized}; HttpOnly; SameSite=Strict; Max-Age=300; Path=/"
+            );
+            response_options.append_header(
+                axum::http::header::SET_COOKIE,
+                axum::http::HeaderValue::from_str(&cookie)
+                    .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
+            );
+            leptos_axum::redirect("/login");
+            Ok(false)
+        }
     }
 }
 
@@ -256,6 +284,64 @@ async fn verify_otp_for_phone(pool: &sqlx::PgPool, phone: &str, code: &str) -> R
         .await;
 
     Ok(())
+}
+
+/// Validate an invite code without redeeming it.
+///
+/// Checks that the `pending_phone` cookie exists (phone was OTP-verified) and
+/// that the given code exists in `invite_codes` with status `'unused'`.
+///
+/// This is an advisory check — it provides early UX feedback so the user
+/// discovers a bad code at the code step rather than after entering their name.
+/// The atomic redemption in `register_with_code` is the real gate.
+///
+/// Returns the validated code string on success so the caller can pass it to
+/// the name step without re-reading the form.
+///
+/// # Errors
+///
+/// Returns `Err` if:
+/// - the `pending_phone` cookie is absent (phone not OTP-verified)
+/// - the code is empty
+/// - no `invite_codes` row matches the code
+/// - the matching code is not in `'unused'` status
+#[server(ValidateInviteCode)]
+pub async fn validate_invite_code(code: String) -> Result<String, ServerFnError> {
+    use crate::types::InviteCodeStatus;
+
+    let pool = leptos::context::use_context::<sqlx::PgPool>()
+        .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
+
+    // Require that the phone was OTP-verified (pending_phone cookie present)
+    let parts = leptos::context::use_context::<http::request::Parts>()
+        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
+    if extract_pending_phone_cookie(&parts).is_none() {
+        return Err(ServerFnError::new("Phone not verified — please start over"));
+    }
+
+    let code = code.trim().to_owned();
+    if code.is_empty() {
+        return Err(ServerFnError::new("Invite code is required"));
+    }
+
+    let status: Option<InviteCodeStatus> = sqlx::query_scalar!(
+        r#"SELECT status AS "status: InviteCodeStatus" FROM invite_codes WHERE code = $1"#,
+        code,
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+
+    match status {
+        None => Err(ServerFnError::new("Invalid invite code")),
+        Some(InviteCodeStatus::Used) => {
+            Err(ServerFnError::new("This invite code has already been used"))
+        }
+        Some(InviteCodeStatus::Revoked) => {
+            Err(ServerFnError::new("This invite code has been revoked"))
+        }
+        Some(InviteCodeStatus::Unused) => Ok(code),
+    }
 }
 
 /// Complete self-registration using an invite code.
@@ -692,43 +778,41 @@ fn LoginStepRouter(
 
 /// Invite code entry form (step 3).
 ///
-/// This is a client-side-only form — it does not call a server function.
-/// On submit, it calls `on_submit` with the entered code and transitions to step 4.
-/// The `ActionForm` pattern cannot be used here because there is no server action;
-/// instead we use a plain `<form>` with an `on:submit` handler.
+/// Calls `validate_invite_code` via `ActionForm` to check the code on the server
+/// before advancing to the name step. This surfaces "invalid / used / revoked"
+/// errors at the code step rather than after the user fills in their name.
 ///
-/// The code is read from the DOM input element directly on submit, avoiding the
-/// signal-driven input anti-pattern.
+/// On successful validation, calls `on_submit` with the validated code string and
+/// transitions to step 4. On failure, displays the server error inline.
+///
+/// Note: `validate_invite_code` is advisory. `register_with_code` performs the
+/// atomic redemption and is the real correctness gate.
 #[component]
 fn InviteCodeForm<F>(hydrated: ReadSignal<bool>, on_submit: F) -> impl IntoView
 where
     F: Fn(String) + 'static,
 {
-    use leptos::ev::SubmitEvent;
-    use leptos::html::Input;
-
     let i18n = use_i18n();
-    let code_ref = NodeRef::<Input>::new();
-    let (error, set_error) = signal(false);
+    let validate_action = ServerAction::<ValidateInviteCode>::new();
+    let validate_pending = validate_action.pending();
 
-    let on_submit_handler = move |ev: SubmitEvent| {
-        ev.prevent_default();
-        let code = code_ref
-            .get()
-            .map(|el| el.value())
-            .unwrap_or_default()
-            .trim()
-            .to_owned();
-        if code.is_empty() {
-            set_error.set(true);
-            return;
+    // When the action succeeds, forward the validated code to the parent.
+    Effect::new(move |_| {
+        if let Some(Ok(ref code)) = validate_action.value().get() {
+            on_submit(code.clone());
         }
-        set_error.set(false);
-        on_submit(code);
+    });
+
+    let error_msg = move || {
+        validate_action
+            .value()
+            .get()
+            .and_then(Result::err)
+            .map(|e| e.to_string())
     };
 
     view! {
-        <form on:submit=on_submit_handler>
+        <leptos::form::ActionForm action=validate_action>
             <div class="field">
                 <label class="field-label" for="invite-code-input">
                     {t!(i18n, auth_invite_code_prompt)}
@@ -740,28 +824,32 @@ where
                     name="code"
                     placeholder=move || t_string!(i18n, auth_invite_code_placeholder)
                     data-testid="invite-code-input"
-                    node_ref=code_ref
                     aria-describedby="invite-code-error"
+                    attr:aria-invalid=move || error_msg().is_some().then_some("true")
                 />
             </div>
-            // Error display for invite code step — shown when code was empty on submit
+            // Error display for invite code step — server-returned message
             <p
                 id="invite-code-error"
                 class="text-sm text-(--color-error) mt-1 mb-3"
                 aria-live="assertive"
                 data-testid="invite-code-error"
             >
-                {move || error.get().then_some(t!(i18n, auth_invite_code_error_invalid))}
+                {move || error_msg()}
             </p>
             <button
                 class="btn w-full"
                 type="submit"
                 data-testid="submit-invite-code-button"
-                disabled=move || !hydrated.get()
+                disabled=move || validate_pending.get() || !hydrated.get()
             >
-                {t!(i18n, auth_invite_code_submit_button)}
+                {move || if validate_pending.get() {
+                    t!(i18n, common_loading).into_any()
+                } else {
+                    t!(i18n, auth_invite_code_submit_button).into_any()
+                }}
             </button>
-        </form>
+        </leptos::form::ActionForm>
     }
 }
 
@@ -812,6 +900,14 @@ where
                     placeholder=move || t_string!(i18n, participants_name_placeholder)
                     data-testid="legal-name-input"
                     aria-describedby="legal-name-error"
+                    attr:aria-invalid=move || {
+                        register_action
+                            .value()
+                            .get()
+                            .and_then(Result::err)
+                            .is_some()
+                            .then_some("true")
+                    }
                 />
             </div>
             // Error display for name collection
