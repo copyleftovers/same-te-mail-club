@@ -13,6 +13,7 @@ node_modules/
 .ai-failures.json
 .healing-results.json
 .playwright/
+.playwright-cli/
 tests/seed.spec.ts
 end2end/results.json
 orchestration_log/recon/

@@ -276,6 +276,7 @@ fn render_season_section(
         Some(season) => render_active_season(
             season,
             state.participant_count,
+            create_action,
             launch_action,
             advance_action,
             cancel_action,
@@ -368,6 +369,7 @@ fn render_create_form(
 fn render_active_season(
     season: &AdminSeason,
     participant_count: i64,
+    create_action: ServerAction<CreateSeason>,
     launch_action: ServerAction<LaunchSeason>,
     advance_action: ServerAction<AdvanceSeason>,
     cancel_action: ServerAction<CancelSeason>,
@@ -608,15 +610,10 @@ fn render_active_season(
                 }}
             </div>
 
-            // Terminal state: offer to create a new season
+            // Terminal state: show create form below the summary so organiser
+            // can start a new season without navigating away.
             {if is_terminal {
-                view! {
-                    <p class="mt-4">
-                        <a class="btn" data-size="sm" href="/admin">
-                            {t!(i18n, dashboard_create_season_button)}
-                        </a>
-                    </p>
-                }.into_any()
+                render_create_form(create_action, hydrated, i18n)
             } else {
                 ().into_any()
             }}
