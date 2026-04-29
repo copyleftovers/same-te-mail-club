@@ -160,9 +160,11 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
       await app.createSeason(SIGNUP_DEADLINE, CONFIRM_DEADLINE, SEASON_THEME);
-      // Season should exist — dashboard shows it
+      // Season should exist — dashboard shows the launch button in Created phase.
+      // Neither "created" nor "створено" appears as text; the Created phase renders
+      // the phase-stepper and the "Запустити" launch button. (FIX-1)
       await app.goToDashboard();
-      await app.expectDashboardContent(/created|створено/i);
+      await app.expectDashboardContent(/запустити/i);
     });
 
     // Story 4.1 AC: season not open for enrollment until launched
@@ -203,6 +205,51 @@ test.describe.serial("The Mail Club", () => {
       await app.expectDashboardContent(/signup|реєстрація/i);
     });
 
+    // Story 4.5: All admin functionality on /admin (NEW-4.5-A)
+    // Dependencies: admin logged in, season launched (Enrollment phase).
+    test("4.5 — all admin functionality on /admin", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      await page.goto("/admin");
+      await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
+
+      // Season section visible
+      await expect(page.getByTestId("dashboard-content")).toBeVisible();
+
+      // Participants section visible on same page
+      await expect(page.getByTestId("participant-list")).toBeVisible();
+      await expect(page.getByTestId("register-button")).toBeVisible();
+
+      // Phase controls visible — Enrollment phase shows the season-open SMS button
+      await expect(page.getByTestId("send-season-open-button")).toBeVisible();
+    });
+
+    // Story 4.5: Phase-stepper present in all launched phases (NEW-4.5-B)
+    test("4.5 — phase-stepper visible after launch", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      await page.goto("/admin");
+      await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
+      // Phase-stepper appears when a season is active and launched.
+      await expect(page.getByTestId("phase-stepper")).toBeVisible();
+    });
+
+    // Story 4.6: Enrollment phase — only season-open SMS button shown (NEW-4.6-A)
+    test("4.6 — enrollment phase shows only season-open SMS button", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      await page.goto("/admin");
+      await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
+
+      // Correct phase signal: season-open button is visible
+      await expect(page.getByTestId("send-season-open-button")).toBeVisible();
+
+      // Wrong-phase SMS buttons are not in the DOM in Enrollment phase
+      await expect(page.getByTestId("send-confirm-nudge-button")).not.toBeVisible();
+      await expect(page.getByTestId("send-assignment-button")).not.toBeVisible();
+      await expect(page.getByTestId("send-receipt-nudge-button")).not.toBeVisible();
+    });
+
     // Story 4.7 AC: advance-blocked-hint not shown in Enrollment phase
     test("4.7 — advance not blocked in enrollment phase", async ({ page }) => {
       const app = new MailClubPage(page);
@@ -213,17 +260,17 @@ test.describe.serial("The Mail Club", () => {
       await expect(page.getByTestId("advance-blocked-hint")).not.toBeVisible();
     });
 
-    // Story 5.3: Season-open SMS — also asserts 4.4 counts (active users)
+    // Story 5.3: Season-open SMS — also asserts 4.4-A count (active users)
+    // FIX-3: The unified admin page is phase-gated (Story 4.6). Only
+    // sms-count-active-users is rendered in Enrollment phase. The other three
+    // count spans (unnotified-senders, unconfirmed-enrolled, no-response) are
+    // absent from the DOM until their respective phases.
     test("5.3 — admin triggers season-open SMS", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      // Story 4.4-A: active user count visible on SMS page
-      // Story 4.4-D: all four count spans present simultaneously (smoke)
+      // Story 4.4-A: active user count visible in Enrollment phase
       await page.goto("/admin");
       await app.expectSmsCountVisible("sms-count-active-users");
-      await app.expectSmsCountVisible("sms-count-unnotified-senders");
-      await app.expectSmsCountVisible("sms-count-unconfirmed-enrolled");
-      await app.expectSmsCountVisible("sms-count-no-response");
       // 3 active participants registered in test setup
       await app.expectSmsCount("sms-count-active-users", "3");
       await app.triggerSms("season-open");
@@ -312,6 +359,22 @@ test.describe.serial("The Mail Club", () => {
       await app.advanceSeason();
       await app.goToDashboard();
       await app.expectDashboardContent(/preparation|підготовка/i);
+    });
+
+    // Story 4.6: Preparation phase — only confirm-nudge SMS button shown (NEW-4.6-B)
+    test("4.6 — preparation phase shows only confirm-nudge SMS button", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      await page.goto("/admin");
+      await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
+
+      // Correct phase signal: confirm-nudge button is visible
+      await expect(page.getByTestId("send-confirm-nudge-button")).toBeVisible();
+
+      // Wrong-phase SMS buttons are not in the DOM in Preparation phase
+      await expect(page.getByTestId("send-season-open-button")).not.toBeVisible();
+      await expect(page.getByTestId("send-assignment-button")).not.toBeVisible();
+      await expect(page.getByTestId("send-receipt-nudge-button")).not.toBeVisible();
     });
 
     // Architecture Home Screen: creating phase, enrolled not confirmed
@@ -409,6 +472,23 @@ test.describe.serial("The Mail Club", () => {
       await app.expectDashboardContent(/assignment|розподіл/i);
     });
 
+    // Story 4.6: Assignment phase — no SMS buttons shown (NEW-4.6-C)
+    test("4.6 — assignment phase shows no SMS buttons", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      await page.goto("/admin");
+      await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
+
+      // Phase signal: generate-button is the canonical Assignment-phase indicator
+      await expect(page.getByTestId("generate-button")).toBeVisible();
+
+      // No SMS buttons in Assignment phase
+      await expect(page.getByTestId("send-season-open-button")).not.toBeVisible();
+      await expect(page.getByTestId("send-confirm-nudge-button")).not.toBeVisible();
+      await expect(page.getByTestId("send-assignment-button")).not.toBeVisible();
+      await expect(page.getByTestId("send-receipt-nudge-button")).not.toBeVisible();
+    });
+
     // Architecture Home Screen: assigning phase
     test("home screen — participant sees 'preparing' during assignment", async ({ page }) => {
       const app = new MailClubPage(page);
@@ -478,24 +558,6 @@ test.describe.serial("The Mail Club", () => {
       await app.swapAssignment(NAMES.A, NAMES.B);
       await app.expectCycleVisualization();
     });
-
-    // Story 5.1: Assignment SMS
-    // Story 4.4-C: unnotified sender count visible and drops to 0 after sending
-    test("5.1 — admin triggers assignment SMS", async ({ page }) => {
-      const app = new MailClubPage(page);
-      await app.login(ADMIN_PHONE);
-      // Story 4.4-C before send: count > 0 (3 senders not yet notified).
-      await page.goto("/admin");
-      await app.expectSmsCountVisible("sms-count-unnotified-senders");
-      await expect(
-        page.getByTestId("sms-count-unnotified-senders"),
-      ).not.toContainText("0");
-      // Send the assignment SMS.
-      await page.getByTestId("send-assignment-button").click();
-      await app.expectSmsReport();
-      // Story 4.4-C after send: notified_at set on all 3 assignment rows → count drops to 0.
-      await app.expectSmsCount("sms-count-unnotified-senders", "0");
-    });
   });
 
   // ════════════════════════════════════════════
@@ -510,6 +572,42 @@ test.describe.serial("The Mail Club", () => {
       await app.advanceSeason();
       await app.goToDashboard();
       await app.expectDashboardContent(/delivery|відправлення|доставка/i);
+    });
+
+    // Story 4.6: Delivery phase — assignment + receipt-nudge SMS buttons shown, not others (NEW-4.6-D)
+    test("4.6 — delivery phase shows assignment and receipt-nudge SMS buttons only", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      await page.goto("/admin");
+      await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
+
+      // Correct phase signals: both Delivery SMS buttons are visible
+      await expect(page.getByTestId("send-assignment-button")).toBeVisible();
+      await expect(page.getByTestId("send-receipt-nudge-button")).toBeVisible();
+
+      // Wrong-phase SMS buttons are not in the DOM in Delivery phase
+      await expect(page.getByTestId("send-season-open-button")).not.toBeVisible();
+      await expect(page.getByTestId("send-confirm-nudge-button")).not.toBeVisible();
+    });
+
+    // Story 5.1: Assignment SMS
+    // Story 4.4-C: unnotified sender count visible and drops to 0 after sending
+    // Placement: Delivery phase — send-assignment-button and sms-count-unnotified-senders
+    // are only rendered in Delivery phase (per Story 4.6 phase-gating).
+    test("5.1 — admin triggers assignment SMS", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      // Story 4.4-C before send: count > 0 (3 senders not yet notified).
+      await page.goto("/admin");
+      await app.expectSmsCountVisible("sms-count-unnotified-senders");
+      await expect(
+        page.getByTestId("sms-count-unnotified-senders"),
+      ).not.toContainText("0");
+      // Send the assignment SMS.
+      await page.getByTestId("send-assignment-button").click();
+      await app.expectSmsReport();
+      // Story 4.4-C after send: notified_at set on all 3 assignment rows → count drops to 0.
+      await app.expectSmsCount("sms-count-unnotified-senders", "0");
     });
 
     // Story 2.3: Participant sees assignment
@@ -633,7 +731,10 @@ test.describe.serial("The Mail Club", () => {
       await app.login(ADMIN_PHONE);
       await app.cancelSeason();
       await app.goToDashboard();
-      await app.expectDashboardContent(/cancelled|скасовано|no active|create/i);
+      // Cancelled phase renders is_terminal=true. The "Новий сезон" link appears
+      // in terminal state. Neither "cancelled", "скасовано", "no active", nor "create"
+      // appear as standalone text in this view. (FIX-2)
+      await app.expectDashboardContent(/новий сезон/i);
     });
 
     // Architecture Home Screen: no active season
