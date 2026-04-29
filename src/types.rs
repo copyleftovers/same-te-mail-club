@@ -113,6 +113,23 @@ pub enum ReceiptStatus {
     NotReceived,
 }
 
+/// Invite code lifecycle status — mirrors `invite_code_status` Postgres enum.
+///
+/// - `Unused`: code has been generated but not yet redeemed by any participant.
+/// - `Used`: code was redeemed; exactly one participant account was created with it.
+/// - `Revoked`: code was administratively cancelled before redemption.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(sqlx::Type))]
+#[cfg_attr(
+    feature = "ssr",
+    sqlx(type_name = "invite_code_status", rename_all = "lowercase")
+)]
+pub enum InviteCodeStatus {
+    Unused,
+    Used,
+    Revoked,
+}
+
 /// Authenticated user data returned by `get_current_user` server function.
 /// Lives in types.rs so it is available in both SSR and WASM builds.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

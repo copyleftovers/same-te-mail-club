@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE invite_codes\n        SET status = 'used',\n            redeemer_id = $1,\n            redeemed_at = now()\n        WHERE id = $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d4ee8e67da2547cd40cdb30d19576fdef8ba731d4df173763a1e5df237b23a02"
+}

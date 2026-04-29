@@ -274,11 +274,16 @@ pub fn format_code(word_a: &str, word_b: &str) -> String {
 /// error is a genuine database failure forwarded from sqlx.
 #[cfg(feature = "ssr")]
 pub async fn generate_unique_code(pool: &sqlx::PgPool) -> Result<String, sqlx::Error> {
-    let mut rng = rand::rng();
-
     for _ in 0..20 {
-        let (a, b) = pick_two_words(&mut rng);
-        let candidate = format_code(a, b);
+        // Generate the candidate inside a block so `rng` (which is `!Send`)
+        // is dropped before the `.await` below. Holding `ThreadRng` across an
+        // await point would violate the `Send` bound required by Leptos server
+        // functions.
+        let candidate = {
+            let mut rng = rand::rng();
+            let (a, b) = pick_two_words(&mut rng);
+            format_code(a, b)
+        };
 
         let exists = sqlx::query_scalar!(
             r#"SELECT EXISTS(SELECT 1 FROM invite_codes WHERE code = $1) AS "exists!""#,
@@ -300,6 +305,8 @@ pub async fn generate_unique_code(pool: &sqlx::PgPool) -> Result<String, sqlx::E
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
     use std::collections::HashSet;
 
     /// Verify that `WORD_LIST` has exactly 200 entries.
@@ -399,7 +406,7 @@ mod tests {
     /// in 100 draws indicates a bug (birthday problem: p ≈ 0.12%).
     #[test]
     fn test_100_generated_codes_are_unique() {
-        let mut rng = rand::rng();
+        let mut rng = ChaCha8Rng::seed_from_u64(0);
         let mut seen: HashSet<String> = HashSet::new();
         for _ in 0..100 {
             let (a, b) = pick_two_words(&mut rng);

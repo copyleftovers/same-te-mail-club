@@ -1,0 +1,61 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            ic.id,\n            ic.code,\n            d.name AS distributor_name,\n            ic.status AS \"status: InviteCodeStatus\",\n            r.name AS redeemer_name,\n            ic.created_at\n        FROM invite_codes ic\n        JOIN users d ON d.id = ic.distributor_id\n        LEFT JOIN users r ON r.id = ic.redeemer_id\n        ORDER BY ic.created_at DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "distributor_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "status: InviteCodeStatus",
+        "type_info": {
+          "Custom": {
+            "name": "invite_code_status",
+            "kind": {
+              "Enum": [
+                "unused",
+                "used",
+                "revoked"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "redeemer_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "934c95215996aa4065a377cc1b14be3193e71a751d8b80e37d4300d2ecedeaa9"
+}

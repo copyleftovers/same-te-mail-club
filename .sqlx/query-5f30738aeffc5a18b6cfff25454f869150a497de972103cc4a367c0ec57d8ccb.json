@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO invite_codes (code, distributor_id, status)\n        VALUES ($1, $2, 'unused')\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5f30738aeffc5a18b6cfff25454f869150a497de972103cc4a367c0ec57d8ccb"
+}

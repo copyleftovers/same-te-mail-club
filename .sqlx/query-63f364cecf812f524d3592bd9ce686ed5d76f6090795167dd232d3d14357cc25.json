@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT EXISTS(SELECT 1 FROM users WHERE phone = $1 AND status = 'active') AS \"exists!\"",
+  "query": "\n        SELECT EXISTS(\n            SELECT 1 FROM users\n            WHERE id = $1 AND status = 'active'\n        ) AS \"exists!\"\n        ",
   "describe": {
     "columns": [
       {
@@ -11,12 +11,12 @@
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
       null
     ]
   },
-  "hash": "d219bbead43dcb3a97f69ddff8189a65f2dca7e1a6473286dd47f5605a56e78d"
+  "hash": "63f364cecf812f524d3592bd9ce686ed5d76f6090795167dd232d3d14357cc25"
 }

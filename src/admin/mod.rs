@@ -1,5 +1,6 @@
 pub mod assignments;
 pub mod dashboard;
+pub mod invite_codes;
 pub mod nav;
 pub mod page;
 pub mod participants;

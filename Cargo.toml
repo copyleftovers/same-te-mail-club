@@ -80,6 +80,9 @@ ssr = [
     "leptos-use/axum",
 ]
 
+[dev-dependencies]
+rand_chacha = "0.9"
+
 [lints.rust]
 unsafe_code = "forbid"
 
