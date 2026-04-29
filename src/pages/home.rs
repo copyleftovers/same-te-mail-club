@@ -231,6 +231,7 @@ async fn resolve_delivery_state(
 ///
 /// Used by [`enroll_in_season`] and [`confirm_ready`] to gate deadline enforcement.
 /// Extracted so unit tests can exercise it without a server context.
+#[cfg(feature = "ssr")]
 fn is_past_deadline(deadline: time::OffsetDateTime, test_mode: bool) -> bool {
     !test_mode && deadline < time::OffsetDateTime::now_utc()
 }
@@ -1037,7 +1038,7 @@ fn render_home_state(
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "ssr"))]
 mod tests {
     use super::is_past_deadline;
 
