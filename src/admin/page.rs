@@ -2,9 +2,11 @@ use crate::admin::assignments::{
     AssignmentLink, AssignmentPreview, CohortPreview, GenerateAssignments, SwapAssignment,
     get_assignment_preview,
 };
-use crate::admin::participants::{
-    DeactivateParticipant, ParticipantSummary, RegisterParticipant, list_participants,
+use crate::admin::invite_codes::{
+    DistributorOption, GenerateInviteCode, InviteCodeRow, RevokeInviteCode,
+    list_distributor_options, list_invite_codes,
 };
+use crate::admin::participants::{DeactivateParticipant, ParticipantSummary, list_participants};
 use crate::admin::season::{AdvanceSeason, CancelSeason, CreateSeason, LaunchSeason};
 use crate::admin::sms::{
     SendAssignmentSms, SendConfirmNudgeSms, SendReceiptNudgeSms, SendSeasonOpenSms, SmsReport,
@@ -14,6 +16,7 @@ use crate::components::stepper::PhaseStepper;
 use crate::components::toast::use_toast;
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
+use crate::types::InviteCodeStatus;
 use leptos::prelude::*;
 
 // ── Public page component ──────────────────────────────────────────────────────
@@ -51,8 +54,11 @@ pub fn AdminPage() -> impl IntoView {
     let receipt_nudge_action = ServerAction::<SendReceiptNudgeSms>::new();
 
     // ── Participant mutation actions ───────────────────────────────────────────
-    let register_action = ServerAction::<RegisterParticipant>::new();
     let deactivate_action = ServerAction::<DeactivateParticipant>::new();
+
+    // ── Invite code mutation actions ──────────────────────────────────────────
+    let generate_invite_action = ServerAction::<GenerateInviteCode>::new();
+    let revoke_invite_action = ServerAction::<RevokeInviteCode>::new();
 
     // ── Unified state resource ─────────────────────────────────────────────────
     // Any completed mutation triggers a full state refetch.
@@ -69,7 +75,6 @@ pub fn AdminPage() -> impl IntoView {
                 assignment_action.version().get(),
                 confirm_nudge_action.version().get(),
                 receipt_nudge_action.version().get(),
-                register_action.version().get(),
                 deactivate_action.version().get(),
             )
         },
@@ -85,13 +90,27 @@ pub fn AdminPage() -> impl IntoView {
 
     // ── Participant list resource ─────────────────────────────────────────────
     let participants = Resource::new(
+        move || deactivate_action.version().get(),
+        |_| list_participants(),
+    );
+
+    // ── Invite codes resource ─────────────────────────────────────────────────
+    // Refetches after generate or revoke completes.
+    let invite_codes = Resource::new(
         move || {
             (
-                register_action.version().get(),
-                deactivate_action.version().get(),
+                generate_invite_action.version().get(),
+                revoke_invite_action.version().get(),
             )
         },
-        |_| list_participants(),
+        |_| list_invite_codes(),
+    );
+
+    // ── Distributor options resource ──────────────────────────────────────────
+    // Refetches after generate (in case a new participant registered via code).
+    let distributor_options = Resource::new(
+        move || generate_invite_action.version().get(),
+        |_| list_distributor_options(),
     );
 
     // ── Toast feedback for successful actions ─────────────────────────────────
@@ -141,13 +160,26 @@ pub fn AdminPage() -> impl IntoView {
         }
     });
     Effect::new(move |_| {
-        if let Some(Ok(())) = register_action.value().get() {
-            set_toast.set(Some("Учасника зареєстровано!".into()));
+        if let Some(Ok(())) = deactivate_action.value().get() {
+            set_toast.set(Some("Учасника деактивовано!".into()));
         }
     });
     Effect::new(move |_| {
-        if let Some(Ok(())) = deactivate_action.value().get() {
-            set_toast.set(Some("Учасника деактивовано!".into()));
+        if generate_invite_action
+            .value()
+            .get()
+            .is_some_and(|r| r.is_ok())
+        {
+            set_toast.set(Some(
+                t_string!(i18n, admin_invite_codes_generated_toast).into(),
+            ));
+        }
+    });
+    Effect::new(move |_| {
+        if let Some(Ok(())) = revoke_invite_action.value().get() {
+            set_toast.set(Some(
+                t_string!(i18n, admin_invite_codes_revoked_toast).into(),
+            ));
         }
     });
 
@@ -166,8 +198,9 @@ pub fn AdminPage() -> impl IntoView {
             .or_else(|| assignment_action.value().get().and_then(Result::err))
             .or_else(|| confirm_nudge_action.value().get().and_then(Result::err))
             .or_else(|| receipt_nudge_action.value().get().and_then(Result::err))
-            .or_else(|| register_action.value().get().and_then(Result::err))
             .or_else(|| deactivate_action.value().get().and_then(Result::err))
+            .or_else(|| generate_invite_action.value().get().and_then(Result::err))
+            .or_else(|| revoke_invite_action.value().get().and_then(Result::err))
     };
 
     view! {
@@ -235,10 +268,13 @@ pub fn AdminPage() -> impl IntoView {
             // ── Participants section ───────────────────────────────────────────
             <section>
                 <h1>{t!(i18n, participants_page_title)}</h1>
-                <section>
-                    <h2>{t!(i18n, participants_register_section_title)}</h2>
-                    <RegisterFormSection register_action=register_action />
-                </section>
+                <InviteCodesSection
+                    generate_invite_action=generate_invite_action
+                    revoke_invite_action=revoke_invite_action
+                    invite_codes=invite_codes
+                    distributor_options=distributor_options
+                    hydrated=hydrated
+                />
                 <section>
                     <h2>{t!(i18n, participants_list_title)}</h2>
                     <ParticipantListSection
@@ -1165,54 +1201,277 @@ fn SwapFormSection(
 // ── Participant section sub-components ────────────────────────────────────────
 
 #[component]
-fn RegisterFormSection(register_action: ServerAction<RegisterParticipant>) -> impl IntoView {
+fn InviteCodesSection(
+    generate_invite_action: ServerAction<GenerateInviteCode>,
+    revoke_invite_action: ServerAction<RevokeInviteCode>,
+    invite_codes: Resource<Result<Vec<InviteCodeRow>, ServerFnError>>,
+    distributor_options: Resource<Result<Vec<DistributorOption>, ServerFnError>>,
+    hydrated: ReadSignal<bool>,
+) -> impl IntoView {
     let i18n = use_i18n();
-    let hydrated = use_hydrated();
-    let pending = register_action.pending();
 
     view! {
-        <leptos::form::ActionForm action=register_action>
-            <div class="field">
-                <label class="field-label" for="reg-phone">
-                    {t!(i18n, participants_phone_label)}
-                </label>
-                <input
-                    class="field-input"
-                    id="reg-phone"
-                    type="tel"
-                    name="phone"
-                    placeholder="+380XXXXXXXXX"
-                    data-testid="reg-phone-input"
-                    aria-describedby="action-error"
-                />
-            </div>
-            <div class="field">
-                <label class="field-label" for="reg-name">
-                    {t!(i18n, participants_name_label)}
-                </label>
-                <input
-                    class="field-input"
-                    id="reg-name"
-                    type="text"
-                    name="name"
-                    placeholder=move || t_string!(i18n, participants_name_placeholder)
-                    data-testid="reg-name-input"
-                    aria-describedby="action-error"
-                />
-            </div>
-            <button
-                class="btn"
-                type="submit"
-                data-testid="register-button"
-                disabled=move || pending.get() || !hydrated.get()
-            >
-                {move || if pending.get() {
-                    "Реєструю...".into_any()
-                } else {
-                    t!(i18n, participants_register_button).into_any()
+        <section data-testid="invite-codes-section">
+            <h2>{t!(i18n, admin_invite_codes_section_title)}</h2>
+
+            // ── Generate subsection ───────────────────────────────────────────
+            <h3>{t!(i18n, admin_invite_codes_generate_subsection_title)}</h3>
+
+            <Suspense fallback=|| ()>
+                {move || {
+                    distributor_options
+                        .get()
+                        .map(|result| match result {
+                            Err(e) => {
+                                view! { <p class="text-(--color-error)">{e.to_string()}</p> }
+                                    .into_any()
+                            }
+                            Ok(options) => {
+                                let options_for_view = options.clone();
+                                view! {
+                                    <leptos::form::ActionForm action=generate_invite_action>
+                                        <div class="field">
+                                            <label class="field-label" for="distributor-id">
+                                                {t!(i18n, admin_invite_codes_distributor_label)}
+                                            </label>
+                                            <select
+                                                class="field-input"
+                                                id="distributor-id"
+                                                name="distributor_id"
+                                                data-testid="distributor-select"
+                                                required=true
+                                                aria-describedby="action-error"
+                                            >
+                                                <option value="">
+                                                    {t!(i18n, assignments_select_sender)}
+                                                </option>
+                                                {options_for_view
+                                                    .iter()
+                                                    .map(|opt| {
+                                                        let id = opt.id.to_string();
+                                                        let name = opt.name.clone();
+                                                        view! { <option value=id>{name}</option> }
+                                                    })
+                                                    .collect_view()}
+                                            </select>
+                                        </div>
+                                        <button
+                                            class="btn"
+                                            type="submit"
+                                            data-testid="generate-code-button"
+                                            disabled=move || !hydrated.get()
+                                        >
+                                            {t!(i18n, admin_invite_codes_generate_button)}
+                                        </button>
+                                    </leptos::form::ActionForm>
+                                }
+                                .into_any()
+                            }
+                        })
                 }}
-            </button>
-        </leptos::form::ActionForm>
+            </Suspense>
+
+            // ── Generated code display ────────────────────────────────────────
+            <Show when=move || {
+                generate_invite_action.value().get().is_some_and(|r| r.is_ok())
+            }>
+                <div
+                    class="flex items-center gap-3 mt-3"
+                    data-testid="generated-code-display"
+                    role="status"
+                    aria-live="polite"
+                >
+                    <span class="text-sm font-semibold">
+                        {t!(i18n, admin_invite_codes_generated_label)}
+                    </span>
+                    <code
+                        class="font-mono text-sm bg-(--color-surface-raised) px-2 py-1 rounded"
+                        data-testid="generated-code-value"
+                    >
+                        {move || {
+                            generate_invite_action
+                                .value()
+                                .get()
+                                .and_then(Result::ok)
+                                .unwrap_or_default()
+                        }}
+                    </code>
+                </div>
+            </Show>
+
+            // ── Invite code list subsection ───────────────────────────────────
+            <h3 class="mt-6">{t!(i18n, admin_invite_codes_list_title)}</h3>
+
+            <div data-testid="invite-code-list">
+                <Suspense fallback=|| ()>
+                    {move || {
+                        invite_codes
+                            .get()
+                            .map(|result| match result {
+                                Err(e) => {
+                                    view! {
+                                        <p class="text-(--color-error)">{e.to_string()}</p>
+                                    }
+                                    .into_any()
+                                }
+                                Ok(codes) if codes.is_empty() => {
+                                    view! {
+                                        <div
+                                            class="empty-state"
+                                            data-testid="invite-code-empty-state"
+                                        >
+                                            <p class="empty-state-headline">
+                                                {t!(i18n, admin_invite_codes_empty_state)}
+                                            </p>
+                                            <p class="empty-state-body">
+                                                {t!(i18n, admin_invite_codes_empty_state_body)}
+                                            </p>
+                                        </div>
+                                    }
+                                    .into_any()
+                                }
+                                Ok(codes) => {
+                                    view! {
+                                        <div class="data-table-wrapper">
+                                            <table class="data-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>
+                                                            {t!(
+                                                                i18n,
+                                                                admin_invite_codes_table_code
+                                                            )}
+                                                        </th>
+                                                        <th>
+                                                            {t!(
+                                                                i18n,
+                                                                admin_invite_codes_table_distributor
+                                                            )}
+                                                        </th>
+                                                        <th>
+                                                            {t!(i18n, participants_table_status)}
+                                                        </th>
+                                                        <th>
+                                                            {t!(
+                                                                i18n,
+                                                                admin_invite_codes_table_redeemer
+                                                            )}
+                                                        </th>
+                                                        <th>
+                                                            {t!(i18n, participants_table_actions)}
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <For
+                                                        each=move || codes.clone()
+                                                        key=|c| c.id
+                                                        let:code
+                                                    >
+                                                        <tr data-testid="invite-code-row">
+                                                            <td data-testid="invite-code-cell">
+                                                                {code.code.clone()}
+                                                            </td>
+                                                            <td data-testid="invite-code-distributor-cell">
+                                                                {code.distributor_name.clone()}
+                                                            </td>
+                                                            <td data-testid="invite-code-status-cell">
+                                                                {match code.status {
+                                                                    InviteCodeStatus::Unused => {
+                                                                        view! {
+                                                                            <span
+                                                                                class="badge"
+                                                                                data-testid="invite-code-status-badge"
+                                                                                data-status="unused"
+                                                                            >
+                                                                                {t!(
+                                                                                    i18n,
+                                                                                    admin_invite_codes_status_unused
+                                                                                )}
+                                                                            </span>
+                                                                        }
+                                                                        .into_any()
+                                                                    }
+                                                                    InviteCodeStatus::Used => {
+                                                                        view! {
+                                                                            <span
+                                                                                class="badge"
+                                                                                data-testid="invite-code-status-badge"
+                                                                                data-status="used"
+                                                                            >
+                                                                                {t!(
+                                                                                    i18n,
+                                                                                    admin_invite_codes_status_used
+                                                                                )}
+                                                                            </span>
+                                                                        }
+                                                                        .into_any()
+                                                                    }
+                                                                    InviteCodeStatus::Revoked => {
+                                                                        view! {
+                                                                            <span
+                                                                                class="badge"
+                                                                                data-testid="invite-code-status-badge"
+                                                                                data-status="revoked"
+                                                                            >
+                                                                                {t!(
+                                                                                    i18n,
+                                                                                    admin_invite_codes_status_revoked
+                                                                                )}
+                                                                            </span>
+                                                                        }
+                                                                        .into_any()
+                                                                    }
+                                                                }}
+                                                            </td>
+                                                            <td data-testid="invite-code-redeemer-cell">
+                                                                {code.redeemer_name.clone().unwrap_or_default()}
+                                                            </td>
+                                                            <td>
+                                                                {if code.status
+                                                                    == InviteCodeStatus::Unused
+                                                                {
+                                                                    let code_id = code.id.to_string();
+                                                                    view! {
+                                                                        <leptos::form::ActionForm action=revoke_invite_action>
+                                                                            <input
+                                                                                type="hidden"
+                                                                                name="id"
+                                                                                value=code_id
+                                                                            />
+                                                                            <button
+                                                                                class="btn"
+                                                                                data-variant="destructive"
+                                                                                data-size="sm"
+                                                                                type="submit"
+                                                                                data-testid="invite-code-revoke-button"
+                                                                                disabled=move || !hydrated.get()
+                                                                            >
+                                                                                {t!(
+                                                                                    i18n,
+                                                                                    admin_invite_codes_revoke_button
+                                                                                )}
+                                                                            </button>
+                                                                        </leptos::form::ActionForm>
+                                                                    }
+                                                                    .into_any()
+                                                                } else {
+                                                                    ().into_any()
+                                                                }}
+                                                            </td>
+                                                        </tr>
+                                                    </For>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    }
+                                    .into_any()
+                                }
+                            })
+                    }}
+                </Suspense>
+            </div>
+        </section>
     }
 }
 
@@ -1246,7 +1505,7 @@ fn ParticipantListSection(
                                         <div class="empty-state" data-testid="empty-state">
                                             <p class="empty-state-headline">Ще немає учасників</p>
                                             <p class="empty-state-body">
-                                                Зареєструйте першого учасника вище
+                                                Створіть код запрошення вище
                                             </p>
                                         </div>
                                     }

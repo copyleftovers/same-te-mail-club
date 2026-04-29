@@ -1,5 +1,5 @@
 use crate::hooks::use_hydrated;
-use crate::i18n::i18n::{t, use_i18n};
+use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 use leptos::server_fn::ServerFn;
 
@@ -406,6 +406,21 @@ fn extract_pending_phone_cookie(parts: &http::request::Parts) -> Option<String> 
     None
 }
 
+/// Check whether the current request has a `pending_phone` cookie set,
+/// indicating the user has verified their phone but not yet completed registration.
+///
+/// This is called as a server Resource on page load so the login page can
+/// render the correct initial step during SSR.
+#[server(CheckPendingRegistration)]
+// `async` is required by the `#[server]` macro even though this function has no
+// await points — the macro generates an async trait impl that requires it.
+#[allow(clippy::unused_async)]
+pub async fn check_pending_registration() -> Result<bool, ServerFnError> {
+    let parts = leptos::context::use_context::<http::request::Parts>()
+        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
+    Ok(extract_pending_phone_cookie(&parts).is_some())
+}
+
 /// Logout by clearing the session cookie and deleting the session from the database.
 ///
 /// Redirects to `/` (which will redirect to `/login` since no valid session exists).
@@ -446,27 +461,30 @@ pub async fn logout() -> Result<(), ServerFnError> {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-/// Three-step login / self-registration flow.
+/// Four-step login / self-registration flow.
 ///
 /// Step 1 — Phone: user enters phone, `request_otp` sends OTP and returns outcome.
 /// Step 2 — OTP: user enters OTP code (native form POST via `VerifyOtpCode::url()`).
 ///   - Existing account: server sets session + redirects to `/` or `/admin`
 ///   - New phone: server sets `pending_phone` cookie + redirects back to `/login`
-/// Step 3 — Invite code (new phones only): user enters invite code, then name.
+/// Step 3 — Invite code (new phones only): user enters invite code; on submit,
+///   the code is stored client-side and the name step appears.
+/// Step 4 — Name (new phones only): user enters their full name; `RegisterWithCode`
+///   ActionForm sends both code + name, server creates the account and redirects
+///   to `/onboarding`.
 ///
-/// Both `ActionForm` (for step 1) and native `<form method="post">` (for step 2)
-/// are used. Step 2 uses native POST so the browser follows the server-issued 302
-/// redirect without WASM involvement — this is required for progressive enhancement
-/// and avoids WASM hydration race conditions.
+/// Step visibility is controlled by `style:display` toggling. The four steps are
+/// mutually exclusive and never unmounted — toggling avoids DOM churn and maintains
+/// form state across re-renders.
 ///
-/// Step 3 uses `ActionForm` for the invite code and name collection.
+/// Cookie detection for step 3/4 is done via a server Resource (`check_pending_registration`)
+/// called on page load. This works during SSR and after hydration.
 #[component]
 pub fn LoginPage() -> impl IntoView {
     let i18n = use_i18n();
     let request_action = ServerAction::<RequestOtp>::new();
-    let request_pending = request_action.pending();
 
-    // Hydration gate — phone form button stays disabled until WASM hydrates.
+    // Hydration gate — buttons stay disabled until WASM hydrates.
     let hydrated = use_hydrated();
 
     // Store the phone when it's submitted — capture from the pending input
@@ -488,6 +506,17 @@ pub fn LoginPage() -> impl IntoView {
         )
     });
 
+    // Detect whether the current request has a pending_phone cookie (new-account flow).
+    // This Resource runs server-side during SSR and client-side after hydration.
+    let pending_registration = Resource::new(|| (), |()| check_pending_registration());
+
+    // Client-side signal: the invite code entered in step 3.
+    // None = step 3 shown; Some(code) = step 4 shown.
+    let (entered_code, set_entered_code) = signal(Option::<String>::None);
+
+    // ActionForm for name collection step (step 4)
+    let register_action = ServerAction::<RegisterWithCode>::new();
+
     view! {
         <div class="prose-page flex flex-col items-center text-center pt-[10svh]">
             <img
@@ -496,74 +525,328 @@ pub fn LoginPage() -> impl IntoView {
                 class="h-20 w-auto mb-8"
             />
 
-            // Phone step — hidden once OTP step activates.
-            // Uses ActionForm: reads phone from FormData (DOM) at submit time.
-            <div style:display=move || if otp_step.get() { "none" } else { "" }>
-                <leptos::form::ActionForm action=request_action>
-                    <div class="field">
-                        <label class="field-label" for="phone-input">
-                            {t!(i18n, login_phone_label)}
-                        </label>
-                        <input
-                            class="field-input"
-                            id="phone-input"
-                            type="tel"
-                            name="phone"
-                            placeholder="+380XXXXXXXXX"
-                            data-testid="phone-input"
+            <Suspense fallback=move || view! {
+                <div class="text-(--color-text-muted) text-sm">
+                    {t!(i18n, common_loading)}
+                </div>
+            }>
+                {move || {
+                    let is_pending = pending_registration.get()
+                        .and_then(Result::ok)
+                        .unwrap_or(false);
+                    view! {
+                        <LoginStepRouter
+                            is_pending=is_pending
+                            otp_step=otp_step
+                            hydrated=hydrated
+                            request_action=request_action
+                            submitted_phone=submitted_phone
+                            entered_code=entered_code
+                            set_entered_code=set_entered_code
+                            register_action=register_action
                         />
-                    </div>
-                    <button
-                        class="btn w-full"
-                        type="submit"
-                        data-testid="send-otp-button"
-                        disabled=move || request_pending.get() || !hydrated.get()
-                    >
-                        {move || if request_pending.get() {
-                            "Надсилаю...".into_any()
-                        } else {
-                            t!(i18n, login_send_code_button).into_any()
-                        }}
-                    </button>
-                </leptos::form::ActionForm>
-            </div>
-
-            // OTP step — hidden until request succeeds.
-            // Uses native form POST: the server sets a cookie and issues a 302
-            // redirect. The browser follows the redirect, Playwright waits for
-            // the navigation to complete. No WASM involvement needed.
-            <div style:display=move || if otp_step.get() { "" } else { "none" }>
-                <form method="post" action=VerifyOtpCode::url()>
-                    <input type="hidden" name="phone" prop:value=submitted_phone />
-                    <div class="field">
-                        <label class="field-label" for="code-input">
-                            {t!(i18n, login_otp_label)}
-                        </label>
-                        <input
-                            class="field-input"
-                            id="code-input"
-                            type="text"
-                            name="code"
-                            placeholder="000000"
-                            maxlength="6"
-                            data-testid="otp-input"
-                            data-otp
-                        />
-                    </div>
-                    <button class="btn w-full" type="submit" data-testid="verify-otp-button">
-                        {t!(i18n, login_verify_button)}
-                    </button>
-                </form>
-                <button
-                    type="button"
-                    class="btn w-full mt-3"
-                    data-variant="secondary"
-                    data-testid="back-to-phone-button"
-                    on:click=move |_| request_action.value().set(None)
-                >
-                    {t!(i18n, login_change_phone_button)}
-                </button>
-            </div>
+                    }
+                }}
+            </Suspense>
         </div>
+    }
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+/// Routes between the four login/registration steps based on current state.
+///
+/// All steps are rendered but toggled visible/hidden via `style:display` so
+/// form state is preserved across transitions.
+///
+/// Step visibility rules:
+/// - Step 1 (phone):        `!otp_step && !is_pending`
+/// - Step 2 (OTP):          `otp_step && !is_pending`
+/// - Step 3 (invite code):  `is_pending && entered_code.is_none()`
+/// - Step 4 (name):         `is_pending && entered_code.is_some()`
+#[allow(clippy::too_many_arguments)]
+// This component coordinates four steps with their shared signals. The argument
+// count reflects the necessary state threads, not a design smell; splitting would
+// require context or channels instead, which adds indirection for no clarity gain.
+#[component]
+fn LoginStepRouter(
+    is_pending: bool,
+    otp_step: Memo<bool>,
+    hydrated: ReadSignal<bool>,
+    request_action: ServerAction<RequestOtp>,
+    submitted_phone: ReadSignal<String>,
+    entered_code: ReadSignal<Option<String>>,
+    set_entered_code: WriteSignal<Option<String>>,
+    register_action: ServerAction<RegisterWithCode>,
+) -> impl IntoView {
+    let i18n = use_i18n();
+    let request_pending = request_action.pending();
+
+    view! {
+        // ── Step 1: Phone ─────────────────────────────────────────────────────
+        // Hidden once OTP step activates or pending_registration is set.
+        <div style:display=move || {
+            if otp_step.get() || is_pending { "none" } else { "" }
+        }>
+            <leptos::form::ActionForm action=request_action>
+                <div class="field">
+                    <label class="field-label" for="phone-input">
+                        {t!(i18n, login_phone_label)}
+                    </label>
+                    <input
+                        class="field-input"
+                        id="phone-input"
+                        type="tel"
+                        name="phone"
+                        placeholder="+380XXXXXXXXX"
+                        data-testid="phone-input"
+                    />
+                </div>
+                <button
+                    class="btn w-full"
+                    type="submit"
+                    data-testid="send-otp-button"
+                    disabled=move || request_pending.get() || !hydrated.get()
+                >
+                    {move || if request_pending.get() {
+                        t!(i18n, common_loading).into_any()
+                    } else {
+                        t!(i18n, login_send_code_button).into_any()
+                    }}
+                </button>
+            </leptos::form::ActionForm>
+        </div>
+
+        // ── Step 2: OTP ───────────────────────────────────────────────────────
+        // Hidden until request succeeds; also hidden if pending_registration is set.
+        // Uses native form POST so the browser follows the server-issued 302 redirect.
+        <div style:display=move || {
+            if otp_step.get() && !is_pending { "" } else { "none" }
+        }>
+            <form method="post" action=VerifyOtpCode::url()>
+                <input type="hidden" name="phone" prop:value=submitted_phone />
+                <div class="field">
+                    <label class="field-label" for="code-input">
+                        {t!(i18n, login_otp_label)}
+                    </label>
+                    <input
+                        class="field-input"
+                        id="code-input"
+                        type="text"
+                        name="code"
+                        placeholder="000000"
+                        maxlength="6"
+                        data-testid="otp-input"
+                        data-otp
+                    />
+                </div>
+                <button class="btn w-full" type="submit" data-testid="verify-otp-button">
+                    {t!(i18n, login_verify_button)}
+                </button>
+            </form>
+            <button
+                type="button"
+                class="btn w-full mt-3"
+                data-variant="secondary"
+                data-testid="back-to-phone-button"
+                on:click=move |_| request_action.value().set(None)
+            >
+                {t!(i18n, login_change_phone_button)}
+            </button>
+        </div>
+
+        // ── Step 3: Invite code ───────────────────────────────────────────────
+        // Shown when pending_registration is true AND no code entered yet.
+        <div
+            data-testid="invite-code-step"
+            style:display=move || {
+                if is_pending && entered_code.get().is_none() { "" } else { "none" }
+            }
+        >
+            <h2 class="font-display text-xl font-black mb-4">
+                {t!(i18n, auth_invite_code_step_heading)}
+            </h2>
+            <InviteCodeForm
+                hydrated=hydrated
+                on_submit=move |code| set_entered_code.set(Some(code))
+            />
+        </div>
+
+        // ── Step 4: Name collection ────────────────────────────────────────────
+        // Shown when pending_registration is true AND a code has been entered.
+        <div
+            data-testid="name-collection-step"
+            style:display=move || {
+                if is_pending && entered_code.get().is_some() { "" } else { "none" }
+            }
+        >
+            <NameCollectionForm
+                hydrated=hydrated
+                register_action=register_action
+                entered_code=entered_code
+                on_back=move || set_entered_code.set(None)
+            />
+        </div>
+    }
+}
+
+/// Invite code entry form (step 3).
+///
+/// This is a client-side-only form — it does not call a server function.
+/// On submit, it calls `on_submit` with the entered code and transitions to step 4.
+/// The `ActionForm` pattern cannot be used here because there is no server action;
+/// instead we use a plain `<form>` with an `on:submit` handler.
+///
+/// The code is read from the DOM input element directly on submit, avoiding the
+/// signal-driven input anti-pattern.
+#[component]
+fn InviteCodeForm<F>(hydrated: ReadSignal<bool>, on_submit: F) -> impl IntoView
+where
+    F: Fn(String) + 'static,
+{
+    use leptos::ev::SubmitEvent;
+    use leptos::html::Input;
+
+    let i18n = use_i18n();
+    let code_ref = NodeRef::<Input>::new();
+    let (error, set_error) = signal(false);
+
+    let on_submit_handler = move |ev: SubmitEvent| {
+        ev.prevent_default();
+        let code = code_ref
+            .get()
+            .map(|el| el.value())
+            .unwrap_or_default()
+            .trim()
+            .to_owned();
+        if code.is_empty() {
+            set_error.set(true);
+            return;
+        }
+        set_error.set(false);
+        on_submit(code);
+    };
+
+    view! {
+        <form on:submit=on_submit_handler>
+            <div class="field">
+                <label class="field-label" for="invite-code-input">
+                    {t!(i18n, auth_invite_code_prompt)}
+                </label>
+                <input
+                    class="field-input"
+                    id="invite-code-input"
+                    type="text"
+                    name="code"
+                    placeholder=move || t_string!(i18n, auth_invite_code_placeholder)
+                    data-testid="invite-code-input"
+                    node_ref=code_ref
+                    aria-describedby="invite-code-error"
+                />
+            </div>
+            // Error display for invite code step — shown when code was empty on submit
+            <p
+                id="invite-code-error"
+                class="text-sm text-(--color-error) mt-1 mb-3"
+                aria-live="assertive"
+                data-testid="invite-code-error"
+            >
+                {move || error.get().then_some(t!(i18n, auth_invite_code_error_invalid))}
+            </p>
+            <button
+                class="btn w-full"
+                type="submit"
+                data-testid="submit-invite-code-button"
+                disabled=move || !hydrated.get()
+            >
+                {t!(i18n, auth_invite_code_submit_button)}
+            </button>
+        </form>
+    }
+}
+
+/// Name collection form (step 4 of the registration flow).
+///
+/// Uses `ActionForm` to call `RegisterWithCode` with a hidden code field (from
+/// the previous step) plus the user-provided name. On success, the server redirects
+/// to `/onboarding`. On error, the error is displayed inline.
+///
+/// The `on_back` callback lets the user return to the invite code step to re-enter
+/// the code if they made a typo.
+#[component]
+fn NameCollectionForm<F>(
+    hydrated: ReadSignal<bool>,
+    register_action: ServerAction<RegisterWithCode>,
+    entered_code: ReadSignal<Option<String>>,
+    on_back: F,
+) -> impl IntoView
+where
+    F: Fn() + 'static,
+{
+    let i18n = use_i18n();
+    let register_pending = register_action.pending();
+
+    view! {
+        <h2 class="font-display text-xl font-black mb-4">
+            {t!(i18n, auth_name_step_heading)}
+        </h2>
+        <p class="text-sm text-(--color-text-muted) mb-4">
+            {t!(i18n, auth_name_context)}
+        </p>
+        <leptos::form::ActionForm action=register_action>
+            // Hidden input carries the code from step 3 into the form submission
+            <input
+                type="hidden"
+                name="code"
+                prop:value=move || entered_code.get().unwrap_or_default()
+            />
+            <div class="field">
+                <label class="field-label" for="legal-name-input">
+                    {t!(i18n, auth_name_prompt)}
+                </label>
+                <input
+                    class="field-input"
+                    id="legal-name-input"
+                    type="text"
+                    name="name"
+                    placeholder=move || t_string!(i18n, participants_name_placeholder)
+                    data-testid="legal-name-input"
+                    aria-describedby="legal-name-error"
+                />
+            </div>
+            // Error display for name collection
+            <p
+                id="legal-name-error"
+                class="text-sm text-(--color-error) mt-1 mb-3"
+                aria-live="assertive"
+                data-testid="legal-name-error"
+            >
+                {move || register_action.value().get()
+                    .and_then(Result::err)
+                    .map(|e| e.to_string())}
+            </p>
+            <button
+                class="btn w-full"
+                type="submit"
+                data-testid="create-account-button"
+                disabled=move || register_pending.get() || !hydrated.get()
+            >
+                {move || if register_pending.get() {
+                    t!(i18n, common_loading).into_any()
+                } else {
+                    t!(i18n, auth_name_submit_button).into_any()
+                }}
+            </button>
+        </leptos::form::ActionForm>
+        // Back button — lets user re-enter the code if they made a typo
+        <button
+            type="button"
+            class="btn w-full mt-3"
+            data-variant="secondary"
+            data-testid="back-to-invite-code-button"
+            on:click=move |_| on_back()
+        >
+            {t!(i18n, login_change_phone_button)}
+        </button>
     }
 }
