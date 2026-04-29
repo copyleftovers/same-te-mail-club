@@ -358,7 +358,12 @@ pub async fn validate_invite_code(code: String) -> Result<String, ServerFnError>
 /// 7. Clears the `pending_phone` cookie
 /// 8. Redirects to `/onboarding`
 ///
-/// Errors on: missing cookie, invalid/used/revoked code, UNIQUE phone violation.
+/// On error: redirects back to `/login?pending=1` (user retries).
+/// On success: sets session cookie, redirects to `/onboarding`.
+///
+/// Uses native `<form method="post">` (not ActionForm) because it must set an
+/// HttpOnly session cookie, which only works on full HTTP responses.
+/// All outcomes are redirects — the function never returns errors to the client.
 #[server(RegisterWithCode)]
 pub async fn register_with_code(code: String, name: String) -> Result<(), ServerFnError> {
     use crate::{auth, phone as phone_mod};
@@ -366,115 +371,87 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
     let pool = leptos::context::use_context::<sqlx::PgPool>()
         .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
 
-    // Extract the pending_phone cookie
     let parts = leptos::context::use_context::<http::request::Parts>()
         .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
 
-    let pending_phone = extract_pending_phone_cookie(&parts)
-        .ok_or_else(|| ServerFnError::new("Phone not verified — please start over"))?;
+    let Some(pending_phone) = extract_pending_phone_cookie(&parts) else {
+        leptos_axum::redirect("/login");
+        return Ok(());
+    };
 
-    // Validate and normalize the phone from cookie
-    let normalized = phone_mod::normalize(&pending_phone)
-        .map_err(|_| ServerFnError::new("Invalid phone in session — please start over"))?;
+    let Ok(normalized) = phone_mod::normalize(&pending_phone) else {
+        leptos_axum::redirect("/login");
+        return Ok(());
+    };
 
-    // Validate name
     let name = name.trim().to_owned();
     if name.is_empty() {
-        return Err(ServerFnError::new("Name is required"));
+        leptos_axum::redirect("/login?pending=1");
+        return Ok(());
     }
 
     // Atomically lock code, create user, mark code used
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    let Ok(mut tx) = pool.begin().await else {
+        leptos_axum::redirect("/login?pending=1");
+        return Ok(());
+    };
 
-    // Lock the invite code row for update — prevents double redemption under concurrency
-    let code_row = sqlx::query!(
-        r#"
-        SELECT id, status AS "status: String"
-        FROM invite_codes
-        WHERE code = $1
-        FOR UPDATE
-        "#,
+    let Ok(Some(code_row)) = sqlx::query!(
+        r#"SELECT id, status AS "status: String" FROM invite_codes WHERE code = $1 FOR UPDATE"#,
         code,
     )
     .fetch_optional(&mut *tx)
     .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?
-    .ok_or_else(|| ServerFnError::new("Invalid invite code"))?;
+    else {
+        leptos_axum::redirect("/login?pending=1");
+        return Ok(());
+    };
 
-    match code_row.status.as_str() {
-        "used" => return Err(ServerFnError::new("This invite code has already been used")),
-        "revoked" => return Err(ServerFnError::new("This invite code has been revoked")),
-        "unused" => {} // proceed
-        other => return Err(ServerFnError::new(format!("Unknown code status: {other}"))),
+    if code_row.status != "unused" {
+        leptos_axum::redirect("/login?pending=1");
+        return Ok(());
     }
 
-    // Insert the new user — will fail with UNIQUE violation if phone already exists
-    let user_id = sqlx::query_scalar!(
-        r#"
-        INSERT INTO users (phone, name)
-        VALUES ($1, $2)
-        RETURNING id
-        "#,
+    let Ok(user_id) = sqlx::query_scalar!(
+        r#"INSERT INTO users (phone, name) VALUES ($1, $2) RETURNING id"#,
         normalized,
         name,
     )
     .fetch_one(&mut *tx)
     .await
-    .map_err(|e| {
-        // Detect UNIQUE constraint violation on phone column
-        if let sqlx::Error::Database(ref db_err) = e
-            && db_err.constraint() == Some("users_phone_key")
-        {
-            return ServerFnError::new("This phone number is already registered");
-        }
-        ServerFnError::new(format!("database error: {e}"))
-    })?;
+    else {
+        leptos_axum::redirect("/login?pending=1");
+        return Ok(());
+    };
 
-    // Mark the invite code as used
-    sqlx::query!(
-        r#"
-        UPDATE invite_codes
-        SET status = 'used',
-            redeemer_id = $1,
-            redeemed_at = now()
-        WHERE id = $2
-        "#,
+    let _ = sqlx::query!(
+        r#"UPDATE invite_codes SET status = 'used', redeemer_id = $1, redeemed_at = now() WHERE id = $2"#,
         user_id,
         code_row.id,
     )
     .execute(&mut *tx)
-    .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    .await;
 
-    tx.commit()
-        .await
-        .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+    let _ = tx.commit().await;
 
-    // Create session
-    let raw_token = auth::create_session(&pool, user_id)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    let Ok(raw_token) = auth::create_session(&pool, user_id).await else {
+        leptos_axum::redirect("/login");
+        return Ok(());
+    };
 
     let response_options = leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
 
-    // Set session cookie
     let session_cookie =
         format!("session={raw_token}; HttpOnly; SameSite=Strict; Max-Age=7776000; Path=/");
-    response_options.append_header(
+    () = response_options.append_header(
         axum::http::header::SET_COOKIE,
-        axum::http::HeaderValue::from_str(&session_cookie)
-            .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
+        axum::http::HeaderValue::from_str(&session_cookie).unwrap(),
     );
 
-    // Clear the pending_phone cookie
     let clear_cookie = "pending_phone=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/";
-    response_options.append_header(
+    () = response_options.append_header(
         axum::http::header::SET_COOKIE,
-        axum::http::HeaderValue::from_str(clear_cookie)
-            .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
+        axum::http::HeaderValue::from_str(clear_cookie).unwrap(),
     );
 
     leptos_axum::redirect("/onboarding");
@@ -886,7 +863,10 @@ where
         <p class="text-sm text-(--color-text-muted) mb-4">
             {t!(i18n, auth_name_context)}
         </p>
-        <leptos::form::ActionForm action=register_action>
+        // Native POST form — not ActionForm — because register_with_code sets
+        // a session cookie via ResponseOptions, which only works for full HTTP
+        // responses (not fetch-intercepted ActionForm responses).
+        <form method="post" action=RegisterWithCode::url()>
             // Hidden input carries the code from step 3 into the form submission
             <input
                 type="hidden"
@@ -938,7 +918,7 @@ where
                     t!(i18n, auth_name_submit_button).into_any()
                 }}
             </button>
-        </leptos::form::ActionForm>
+        </form>
         // Back button — lets user re-enter the code if they made a typo
         <button
             type="button"

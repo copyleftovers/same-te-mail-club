@@ -356,10 +356,15 @@ export class MailClubPage {
     // the register_with_code ActionForm).
     await expect(this.page.getByTestId("create-account-button")).toBeEnabled();
 
-    // Step 4: Name collection — fill name and submit.
+    // Step 4: Name collection — fill name and submit via native POST.
+    // register_with_code uses native <form method="post"> (not ActionForm) because
+    // it must set an HttpOnly session cookie, which requires a full HTTP response.
     await this.page.getByTestId("legal-name-input").fill(name);
-    await this.page.getByTestId("create-account-button").click();
-    // register_with_code redirects to /onboarding on success.
+    await this.clickAndWaitForResponse(
+      this.page.getByTestId("create-account-button"),
+      "register_with_code",
+    );
+    // After the native POST → 302 → /onboarding, wait for full page load.
     await this.page.waitForURL(/\/onboarding/);
     await this.page.waitForLoadState("domcontentloaded");
   }
