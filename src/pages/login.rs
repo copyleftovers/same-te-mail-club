@@ -188,18 +188,21 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
             Ok(false)
         }
         None => {
-            // Unknown phone — set pending_phone cookie so the login page renders
-            // the invite code form with the OTP-verified phone preserved.
+            // Unknown phone — set pending_phone HttpOnly cookie (server-side auth token
+            // for validate_invite_code and register_with_code) AND redirect to
+            // /login?pending=1 (client-side signal for UI routing). Dual mechanism:
+            // cookie = security, query param = UI.
             let response_options =
                 leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
-            let cookie =
-                format!("pending_phone={normalized}; SameSite=Strict; Max-Age=300; Path=/");
+            let cookie = format!(
+                "pending_phone={normalized}; HttpOnly; SameSite=Strict; Max-Age=300; Path=/"
+            );
             response_options.append_header(
                 axum::http::header::SET_COOKIE,
                 axum::http::HeaderValue::from_str(&cookie)
                     .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
             );
-            leptos_axum::redirect("/login");
+            leptos_axum::redirect("/login?pending=1");
             Ok(false)
         }
     }
@@ -467,7 +470,7 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
     );
 
     // Clear the pending_phone cookie
-    let clear_cookie = "pending_phone=; SameSite=Strict; Max-Age=0; Path=/";
+    let clear_cookie = "pending_phone=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/";
     response_options.append_header(
         axum::http::header::SET_COOKIE,
         axum::http::HeaderValue::from_str(clear_cookie)
@@ -590,25 +593,23 @@ pub fn LoginPage() -> impl IntoView {
         )
     });
 
-    // Detect whether the current request has a pending_phone cookie (new-account flow).
-    // Must produce the same value on SSR and client to avoid hydration mismatch.
-    // The cookie is intentionally NOT HttpOnly so the client can read it via document.cookie.
+    // Detect ?pending=1 query param (set by verify_otp_code for new phones).
+    // Must produce the same result on SSR and client for hydration stability.
+    // The actual phone is in an HttpOnly cookie; this param just signals the UI.
     let is_pending = {
         #[cfg(feature = "ssr")]
         {
             leptos::context::use_context::<http::request::Parts>()
-                .and_then(|parts| extract_pending_phone_cookie(&parts))
-                .is_some()
+                .and_then(|parts| parts.uri.query().map(|q| q.contains("pending=1")))
+                .unwrap_or(false)
         }
         #[cfg(not(feature = "ssr"))]
         {
-            {
-                use leptos::wasm_bindgen::JsCast;
-                leptos::prelude::document()
-                    .unchecked_into::<leptos::web_sys::HtmlDocument>()
-                    .cookie()
-                    .is_ok_and(|c| c.contains("pending_phone="))
-            }
+            leptos::prelude::window()
+                .location()
+                .search()
+                .ok()
+                .is_some_and(|s| s.contains("pending=1"))
         }
     };
     let (is_pending_signal, _) = signal(is_pending);
