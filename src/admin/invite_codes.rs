@@ -142,8 +142,8 @@ pub async fn list_invite_codes() -> Result<Vec<InviteCodeRow>, ServerFnError> {
             ic.code,
             d.name AS distributor_name,
             ic.status AS "status: InviteCodeStatus",
-            r.name AS redeemer_name,
-            ic.redeemed_at,
+            r.name AS "redeemer_name?",
+            ic.redeemed_at AS "redeemed_at?",
             ic.created_at
         FROM invite_codes ic
         JOIN users d ON d.id = ic.distributor_id
