@@ -2,21 +2,30 @@ Stories cover the app only — the offline ritual (creation, shipping, meetup) i
 
 ## Epic 1: Join the Community
 
-The organizer registers new participants; participants authenticate to access their account.
+Participants join through invite codes distributed by existing members; participants authenticate to access their account.
 
-### Story 1.1: Organizer registers a new participant
+### Story 1.1: Join with an invite code
 
-**Outcome:** A new person exists in the system, ready to sign in.
+**Outcome:** A person with a valid invite code has an account and can participate in the club.
 
 ```
-Given the organizer has met someone in person and invited them
-When the organizer enters their phone number and real name into the system
-Then an account is created and the participant can sign in
+Given a person has a physical invitation with a unique code
+When they enter their phone, verify via OTP, provide the code and their legal name
+Then an account is created with the verified phone number and they proceed to onboarding
 ```
 
 **AC:**
-- Only the organizer can create new accounts
-- Minimum data at registration: phone number + real name (legal name matching government ID — required for Nova Poshta parcel pickup)
+- The login page is the universal entry point for both new and returning participants
+- After OTP verification, if no account exists for the phone, the system prompts for an invite code
+- The OTP-verified phone number becomes the account phone — no re-entry or editing
+- Valid code → name input → account created → redirect to onboarding
+- Invalid, used, or revoked code → error message, unlimited retry, no rate limit on code attempts
+- Codes are single-use: one code creates exactly one account
+- The system records which distributor's code was redeemed (referral tracking)
+- Legal name is required (matching government ID — needed for Nova Poshta parcel pickup)
+- A phone number with a deactivated account cannot re-register — the unique constraint is the enforcement; re-entry requires a different phone number plus a new code
+- Codes are word-based: 2-3 Ukrainian words joined by dashes (memorable, typeable from a physical card)
+- Codes do not expire — a physical card is valid until used or revoked
 
 ### Story 1.2: Sign in with phone number
 
@@ -49,6 +58,41 @@ Then their Nova Poshta branch is saved and they can enroll in seasons
 - Collects preferred Nova Poshta branch (required)
 - Participant can update their branch later (during season enrollment or in settings)
 - Onboarding completes only once — returning participants skip it
+
+### Story 1.5: Generate invite codes
+
+**Outcome:** The organizer has invite codes to distribute, each trackable to a specific distributor.
+
+```
+Given the organizer wants to enable someone to invite a new participant
+When they select a distributor (existing participant or themselves) and generate a code
+Then a unique code is created and linked to that distributor
+```
+
+**AC:**
+- Code generation lives in the participants section of the admin page (replaces the manual registration form)
+- The organizer selects an existing participant or "self" as the distributor before generating
+- Each generated code is immediately linked to its distributor — no unassigned codes exist
+- The code string is displayed once for the organizer to copy or write onto a physical card
+- The app produces the code string only — physical card production is entirely offline
+- Generated codes appear in a list showing: code, distributor name, status (unused/used/revoked), redeemer name (if used)
+
+### Story 1.6: Manage invite codes
+
+**Outcome:** The organizer has visibility into the invitation pipeline and can revoke codes that should not be used.
+
+```
+Given invite codes have been generated
+When the organizer views the code list
+Then they see the status of every code and can revoke unused ones
+```
+
+**AC:**
+- Code list shows: code string, distributor, status (unused / used / revoked), redeemer name and date (if used)
+- The organizer can revoke any unused code — the physical card becomes dead
+- Used codes cannot be revoked (the account already exists)
+- Revoked codes show "revoked" status in the list, not removed
+- The list is filterable or scannable — the organizer can find a specific code or see all codes from a specific distributor
 
 ### Story 1.4: Sign out
 
@@ -421,14 +465,14 @@ Then the participant cannot enroll in future seasons and does not receive season
 - Only the organizer can deactivate accounts
 - Deactivated accounts cannot sign in or enroll
 - Deactivated participants are excluded from season-open SMS notifications
-- Re-activation requires the organizer to create a new account (full re-invitation cycle)
+- Re-entry requires a new invite code and a different phone number — the deactivated phone is permanently burned; the unique constraint enforces this without additional logic
 
 ---
 
 ## Story Dependencies
 
 ```
-1.1 (register) → 1.2 (sign in) → 1.3 (onboarding) → 2.1 (enroll) → 5.4 (pre-deadline SMS) → 2.2 (ready-confirm) → 3.1 (generate)
+1.5 (generate codes) → 1.1 (self-register with code) → 1.2 (sign in) → 1.3 (onboarding) → 2.1 (enroll) → 5.4 (pre-deadline SMS) → 2.2 (ready-confirm) → 3.1 (generate)
                                                                                                                                ↓
                                                                                                                          3.2 (social-aware, reads DB directly)
                                                                                                                                ↓
@@ -441,6 +485,7 @@ Then the participant cannot enroll in future seasons and does not receive season
 4.1 (create season) → 4.2 (launch season) → 5.3 (season-open SMS) → 2.1 (enroll)
 
 1.4 (sign out) — available from any authenticated state, no dependency chain
+1.6 (manage codes) — depends on 1.5; available at any time after codes exist
 4.3 (cancel season) — branches from any non-terminal phase after 4.2; alternative to proceeding
 4.4 (dashboard) — depends on 4.1 (season must exist); read-only view
 ```
