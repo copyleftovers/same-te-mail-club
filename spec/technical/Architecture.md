@@ -158,7 +158,7 @@ At 50 users with 90-day sessions: ~17 SMS/month for auth (~4 re-auths/year per u
 8. On match: create session, set cookie, redirect
 9. On mismatch: increment attempt counter, respond with error
 
-**Allowlist-only:** OTP requests rejected for unregistered or deactivated phone numbers. Since the organizer pre-registers all users, SMS pumping fraud is eliminated by construction.
+**Invite-code-gated registration:** OTP requests are accepted for any phone number (rate-limited to prevent SMS pumping abuse). An invite code is required to complete account creation; distributing codes is the organizer's primary access-control mechanism. Deactivated accounts are still rejected at the OTP request stage.
 
 ### Rate Limiting
 
@@ -374,7 +374,7 @@ src/
     mod.rs             — Admin route tree
     nav.rs             — Admin navigation component
     dashboard.rs       — Season overview, confirmed count, action buttons
-    participants.rs    — Register new, list, deactivate
+    participants.rs    — List, deactivate (registration is now via invite codes in login flow)
     season.rs          — Create, launch, advance phase
     assignments.rs     — View graph, override pairings, release
     sms.rs             — Trigger SMS batches (assignment notifications, nudges, season-open)
@@ -411,7 +411,7 @@ Any server function:
 | Path | Component | Auth + Admin | SsrMode | Purpose |
 |------|-----------|-------------|---------|---------|
 | `/admin` | Dashboard | Yes | Async | Season health, counts, actions |
-| `/admin/participants` | Participants | Yes | Async | Register, list, deactivate |
+| `/admin/participants` | Participants | Yes | Async | List, deactivate participants |
 | `/admin/season` | SeasonManage | Yes | Async | Create, launch, advance phase |
 | `/admin/assignments` | Assignments | Yes | Async | View graph, override, release |
 | `/admin/sms` | SmsBatch | Yes | Async | Trigger notification batches |

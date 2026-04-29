@@ -186,7 +186,6 @@ These methods wait for their own completion. The test can proceed immediately af
 | `launchSeason()` | `advance-button` becomes visible |
 | `advanceSeason()` | POST response received (no DOM change — uses `clickAndWaitForResponse`) |
 | `cancelSeason()` | `cancel-button` disappears |
-| `registerParticipant(phone, name)` | Participant name appears in list |
 
 ### Self-Contained Actions with Internal Completion Wait
 

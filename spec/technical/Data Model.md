@@ -186,6 +186,33 @@ Social graph. Organizer-managed directly in DB for season 1.
 | user_id | UUID | FK → users ON DELETE CASCADE | |
 | | | PRIMARY KEY (group_id, user_id) | |
 
+### invite_codes
+
+Invite code lifecycle. Each physical card carries one code. Used once to gate account creation in the login flow.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | UUID | PK, DEFAULT `gen_random_uuid()` | |
+| code | TEXT | UNIQUE, NOT NULL | 2 Ukrainian words, hyphenated |
+| distributor_id | UUID | NOT NULL, FK → users(id) ON DELETE RESTRICT | Who received the physical card to distribute |
+| status | invite_code_status | NOT NULL, DEFAULT 'unused' | Lifecycle: unused → used or revoked |
+| redeemer_id | UUID | FK → users(id) ON DELETE SET NULL | Who used the code to create their account |
+| created_at | TIMESTAMPTZ | NOT NULL, DEFAULT `now()` | |
+| redeemed_at | TIMESTAMPTZ | NULLABLE | Set when code is used |
+| revoked_at | TIMESTAMPTZ | NULLABLE | Set when code is revoked |
+
+**Custom enum:**
+
+```sql
+CREATE TYPE invite_code_status AS ENUM (
+    'unused', 'used', 'revoked'
+);
+```
+
+**Why ON DELETE RESTRICT for distributor_id:** A distributor cannot be deleted while they hold undistributed codes. This prevents orphaned cards from becoming untrackable. Deactivation (status change) is preferred over deletion.
+
+**Why ON DELETE SET NULL for redeemer_id:** If the redeemed account is deleted, the code's redemption history is preserved for audit purposes with the redeemer_id nulled.
+
 ---
 
 ## Removed from Original Spec
