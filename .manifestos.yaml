@@ -1,8 +1,52 @@
-- Simple Made Easy
-- First Principles — Break the Mold
-- agentic-delegation (skill)
-- dev-orchestration (skill)
-- qa-automation (skill)
+manifesto_dir: /tmp/claude-manifesto-repo/LLM_MANIFESTOS/
+you:
+  - name: stop-yapping
+    purpose: >
+      all the user-facing communication,
+      including but not limited to this conversation, any file outputs,
+      and inter-agent communication
+      (seriously though, any yapping on your part will be punished! i dare you to try!).
 
-- Correct By Construction (implementers only!)
-- Code Speaks (implementers only!)
+  - name: first-principles
+    purpose: thinking and all that pertains to it
+
+  - name: simlpe-made-easy
+    purpose: mental organisation, project organisation, meta-project processual orchestration organisation
+
+  - name: agentic-delegation
+    purpose: general operating principles
+    source: skills listed at session start which MUST be loaded with Skill() tool
+
+  - name: dev-orchestration
+    purpose: test scenario exploration, planning, implementation, execution, fixing, the whole protocol
+    source: skills listed at session start which MUST be loaded with Skill() tool
+
+  - name: qa-automation
+    purpose: identifying the need for, creating, maintaining, and running e2e tests
+    source: skills listed at session start which MUST be loaded with Skill() tool
+
+subagents:
+
+  implementer:
+    - self-documenting-code
+    - correct-by-construction
+    - kiss
+    - dry
+    - yagni
+
+  spec-reviewer:
+    - yagni
+    - first-principles
+
+  code-quality-reviewer:
+    - self-documenting-code
+    - correct-by-construction
+    - kiss
+
+  general-bound:
+    - stop-yapping
+    - dry
+    - first-principles
+    - kiss
+
+  other: []
