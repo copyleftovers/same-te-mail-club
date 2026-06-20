@@ -197,7 +197,6 @@ These methods use `click()` + element visibility wait internally. The test can p
 | `confirmReady()` | `confirm-ready-button` disappears |
 | `confirmReceipt(received, note?)` | Thank-you/reported text appears |
 | `generateAssignments()` | `cycle-visualization` appears |
-| `releaseAssignments()` | Released text appears |
 | `triggerSms(type)` | `sms-report` appears |
 | `deactivateParticipant(name)` | Inactive status text appears |
 
