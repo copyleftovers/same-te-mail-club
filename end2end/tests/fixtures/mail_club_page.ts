@@ -117,6 +117,7 @@ export class MailClubPage {
     await expect(
       this.page.getByTestId("save-onboarding-button"),
     ).toBeEnabled();
+    await expect(this.page.getByTestId("np-number-input")).toBeEditable();
 
     const cityInput = this.page.getByTestId("np-city-input");
     const numberInput = this.page.getByTestId("np-number-input");
@@ -205,24 +206,13 @@ export class MailClubPage {
 
   // ── Assignment view (Story 2.3) ──
 
-  async revealAssignment() {
-    const envelope = this.page.getByTestId("reveal-envelope");
-    await envelope.click();
-    // Wait for content to be visible after animation
-    await expect(this.page.getByTestId("recipient-name")).toBeVisible();
-  }
-
   async expectAssignmentVisible() {
-    // Click envelope to reveal (idempotent - CSS handles already-expanded)
-    await this.revealAssignment();
     await expect(this.page.getByTestId("recipient-name")).toBeVisible();
     await expect(this.page.getByTestId("recipient-phone")).toBeVisible();
     await expect(this.page.getByTestId("recipient-branch")).toBeVisible();
   }
 
   async getAssignment() {
-    // Ensure envelope is revealed before reading text content
-    await this.revealAssignment();
     return {
       name: await this.page.getByTestId("recipient-name").textContent(),
       phone: await this.page.getByTestId("recipient-phone").textContent(),

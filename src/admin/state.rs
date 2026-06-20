@@ -15,8 +15,8 @@ pub struct AdminState {
 
 /// Full season data for the unified admin view.
 ///
-/// Combines data from `DashboardSeason`, `SeasonStatus`, `SmsCounts`,
-/// and the assignment confirmed-count queries.
+/// Combines season metadata, enrollment counts, SMS target counts,
+/// and assignment status into a single fetch.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AdminSeason {
     pub id: uuid::Uuid,

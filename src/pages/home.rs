@@ -3,9 +3,6 @@ use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 
-#[cfg(not(feature = "ssr"))]
-use leptos::web_sys;
-
 #[cfg(feature = "ssr")]
 use crate::error::db_err;
 
@@ -30,7 +27,10 @@ pub enum HomeState {
     Enrolled { confirm_deadline: String },
 
     /// Preparation phase, participant is enrolled but NOT confirmed.
-    Preparing { confirm_deadline: String },
+    Preparing {
+        confirm_deadline: String,
+        deadline_passed: bool,
+    },
 
     /// Preparation phase, participant has confirmed.
     Confirmed,
@@ -40,7 +40,6 @@ pub enum HomeState {
 
     /// Delivery phase, assignment exists, receipt not yet confirmed.
     Assigned {
-        season_id: uuid::Uuid,
         recipient_name: String,
         recipient_phone: String,
         recipient_city: String,
@@ -151,8 +150,11 @@ async fn resolve_preparation_state(
     if confirmed {
         Ok(HomeState::Confirmed)
     } else {
+        let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
+        let deadline_passed = is_past_deadline(season.confirm_deadline, test_mode);
         Ok(HomeState::Preparing {
             confirm_deadline: confirm_str,
+            deadline_passed,
         })
     }
 }
@@ -216,7 +218,6 @@ async fn resolve_delivery_state(
             Ok(HomeState::ReceiptConfirmed)
         }
         _ => Ok(HomeState::Assigned {
-            season_id,
             recipient_name: a.recipient_name,
             recipient_phone: a.recipient_phone,
             recipient_city: a.nova_poshta_city,
@@ -568,28 +569,6 @@ pub fn HomePage() -> impl IntoView {
     let hydrated = use_hydrated();
     let set_toast = use_toast();
 
-    // Envelope reveal signals live at component level, outside Suspense, so they
-    // survive resource refetches without being re-created (see Finding 4 triage).
-    let (revealed, set_revealed) = signal(false);
-    let (confetti_active, set_confetti_active) = signal(false);
-
-    // Read localStorage once per component lifetime. The season_id is not yet
-    // available here, so we track it reactively via home_state below.
-    // The Effect below fires whenever home_state resolves with an Assigned variant,
-    // ensuring we always use the season-scoped key.
-    Effect::new(move |_| {
-        #[cfg(not(feature = "ssr"))]
-        if let Some(Ok(HomeState::Assigned { ref season_id, .. })) = home_state.get() {
-            let key = format!("assignment_revealed_{season_id}");
-            if let Some(window) = web_sys::window()
-                && let Ok(Some(storage)) = window.local_storage()
-                && let Ok(Some(_)) = storage.get_item(&key)
-            {
-                set_revealed.set(true);
-            }
-        }
-    });
-
     // Toast feedback for successful actions
     Effect::new(move |_| {
         if let Some(Ok(())) = enroll_action.value().get() {
@@ -646,10 +625,6 @@ pub fn HomePage() -> impl IntoView {
                                     receipt_action,
                                     hydrated,
                                     i18n,
-                                    revealed,
-                                    set_revealed,
-                                    confetti_active,
-                                    set_confetti_active,
                                 )
                             }
                         })
@@ -792,13 +767,7 @@ fn render_receipt_form(
     }
 }
 
-// Arguments mirror the Leptos render-function pattern: data + actions + signals.
-// Clippy's 7-argument limit is not meaningful here — these are all load-bearing.
-// The function body exceeds 100 lines because it contains a large view! macro block
-// which cannot be split without introducing artificial intermediate functions.
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-fn render_envelope_reveal(
-    season_id: &str,
+fn render_assignment_details(
     recipient_name: &str,
     recipient_phone: &str,
     recipient_city: &str,
@@ -806,58 +775,8 @@ fn render_envelope_reveal(
     receipt_action: ServerAction<ConfirmReceipt>,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
-    revealed: ReadSignal<bool>,
-    set_revealed: WriteSignal<bool>,
-    confetti_active: ReadSignal<bool>,
-    set_confetti_active: WriteSignal<bool>,
 ) -> AnyView {
     let receipt_pending = receipt_action.pending();
-
-    // Suppress unused-parameter lints on SSR where these are client-only.
-    #[cfg(feature = "ssr")]
-    let _ = (season_id, set_revealed, set_confetti_active);
-
-    // Shared reveal closure: guards against re-reveal, updates signals, persists to
-    // localStorage, and schedules confetti teardown. Defined once and called from both
-    // the click handler and the keydown handler to eliminate duplication.
-    #[cfg(not(feature = "ssr"))]
-    let do_reveal = {
-        let ls_key = format!("assignment_revealed_{season_id}");
-        move || {
-            if !revealed.get_untracked() {
-                set_revealed.set(true);
-                set_confetti_active.set(true);
-                if let Some(window) = web_sys::window()
-                    && let Ok(Some(storage)) = window.local_storage()
-                {
-                    let _ = storage.set_item(&ls_key, "true");
-                }
-                leptos::prelude::set_timeout(
-                    move || set_confetti_active.set(false),
-                    std::time::Duration::from_millis(1200),
-                );
-            }
-        }
-    };
-    #[cfg(feature = "ssr")]
-    let do_reveal = move || {};
-
-    let on_keydown = {
-        #[cfg(not(feature = "ssr"))]
-        {
-            let do_reveal = do_reveal.clone();
-            move |ev: web_sys::KeyboardEvent| {
-                if ev.key() == "Enter" || ev.key() == " " {
-                    ev.prevent_default();
-                    do_reveal();
-                }
-            }
-        }
-        #[cfg(feature = "ssr")]
-        {
-            move |_| {}
-        }
-    };
 
     let recipient_branch_text = t!(
         i18n,
@@ -870,60 +789,37 @@ fn render_envelope_reveal(
         <h2>{t!(i18n, home_assigned_heading)}</h2>
         <p>{t!(i18n, home_send_instructions)}</p>
 
-        <article
-            class="reveal-envelope"
-            data-testid="reveal-envelope"
-            role="button"
-            tabindex="0"
-            attr:aria-expanded=move || if revealed.get() { "true" } else { "false" }
-            attr:aria-label=move || if revealed.get() {
-                t_string!(i18n, home_revealed_label)
-            } else {
-                t_string!(i18n, home_reveal_button_label)
-            }
-            on:click=move |_| do_reveal()
-            on:keydown=on_keydown
-        >
-            <div class="envelope-body" aria-hidden="true">
-                <div class="envelope-flap"></div>
-            </div>
-            <div class="envelope-card">
-                <h3 class="envelope-recipient" data-testid="recipient-name">
-                    {recipient_name.to_string()}
-                </h3>
-                <dl class="info-list">
-                    <div class="info-item">
-                        <dt class="info-label">{t!(i18n, home_branch_label)}</dt>
-                        <dd class="info-value" data-testid="recipient-branch">
-                            {recipient_branch_text}
-                        </dd>
-                    </div>
-                    <div class="info-item">
-                        <dt class="info-label">{t!(i18n, home_phone_label)}</dt>
-                        <dd class="info-value">
-                            <a
-                                href=format!("tel:{}", recipient_phone.to_string())
-                                class="info-link"
-                                data-testid="recipient-phone"
-                            >
-                                {recipient_phone.to_string()}
-                            </a>
-                        </dd>
-                    </div>
-                </dl>
-            </div>
+        <article class="card">
+            <h3 data-testid="recipient-name">
+                {recipient_name.to_string()}
+            </h3>
+            <dl class="info-list">
+                <div class="info-item">
+                    <dt class="info-label">{t!(i18n, home_branch_label)}</dt>
+                    <dd class="info-value" data-testid="recipient-branch">
+                        {recipient_branch_text}
+                    </dd>
+                </div>
+                <div class="info-item">
+                    <dt class="info-label">{t!(i18n, home_phone_label)}</dt>
+                    <dd class="info-value">
+                        <a
+                            href=format!("tel:{}", recipient_phone.to_string())
+                            class="info-link"
+                            data-testid="recipient-phone"
+                        >
+                            {recipient_phone.to_string()}
+                        </a>
+                    </dd>
+                </div>
+            </dl>
         </article>
-
-        <div class="confetti" attr:data-active=move || if confetti_active.get() { "true" } else { "false" } aria-hidden="true"></div>
 
         {render_receipt_form(receipt_action, receipt_pending, hydrated, i18n)}
     }
     .into_any()
 }
 
-// Arguments mirror the Leptos render-function pattern: state + actions + signals.
-// Clippy's 7-argument limit is not meaningful here — these are all load-bearing.
-#[allow(clippy::too_many_arguments)]
 fn render_home_state(
     state: HomeState,
     enroll_action: ServerAction<EnrollInSeason>,
@@ -931,10 +827,6 @@ fn render_home_state(
     receipt_action: ServerAction<ConfirmReceipt>,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
-    revealed: ReadSignal<bool>,
-    set_revealed: WriteSignal<bool>,
-    confetti_active: ReadSignal<bool>,
-    set_confetti_active: WriteSignal<bool>,
 ) -> AnyView {
     match state {
         HomeState::NoSeason => view! {
@@ -955,7 +847,10 @@ fn render_home_state(
         }
         .into_any(),
 
-        HomeState::Preparing { confirm_deadline } => {
+        HomeState::Preparing {
+            confirm_deadline,
+            deadline_passed,
+        } => {
             let confirm_pending = confirm_action.pending();
             view! {
                 <h2>{t!(i18n, home_preparing_heading)}</h2>
@@ -965,20 +860,26 @@ fn render_home_state(
                     {confirm_deadline}
                 </p>
 
-                <leptos::form::ActionForm action=confirm_action>
-                    <button
-                        class="btn"
-                        type="submit"
-                        data-testid="confirm-ready-button"
-                        disabled=move || confirm_pending.get() || !hydrated.get()
-                    >
-                        {move || if confirm_pending.get() {
-                            "Підтверджую...".into_any()
-                        } else {
-                            t!(i18n, home_confirm_ready_button).into_any()
-                        }}
-                    </button>
-                </leptos::form::ActionForm>
+                {if deadline_passed {
+                    None
+                } else {
+                    Some(view! {
+                        <leptos::form::ActionForm action=confirm_action>
+                            <button
+                                class="btn"
+                                type="submit"
+                                data-testid="confirm-ready-button"
+                                disabled=move || confirm_pending.get() || !hydrated.get()
+                            >
+                                {move || if confirm_pending.get() {
+                                    "Підтверджую...".into_any()
+                                } else {
+                                    t!(i18n, home_confirm_ready_button).into_any()
+                                }}
+                            </button>
+                        </leptos::form::ActionForm>
+                    })
+                }}
             }
             .into_any()
         }
@@ -996,13 +897,11 @@ fn render_home_state(
         .into_any(),
 
         HomeState::Assigned {
-            season_id,
             recipient_name,
             recipient_phone,
             recipient_city,
             recipient_branch_number,
-        } => render_envelope_reveal(
-            &season_id.to_string(),
+        } => render_assignment_details(
             &recipient_name,
             &recipient_phone,
             &recipient_city,
@@ -1010,10 +909,6 @@ fn render_home_state(
             receipt_action,
             hydrated,
             i18n,
-            revealed,
-            set_revealed,
-            confetti_active,
-            set_confetti_active,
         ),
 
         HomeState::ReceiptConfirmed => view! {

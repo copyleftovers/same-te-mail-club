@@ -723,8 +723,6 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(PHONES.A);
       await app.goHome();
-      // Reveal envelope before counting
-      await app.revealAssignment();
       const count = await app.page.getByTestId("recipient-name").count();
       expect(count).toBe(1);
     });

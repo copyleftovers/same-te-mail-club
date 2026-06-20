@@ -1209,6 +1209,7 @@ fn InviteCodesSection(
     hydrated: ReadSignal<bool>,
 ) -> impl IntoView {
     let i18n = use_i18n();
+    let (filter_query, set_filter_query) = signal(String::new());
 
     view! {
         <section data-testid="invite-codes-section">
@@ -1302,6 +1303,18 @@ fn InviteCodesSection(
             // ── Invite code list subsection ───────────────────────────────────
             <h3 class="mt-6">{t!(i18n, admin_invite_codes_list_title)}</h3>
 
+            <input
+                class="field-input mb-3"
+                type="text"
+                data-testid="invite-code-filter-input"
+                aria-label=move || t_string!(i18n, admin_invite_codes_filter_placeholder)
+                placeholder=move || t_string!(i18n, admin_invite_codes_filter_placeholder)
+                prop:value=move || filter_query.get()
+                on:input=move |ev| {
+                    set_filter_query.set(event_target_value(&ev));
+                }
+            />
+
             <div data-testid="invite-code-list">
                 <Suspense fallback=|| ()>
                     {move || {
@@ -1364,7 +1377,24 @@ fn InviteCodesSection(
                                                 </thead>
                                                 <tbody>
                                                     <For
-                                                        each=move || codes.clone()
+                                                        each=move || {
+                                                            let query = filter_query.get().to_lowercase();
+                                                            if query.is_empty() {
+                                                                return codes.clone();
+                                                            }
+                                                            codes
+                                                                .iter()
+                                                                .filter(|c| {
+                                                                    c.code.to_lowercase().contains(&query)
+                                                                        || c.distributor_name.to_lowercase().contains(&query)
+                                                                        || matches_invite_status(c.status, &query)
+                                                                        || c.redeemer_name
+                                                                            .as_deref()
+                                                                            .is_some_and(|n| n.to_lowercase().contains(&query))
+                                                                })
+                                                                .cloned()
+                                                                .collect::<Vec<_>>()
+                                                        }
                                                         key=|c| c.id
                                                         let:code
                                                     >
@@ -1483,6 +1513,15 @@ fn InviteCodesSection(
             </div>
         </section>
     }
+}
+
+fn matches_invite_status(status: InviteCodeStatus, query: &str) -> bool {
+    let status_text = match status {
+        InviteCodeStatus::Unused => "unused",
+        InviteCodeStatus::Used => "used",
+        InviteCodeStatus::Revoked => "revoked",
+    };
+    status_text.contains(query)
 }
 
 #[component]

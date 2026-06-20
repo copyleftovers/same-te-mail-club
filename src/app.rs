@@ -8,7 +8,7 @@ use leptos_router::{
 use leptos_use::use_preferred_dark;
 
 use crate::{
-    admin::{nav::AdminNav, page::AdminPage},
+    admin::page::AdminPage,
     components::toast::{Toast, provide_toast_context},
     pages::{
         home::HomePage,
@@ -185,7 +185,7 @@ fn Header() -> impl IntoView {
 
 // ── Header nav ────────────────────────────────────────────────────────────────
 
-/// Renders `AdminNav` when the current path is under `/admin`, logout button otherwise.
+/// Renders logout button (and admin link for admin users on non-admin pages).
 ///
 /// Must be rendered inside `<Router>` so `use_location` has context.
 #[component]
@@ -197,12 +197,8 @@ fn HeaderNav() -> impl IntoView {
     let logout_action =
         use_context::<ServerAction<Logout>>().expect("logout action must be provided");
 
+    let show_nav = move || pathname.get() != "/login" && pathname.get() != "/onboarding";
     let is_admin_page = move || pathname.get().starts_with("/admin");
-    let show_logout = move || {
-        !pathname.get().starts_with("/admin")
-            && pathname.get() != "/login"
-            && pathname.get() != "/onboarding"
-    };
     let current_user =
         use_context::<Resource<Result<Option<crate::types::CurrentUser>, ServerFnError>>>()
             .expect("CurrentUser resource must be provided");
@@ -215,39 +211,33 @@ fn HeaderNav() -> impl IntoView {
     };
 
     view! {
-        <Show when=is_admin_page fallback=move || {
-            view! {
-                <Show when=show_logout>
-                    <div class="header-nav">
-                        <Suspense fallback=|| ()>
-                            {move || is_admin_user().then(|| view! {
-                                <a
-                                    href="/admin"
-                                    class="btn"
-                                    data-variant="secondary"
-                                    data-size="sm"
-                                >
-                                    {t!(i18n, admin_nav_dashboard)}
-                                </a>
-                            })}
-                        </Suspense>
-                        <leptos::form::ActionForm action=logout_action>
-                            <button
-                                type="submit"
-                                class="btn"
-                                data-variant="secondary"
-                                data-size="sm"
-                                data-testid="logout-button"
-                                disabled=move || !hydrated.get()
-                            >
-                                {t!(i18n, nav_logout)}
-                            </button>
-                        </leptos::form::ActionForm>
-                    </div>
-                </Show>
-            }
-        }>
-            <AdminNav />
+        <Show when=show_nav>
+            <div class="header-nav">
+                <Suspense fallback=|| ()>
+                    {move || (!is_admin_page() && is_admin_user()).then(|| view! {
+                        <a
+                            href="/admin"
+                            class="btn"
+                            data-variant="secondary"
+                            data-size="sm"
+                        >
+                            {t!(i18n, admin_nav_dashboard)}
+                        </a>
+                    })}
+                </Suspense>
+                <leptos::form::ActionForm action=logout_action>
+                    <button
+                        type="submit"
+                        class="btn"
+                        data-variant="secondary"
+                        data-size="sm"
+                        data-testid="logout-button"
+                        disabled=move || !hydrated.get()
+                    >
+                        {t!(i18n, nav_logout)}
+                    </button>
+                </leptos::form::ActionForm>
+            </div>
         </Show>
     }
 }
@@ -321,34 +311,6 @@ fn MobileMenu(on_close: Callback<()>) -> impl IntoView {
                     aria-current=move || if is_active("/admin")() { "page" } else { "" }
                 >
                     {t!(i18n, admin_nav_dashboard)}
-                </a>
-                <a
-                    href="/admin/season"
-                    on:click=move |_| on_close.run(())
-                    aria-current=move || if is_active("/admin/season")() { "page" } else { "" }
-                >
-                    {t!(i18n, admin_nav_season)}
-                </a>
-                <a
-                    href="/admin/participants"
-                    on:click=move |_| on_close.run(())
-                    aria-current=move || if is_active("/admin/participants")() { "page" } else { "" }
-                >
-                    {t!(i18n, admin_nav_participants)}
-                </a>
-                <a
-                    href="/admin/assignments"
-                    on:click=move |_| on_close.run(())
-                    aria-current=move || if is_active("/admin/assignments")() { "page" } else { "" }
-                >
-                    {t!(i18n, admin_nav_assignments)}
-                </a>
-                <a
-                    href="/admin/sms"
-                    on:click=move |_| on_close.run(())
-                    aria-current=move || if is_active("/admin/sms")() { "page" } else { "" }
-                >
-                    {t!(i18n, admin_nav_sms)}
                 </a>
             </Show>
             <Show when=move || pathname.get() != "/login" && pathname.get() != "/onboarding">
