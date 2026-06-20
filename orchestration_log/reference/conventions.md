@@ -1,6 +1,6 @@
 # Conventions
 
-Last updated: 2026-04-20
+Last updated: 2026-06-20
 
 ## Model Tier Overrides
 
@@ -37,6 +37,10 @@ Last updated: 2026-04-20
 | Pool config changes without metrics | Pool was never the bottleneck (max 4 connections) | Session 2026-04-09: $15 wasted on pool starvation hypothesis |
 | `[patch.crates-io]` without running patched crate's own test suite | Byte-offset semantics broke silently | Session 2026-04-09: leptos_config regex patch broke config parsing |
 | `waitForLoadState("load")` in POM | Waits for 14MB WASM download, intermittently exceeds timeout | Session 2026-04-09: every POM method with `"load"` eventually caused a timeout |
+| `waitForLoadState("domcontentloaded")` after redirects in POM | Racy: if DOMContentLoaded fires before the call, it waits for the NEXT one (which never comes) → 30s timeout. Use `expect(page).toHaveURL()` / `not.toHaveURL()` (auto-retrying, race-free) instead. | Session 2026-06-20: 4 failed fix attempts before root-causing the race. Affects login, logout, completeOnboarding, selfRegister, advanceSeason. |
+| `waitForURL` with `waitUntil: 'domcontentloaded'` | Same race as standalone `waitForLoadState` — the `waitUntil` option has identical semantics. | Session 2026-06-20: attempted as fix, failed identically. |
+| Adding `value=""` to Leptos ActionForm inputs for hydration stability | Leptos hydration resets `.value` to match the attribute — erases Playwright-filled values. Absence of `value` attribute is better: Leptos has nothing to restore. | Session 2026-06-20: onboarding branch input. Added `value=""`, tests failed worse. Reverted. |
+| Scapegoating the machine for test failures | Dev-mode E2E failures are real bugs, not environmental noise. Fix them. | Session 2026-06-20: user correction. |
 | Running `brew services start postgresql` | Shadows Docker Postgres on port 5432 | Session 2026-04-09: 3 failed E2E runs from brew/Docker collision |
 | Router-wide `tokio::time::timeout` middleware on Axum SSR routes | Drops the SSR future mid-render; Leptos Suspense never resolves; client hangs until its own navigation timeout. Identical-budget timeouts on both server and client maximize the failure surface. | Session 2026-04-20: commit `3ad9b65` reverted in commit `1f4df2c` after CI exposed it. |
 | Orchestrator reading/editing `.rs` files or using Edit tool on source | Orchestrator context is the most expensive resource. Source file reads and edits are agent work. When debug agents fail, dispatch narrower agents — never intervene directly. | Session 2026-04-29: orchestrator read login.rs 10+ times and used Edit 8+ times to debug hydration/cookie issues. |
@@ -49,4 +53,6 @@ Last updated: 2026-04-20
 - E2E tests are serial (shared DB state). Independent blocks (Epic 6, Logout) run separately.
 - Static assets cached across tests via `cached-context.ts` fixture. Import `test`/`expect` from there, not `@playwright/test`.
 - Pre-compressed WASM served via `precompress-and-test.sh`. `CompressionLayer` skips already-encoded responses.
-- Verify with 2-3 consecutive green runs before declaring stability.
+- Verify with 3 consecutive green runs on CI before declaring stability. Dev-mode green is necessary but not sufficient.
+- `waitForLoadState` is banned in all forms after redirects. Use auto-retrying `toHaveURL` / `not.toHaveURL` assertions.
+- Every review chain runs sequentially within a unit (spec → quality). Multiple units' chains can run in parallel.
