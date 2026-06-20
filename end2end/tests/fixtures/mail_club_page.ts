@@ -75,16 +75,9 @@ export class MailClubPage {
     // After OTP verify, the server issues a native 302 redirect chain.
     // For a non-onboarded participant: POST → 302 "/" → (AuthGuard SSR) → 302 "/onboarding".
     // clickAndWaitForResponse (in attemptLogin) resolves on the POST 302 response —
-    // the browser is still mid-navigation. The prior "not.toHaveURL(/\/login/)" resolved
-    // as soon as the URL changed to the intermediate "/" (before the AuthGuard 302 fired),
-    // which caused flakiness on slow CI runners where the subsequent toHaveURL(/onboarding/)
-    // assertion beat the in-flight redirect.
-    // waitForLoadState("domcontentloaded") waits for DOMContentLoaded on the FINAL page
-    // after all redirects complete (intermediate 302 responses have no body, so
-    // DOMContentLoaded fires only on the terminal page).
-    // Use "domcontentloaded" not "load" — we only need the HTML committed, not the
-    // 14MB dev WASM bundle fully downloaded.
-    await this.page.waitForLoadState("domcontentloaded");
+    // the browser is still mid-navigation. toHaveURL auto-retries until the URL
+    // no longer matches /login, which covers both the "/" and "/onboarding" destinations.
+    await expect(this.page).not.toHaveURL(/\/login/);
   }
 
   async logout() {
@@ -92,10 +85,8 @@ export class MailClubPage {
     await expect(logoutBtn).toBeEnabled();
     await this.clickAndWaitForResponse(logoutBtn, "logout");
     // The logout server function redirects to /, which then redirects to /login
-    // (no session). Wait for the final destination directly — waiting for the
-    // intermediate "/" would miss the second redirect.
+    // (no session). toHaveURL auto-retries until the URL matches /login.
     await expect(this.page).toHaveURL(/\/login/);
-    await this.page.waitForLoadState("domcontentloaded");
   }
 
   async expectLoggedIn() {
@@ -131,12 +122,9 @@ export class MailClubPage {
 
     await this.page.getByTestId("save-onboarding-button").click();
     // Wait for redirect to complete - server function redirects to "/".
+    // waitForURL resolves as soon as the URL matches — no waitUntil needed.
+    // The subsequent toBeVisible on main handles interactivity.
     await this.page.waitForURL("/", { timeout: 15000 });
-    // The server's complete_onboarding does a 302 redirect to "/". waitForURL
-    // resolves when the URL changes, but the browser may still be loading the
-    // redirect target. Without this wait, a subsequent navigation races with
-    // the in-progress page load.
-    await this.page.waitForLoadState("domcontentloaded");
   }
 
   // ── Home Screen ──
@@ -354,9 +342,10 @@ export class MailClubPage {
       this.page.getByTestId("create-account-button"),
       "register_with_code",
     );
-    // After the native POST → 302 → /onboarding, wait for full page load.
-    await this.page.waitForURL(/\/onboarding/);
-    await this.page.waitForLoadState("domcontentloaded");
+    // After the native POST → 302 → /onboarding, toHaveURL auto-retries
+    // until the URL matches. No waitUntil needed — URL change implies the
+    // response has arrived.
+    await expect(this.page).toHaveURL(/\/onboarding/);
   }
 
   /**
@@ -457,17 +446,14 @@ export class MailClubPage {
 
   async advanceSeason() {
     await this.page.goto("/admin");
-    // The advance action triggers a Resource refetch that re-renders the season
-    // panel (phase label changes, buttons may appear/disappear). However, the
-    // phase label has no data-testid, and the advance button stays visible for
-    // 3 of 4 transitions — so there is no single reliable DOM signal. Use the
-    // URL-filtered POST wait, then waitForLoadState to let the refetch settle
-    // before the caller navigates away.
+    // The advance button stays visible for 3 of 4 transitions (Enrollment →
+    // Preparation → Assignment → Delivery), so there is no single reliable DOM
+    // signal for all callers. The URL-filtered POST wait is sufficient: callers
+    // always navigate away via goToDashboard() and assert on the next page state.
     await this.clickAndWaitForResponse(
       this.page.getByTestId("advance-button"),
       "advance",
     );
-    await this.page.waitForLoadState("domcontentloaded");
   }
 
   async cancelSeason() {
