@@ -159,7 +159,9 @@ export class MailClubPage {
     if (branchNumber) {
       await this.page.getByTestId("np-number-input").fill(branchNumber);
     }
-    await this.page.getByTestId("enroll-button").click();
+    const enrollBtn = this.page.getByTestId("enroll-button");
+    await expect(enrollBtn).toBeEnabled();
+    await enrollBtn.click();
     // Wait for refetch to complete — enroll button disappears when enrolled.
     await expect(this.page.getByTestId("enroll-button")).not.toBeVisible();
   }
@@ -179,7 +181,9 @@ export class MailClubPage {
   // ── Confirm ready (Story 2.2) ──
 
   async confirmReady() {
-    await this.page.getByTestId("confirm-ready-button").click();
+    const btn = this.page.getByTestId("confirm-ready-button");
+    await expect(btn).toBeEnabled();
+    await btn.click();
     // Wait for refetch to complete — confirm button disappears when confirmed.
     await expect(
       this.page.getByTestId("confirm-ready-button"),
@@ -215,11 +219,15 @@ export class MailClubPage {
       await this.page.getByTestId("receipt-note-input").fill(note);
     }
     if (received) {
-      await this.page.getByTestId("received-button").click();
+      const btn = this.page.getByTestId("received-button");
+      await expect(btn).toBeEnabled();
+      await btn.click();
       // Wait for refetch to complete — completion signal appears.
       await expect(this.page.getByTestId("receipt-thanks")).toBeVisible();
     } else {
-      await this.page.getByTestId("not-received-button").click();
+      const btn = this.page.getByTestId("not-received-button");
+      await expect(btn).toBeEnabled();
+      await btn.click();
       // Wait for refetch to complete — completion signal appears.
       await expect(this.page.getByTestId("receipt-thanks")).toBeVisible();
     }
@@ -458,7 +466,9 @@ export class MailClubPage {
 
   async cancelSeason() {
     await this.page.goto("/admin");
-    await this.page.getByTestId("cancel-button").click();
+    const cancelBtn = this.page.getByTestId("cancel-button");
+    await expect(cancelBtn).toBeEnabled();
+    await cancelBtn.click();
     await expect(this.page.getByTestId("cancel-confirmation")).toBeVisible();
     await this.clickAndWaitForResponse(
       this.page.getByTestId("cancel-confirm-button"),
@@ -471,7 +481,9 @@ export class MailClubPage {
 
   async generateAssignments() {
     await this.page.goto("/admin");
-    await this.page.getByTestId("generate-button").click();
+    const generateBtn = this.page.getByTestId("generate-button");
+    await expect(generateBtn).toBeEnabled();
+    await generateBtn.click();
     // Wait for refetch to complete — cycle visualization appears.
     await expect(this.page.getByTestId("cycle-visualization")).toBeVisible();
   }
@@ -503,7 +515,9 @@ export class MailClubPage {
     type: "season-open" | "assignment" | "confirm-nudge" | "receipt-nudge",
   ) {
     await this.page.goto("/admin");
-    await this.page.getByTestId(`send-${type}-button`).click();
+    const smsBtn = this.page.getByTestId(`send-${type}-button`);
+    await expect(smsBtn).toBeEnabled();
+    await smsBtn.click();
     // Wait for refetch to complete — SMS report appears.
     await expect(this.page.getByTestId("sms-report")).toBeVisible();
   }
