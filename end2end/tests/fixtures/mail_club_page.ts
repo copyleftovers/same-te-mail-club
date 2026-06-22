@@ -130,20 +130,22 @@ export class MailClubPage {
   // ── Home Screen ──
 
   async goHome() {
-    // Skip navigation if already on "/". After login(), the participant is
-    // already redirected to "/" with the page fully loaded. Calling goto("/")
-    // again forces a redundant full SSR reload + 14MB WASM re-download in dev
-    // mode, which intermittently exceeds the 15s navigation timeout.
+    // Skip navigation if already on "/". After login(), the participant is already
+    // redirected to "/" — the browser has already begun loading the page (SSR streaming,
+    // WASM downloading). Calling goto("/") again aborts that in-progress load and
+    // restarts from scratch, making WASM hydration take much longer.
     const currentUrl = new URL(this.page.url());
     if (currentUrl.pathname !== "/") {
       await this.page.goto("/");
     }
-    // Wait for hydration by checking that the main content container is fully rendered.
-    // The page has many states (NoSeason, EnrollmentOpen, Enrolled, etc.), many of which
-    // have no buttons at all (50% of states). Waiting for "first button enabled" fails
-    // on these states. Instead, wait for <main> to be stable — it exists in all states
-    // and proves the page is interactive (hydration complete).
+    // Wait for SSR to complete: <main> is rendered in the first streaming SSR chunk
+    // and proves the page's HTML has arrived. WASM scripts in <head> are fetched
+    // during the same SSR response, so WASM loading is already underway at this point.
     await expect(this.page.locator("main")).toBeVisible({ timeout: 10_000 });
+    // Wait for WASM hydration: logout-button is disabled until Effect::new fires
+    // (hydration gate in app.rs). By the time <main> is visible, WASM is nearly done
+    // loading (it started during <head> parse). This wait covers the remaining gap.
+    await expect(this.page.getByTestId("logout-button")).toBeEnabled({ timeout: 30_000 });
   }
 
   async expectHomeContent(text: string | RegExp) {
@@ -553,17 +555,16 @@ export class MailClubPage {
   // ── Admin: dashboard ──
 
   async goToDashboard() {
-    // Skip navigation if already on "/admin". After login(), the admin is
-    // already redirected to "/admin" with the page fully loaded. Calling
-    // goto("/admin") again forces a redundant full SSR reload + WASM
-    // re-download in dev mode, which can exceed the navigation timeout.
+    // Skip navigation if already on "/admin". Same rationale as goHome().
     const currentUrl = new URL(this.page.url());
     if (currentUrl.pathname !== "/admin") {
       await this.page.goto("/admin");
     }
-    // Wait for the main content container to be fully rendered, confirming
-    // navigation and hydration are complete.
+    // Same two-step hydration wait as goHome():
+    // 1. main visible = SSR complete and WASM loading is underway.
     await expect(this.page.locator("main")).toBeVisible({ timeout: 10_000 });
+    // 2. logout-button enabled = WASM Effect has fired, page is fully hydrated.
+    await expect(this.page.getByTestId("logout-button")).toBeEnabled({ timeout: 30_000 });
   }
 
   async expectDashboardContent(text: string | RegExp) {
