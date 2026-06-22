@@ -86,6 +86,16 @@ export const test = base.extend({
         const status = response.status();
         const headers = response.headers();
 
+        // route.fetch() decompresses the body (e.g. brotli) but preserves the
+        // original transport headers, including Content-Encoding: br and the
+        // compressed Content-Length. Fulfilling with decompressed bytes and
+        // Content-Encoding: br causes Chromium to attempt a second brotli-decode,
+        // corrupting the WASM module and preventing hydration.
+        // Strip both headers so Chromium receives raw bytes with no encoding claim.
+        delete headers["content-encoding"];
+        delete headers["content-length"];
+        delete headers["transfer-encoding"];
+
         // Only cache successful responses.
         if (status >= 200 && status < 300) {
           fs.writeFileSync(cachePath, body);
