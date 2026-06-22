@@ -591,7 +591,7 @@ pub fn HomePage() -> impl IntoView {
     view! {
         <div class="prose-page">
             // Action error display
-            <div role="alert" aria-live="assertive" data-testid="action-error">
+            <div id="action-error" role="alert" aria-live="assertive" data-testid="action-error">
                 {move || {
                     let err = enroll_action
                         .value()
@@ -648,7 +648,7 @@ fn render_enrollment_open(
         {theme
             .map(|theme_val| {
                 view! {
-                    <p class="theme" data-testid="season-theme">
+                    <p data-testid="season-theme">
                         {t!(i18n, home_theme_label)}
                         {theme_val.clone()}
                     </p>
@@ -657,7 +657,7 @@ fn render_enrollment_open(
 
         <p class="deadline">{t!(i18n, home_signup_deadline_label)} {deadline}</p>
 
-        <p class="guideline">{t!(i18n, home_guideline)}</p>
+        <p>{t!(i18n, home_guideline)}</p>
 
         <leptos::form::ActionForm action=enroll_action>
             <div class="flex flex-col gap-(--density-space-md) sm:flex-row sm:gap-(--density-space-sm)">
@@ -713,7 +713,7 @@ fn render_receipt_form(
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> impl IntoView {
     view! {
-        <section class="receipt-section">
+        <section>
             <h3>{t!(i18n, home_confirm_receipt_heading)}</h3>
 
             <leptos::form::ActionForm action=receipt_action>
@@ -727,8 +727,8 @@ fn render_receipt_form(
                         name="note"
                         placeholder=move || t_string!(i18n, home_receipt_note_placeholder)
                         data-testid="receipt-note-input"
-                        aria-invalid=move || {
-                            receipt_action.value().get().and_then(Result::err).is_some()
+                        attr:aria-invalid=move || {
+                            receipt_action.value().get().and_then(Result::err).map(|_| "true")
                         }
                         aria-describedby="action-error"
                     ></textarea>
@@ -831,7 +831,8 @@ fn render_home_state(
     match state {
         HomeState::NoSeason => view! {
             <div class="empty-state">
-                <p class="empty-state-headline">{t!(i18n, home_no_season)}</p>
+                <p class="empty-state-headline">{t!(i18n, dashboard_no_season)}</p>
+                <p class="empty-state-body">{t!(i18n, home_no_season)}</p>
             </div>
         }
         .into_any(),

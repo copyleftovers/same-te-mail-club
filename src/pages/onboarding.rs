@@ -103,8 +103,8 @@ pub fn OnboardingPage() -> impl IntoView {
                             value="Київ"
                             required
                             data-testid="np-city-input"
-                            aria-invalid=move || error_msg.get().is_some()
-                            aria-describedby="np-branch-error"
+                            attr:aria-invalid=move || error_msg.get().map(|_| "true")
+                            aria-describedby="np-onboarding-error"
                         />
                     </div>
                     <div class="field sm:w-1/2">
@@ -120,18 +120,19 @@ pub fn OnboardingPage() -> impl IntoView {
                             placeholder="123"
                             required
                             data-testid="np-number-input"
-                            aria-invalid=move || error_msg.get().is_some()
-                            aria-describedby="np-branch-error"
+                            attr:aria-invalid=move || error_msg.get().map(|_| "true")
+                            aria-describedby="np-onboarding-error"
                         />
                     </div>
                 </div>
                 <div
-                    id="np-branch-error"
-                    role="alert"
+                    id="np-onboarding-error"
                     aria-live="assertive"
                     data-testid="action-error"
                 >
-                    {move || error_msg.get().map(|msg| view! { <span>{msg}</span> })}
+                    {move || error_msg.get().map(|msg| view! {
+                        <p class="field-error" role="alert">{msg}</p>
+                    })}
                 </div>
                 <button
                     class="btn"

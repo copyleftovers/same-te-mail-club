@@ -123,7 +123,7 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
     let otp_result = verify_otp_for_phone(&pool, &normalized, &code).await;
 
     if otp_result.is_err() {
-        leptos_axum::redirect("/login");
+        leptos_axum::redirect("/login?otp_error=1");
         return Ok(false);
     }
 
@@ -591,6 +591,25 @@ pub fn LoginPage() -> impl IntoView {
     };
     let (is_pending_signal, _) = signal(is_pending);
 
+    // Detect ?otp_error=1 query param (set by verify_otp_code on wrong/expired code).
+    // Same SSR/client dual-read pattern as is_pending for hydration stability.
+    let is_otp_error = {
+        #[cfg(feature = "ssr")]
+        {
+            leptos::context::use_context::<http::request::Parts>()
+                .and_then(|parts| parts.uri.query().map(|q| q.contains("otp_error=1")))
+                .unwrap_or(false)
+        }
+        #[cfg(not(feature = "ssr"))]
+        {
+            leptos::prelude::window()
+                .location()
+                .search()
+                .ok()
+                .is_some_and(|s| s.contains("otp_error=1"))
+        }
+    };
+
     // Client-side signal: the invite code entered in step 3.
     // None = step 3 shown; Some(code) = step 4 shown.
     let (entered_code, set_entered_code) = signal(Option::<String>::None);
@@ -599,6 +618,8 @@ pub fn LoginPage() -> impl IntoView {
     let register_action = ServerAction::<RegisterWithCode>::new();
 
     view! {
+        // pt-[10svh]: viewport-relative top padding centers the login card
+        // visually at varying screen heights. Not a Tailwind spacing-scale value.
         <div class="prose-page flex flex-col items-center text-center pt-[10svh]">
             <img
                 src="/logo.svg"
@@ -608,6 +629,7 @@ pub fn LoginPage() -> impl IntoView {
 
             <LoginStepRouter
                 is_pending=is_pending_signal.get()
+                is_otp_error=is_otp_error
                 otp_step=otp_step
                 hydrated=hydrated
                 request_action=request_action
@@ -628,8 +650,8 @@ pub fn LoginPage() -> impl IntoView {
 /// form state is preserved across transitions.
 ///
 /// Step visibility rules:
-/// - Step 1 (phone):        `!otp_step && !is_pending`
-/// - Step 2 (OTP):          `otp_step && !is_pending`
+/// - Step 1 (phone):        `!otp_step && !is_pending && !is_otp_error`
+/// - Step 2 (OTP):          `(otp_step || is_otp_error) && !is_pending`
 /// - Step 3 (invite code):  `is_pending && entered_code.is_none()`
 /// - Step 4 (name):         `is_pending && entered_code.is_some()`
 #[allow(clippy::too_many_arguments)]
@@ -639,6 +661,7 @@ pub fn LoginPage() -> impl IntoView {
 #[component]
 fn LoginStepRouter(
     is_pending: bool,
+    is_otp_error: bool,
     otp_step: Memo<bool>,
     hydrated: ReadSignal<bool>,
     request_action: ServerAction<RequestOtp>,
@@ -652,9 +675,9 @@ fn LoginStepRouter(
 
     view! {
         // ── Step 1: Phone ─────────────────────────────────────────────────────
-        // Hidden once OTP step activates or pending_registration is set.
+        // Hidden once OTP step activates, pending_registration is set, or OTP error redirect.
         <div style:display=move || {
-            if otp_step.get() || is_pending { "none" } else { "" }
+            if otp_step.get() || is_pending || is_otp_error { "none" } else { "" }
         }>
             <leptos::form::ActionForm action=request_action>
                 <div class="field">
@@ -668,7 +691,27 @@ fn LoginStepRouter(
                         name="phone"
                         placeholder="+380XXXXXXXXX"
                         data-testid="phone-input"
+                        aria-describedby="phone-error"
+                        attr:aria-invalid=move || {
+                            request_action
+                                .value()
+                                .get()
+                                .and_then(Result::err)
+                                .is_some()
+                                .then_some("true")
+                        }
                     />
+                    // Error display for phone step — server-returned message
+                    <p
+                        id="phone-error"
+                        class="field-error"
+                        aria-live="assertive"
+                        data-testid="phone-error"
+                    >
+                        {move || request_action.value().get()
+                            .and_then(Result::err)
+                            .map(|e| e.to_string())}
+                    </p>
                 </div>
                 <button
                     class="btn w-full"
@@ -686,11 +729,14 @@ fn LoginStepRouter(
         </div>
 
         // ── Step 2: OTP ───────────────────────────────────────────────────────
-        // Hidden until request succeeds; also hidden if pending_registration is set.
+        // Shown when OTP was requested or the server redirected back with ?otp_error=1.
         // Uses native form POST so the browser follows the server-issued 302 redirect.
         <div style:display=move || {
-            if otp_step.get() && !is_pending { "" } else { "none" }
+            if (otp_step.get() || is_otp_error) && !is_pending { "" } else { "none" }
         }>
+            // Native POST form — no hydration gate needed (works without WASM).
+            // verify_otp_code sets an HttpOnly cookie; ActionForm fetch responses
+            // do not reliably propagate Set-Cookie, so native POST is required.
             <form method="post" action=VerifyOtpCode::url()>
                 <input type="hidden" name="phone" prop:value=submitted_phone />
                 <div class="field">
@@ -706,7 +752,17 @@ fn LoginStepRouter(
                         maxlength="6"
                         data-testid="otp-input"
                         data-otp
+                        aria-describedby="otp-error"
+                        attr:aria-invalid=move || is_otp_error.then_some("true")
                     />
+                    <p
+                        id="otp-error"
+                        class="field-error"
+                        aria-live="assertive"
+                        data-testid="otp-error"
+                    >
+                        {move || if is_otp_error { Some(t!(i18n, login_otp_invalid_error)) } else { None }}
+                    </p>
                 </div>
                 <button class="btn w-full" type="submit" data-testid="verify-otp-button">
                     {t!(i18n, login_verify_button)}
@@ -731,7 +787,7 @@ fn LoginStepRouter(
                 if is_pending && entered_code.get().is_none() { "" } else { "none" }
             }
         >
-            <h2 class="font-display text-xl font-black mb-4">
+            <h2>
                 {t!(i18n, auth_invite_code_step_heading)}
             </h2>
             <InviteCodeForm
@@ -809,16 +865,16 @@ where
                     aria-describedby="invite-code-error"
                     attr:aria-invalid=move || error_msg().is_some().then_some("true")
                 />
+                // Error display for invite code step — server-returned message
+                <p
+                    id="invite-code-error"
+                    class="field-error"
+                    aria-live="assertive"
+                    data-testid="invite-code-error"
+                >
+                    {move || error_msg()}
+                </p>
             </div>
-            // Error display for invite code step — server-returned message
-            <p
-                id="invite-code-error"
-                class="text-sm text-(--color-error) mt-1 mb-3"
-                aria-live="assertive"
-                data-testid="invite-code-error"
-            >
-                {move || error_msg()}
-            </p>
             <button
                 class="btn w-full"
                 type="submit"
@@ -857,7 +913,7 @@ where
     let register_pending = register_action.pending();
 
     view! {
-        <h2 class="font-display text-xl font-black mb-4">
+        <h2>
             {t!(i18n, auth_name_step_heading)}
         </h2>
         <p class="text-sm text-(--color-text-muted) mb-4">
@@ -894,18 +950,18 @@ where
                             .then_some("true")
                     }
                 />
+                // Error display for name collection
+                <p
+                    id="legal-name-error"
+                    class="field-error"
+                    aria-live="assertive"
+                    data-testid="legal-name-error"
+                >
+                    {move || register_action.value().get()
+                        .and_then(Result::err)
+                        .map(|e| e.to_string())}
+                </p>
             </div>
-            // Error display for name collection
-            <p
-                id="legal-name-error"
-                class="text-sm text-(--color-error) mt-1 mb-3"
-                aria-live="assertive"
-                data-testid="legal-name-error"
-            >
-                {move || register_action.value().get()
-                    .and_then(Result::err)
-                    .map(|e| e.to_string())}
-            </p>
             <button
                 class="btn w-full"
                 type="submit"
