@@ -161,7 +161,7 @@ fn Header() -> impl IntoView {
                         }
                     }
                     alt="Саме Те"
-                    class="w-auto"
+                    class="h-8 w-auto max-w-full"
                 />
             </a>
             <HeaderNav />
@@ -172,9 +172,9 @@ fn Header() -> impl IntoView {
                 data-testid="menu-toggle"
                 on:click=move |_| set_menu_open.update(|v| *v = !*v)
             >
-                <span class="block h-[3px] w-5 bg-current"></span>
-                <span class="block h-[3px] w-5 bg-current"></span>
-                <span class="block h-[3px] w-5 bg-current"></span>
+                <span class="block h-0.5 w-5 bg-current"></span>
+                <span class="block h-0.5 w-5 bg-current"></span>
+                <span class="block h-0.5 w-5 bg-current"></span>
             </button>
             <Show when=move || menu_open.get()>
                 <MobileMenu on_close=Callback::new(move |()| set_menu_open.set(false)) />
@@ -220,6 +220,7 @@ fn HeaderNav() -> impl IntoView {
                             class="btn"
                             data-variant="secondary"
                             data-size="sm"
+                            data-testid="nav-admin-link"
                         >
                             {t!(i18n, admin_nav_dashboard)}
                         </a>
@@ -293,22 +294,25 @@ fn MobileMenu(on_close: Callback<()>) -> impl IntoView {
             <button
                 class="mobile-menu-close"
                 aria-label="Close menu"
+                data-testid="mobile-menu-close"
                 on:click=move |_| on_close.run(())
             >
                 "\u{2715}"
             </button>
             <a
                 href="/"
+                data-testid="mobile-nav-home"
                 on:click=move |_| on_close.run(())
-                aria-current=move || if is_active("/")() { "page" } else { "" }
+                aria-current=move || is_active("/")().then_some("page")
             >
                 {t!(i18n, nav_home)}
             </a>
             <Show when=move || pathname.get().starts_with("/admin")>
                 <a
                     href="/admin"
+                    data-testid="mobile-nav-admin"
                     on:click=move |_| on_close.run(())
-                    aria-current=move || if is_active("/admin")() { "page" } else { "" }
+                    aria-current=move || is_active("/admin")().then_some("page")
                 >
                     {t!(i18n, admin_nav_dashboard)}
                 </a>
@@ -397,27 +401,29 @@ fn AdminGuard(children: ChildrenFn) -> impl IntoView {
             .expect("CurrentUser resource must be provided");
 
     view! {
-        <Suspense fallback=|| ()>
-            {move || {
-                let children = children.clone();
-                current_user
-                    .get()
-                    .map(|result| {
-                        match result {
-                            Ok(None) | Err(_) => {
-                                isomorphic_redirect("/login");
-                                ().into_any()
+        <div data-layout="admin">
+            <Suspense fallback=|| ()>
+                {move || {
+                    let children = children.clone();
+                    current_user
+                        .get()
+                        .map(|result| {
+                            match result {
+                                Ok(None) | Err(_) => {
+                                    isomorphic_redirect("/login");
+                                    ().into_any()
+                                }
+                                Ok(Some(ref user)) if user.role == UserRole::Admin => {
+                                    children().into_any()
+                                }
+                                Ok(Some(_)) => {
+                                    isomorphic_redirect("/");
+                                    ().into_any()
+                                }
                             }
-                            Ok(Some(ref user)) if user.role == UserRole::Admin => {
-                                view! { <div data-layout="admin">{children()}</div> }.into_any()
-                            }
-                            Ok(Some(_)) => {
-                                isomorphic_redirect("/");
-                                ().into_any()
-                            }
-                        }
-                    })
-            }}
-        </Suspense>
+                        })
+                }}
+            </Suspense>
+        </div>
     }
 }
