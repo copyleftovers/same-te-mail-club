@@ -17,23 +17,6 @@
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-pill: calc(infinity * 1px);
-
-  /* Custom font sizes — not in Tailwind's default text-* scale */
-  --text-overline: 0.8rem;       /* overline label: uppercase labels above sections */
-  --text-body: 1.05rem;          /* body text (16.8px) — spec "Body" level */
-  --text-otp: 1.25rem;           /* OTP digit display */
-  --text-section: 1.3rem;        /* section heading / action panel title */
-  --text-stat: 2rem;             /* stat card value */
-  --text-secondary: 0.8125rem;   /* 13px — secondary info, between text-xs and text-sm */
-
-  /* Component sizes — fixed dimensions for named UI elements */
-  --size-step-marker: 2.5rem;    /* stepper circle diameter */
-  --size-touch-control: 2.75rem; /* menu-toggle and close button — satisfies 44px touch target */
-  --size-logo-height: 2rem;      /* navigation logo height */
-  --size-textarea: 5.5rem;       /* textarea min-height */
-  --size-empty-state: 12rem;     /* empty state container min-height */
-  --size-modal: 28rem;           /* modal / constrained container max-width */
-  --size-mobile-menu: 16rem;     /* mobile slide-in menu panel width */
 }
 
 /* ── Tier 2: Semantic aliases (CSS variables only) ─────────────── */
@@ -54,6 +37,27 @@
   --density-space-sm: calc(var(--spacing) * 3);
   --density-space-md: calc(var(--spacing) * 5);
   --density-space-lg: calc(var(--spacing) * 8);
+
+  /* Font sizes — component-specific, consumed via var() only */
+  --text-page-title: clamp(1.8rem, 5vw, 2.8rem);
+  --text-section: 1.3rem;
+  --text-body: 1.05rem;
+  --text-overline: 0.8rem;
+  --text-secondary: 0.8125rem;
+  --text-otp: 1.25rem;
+  --text-icon: 1.25rem;
+  --text-stat: 2rem;
+
+  /* Component sizes — fixed dimensions, consumed via var() only */
+  --size-touch-target: 2.75rem;
+  --size-touch-target-lg: 3rem;
+  --size-step-marker: 2.5rem;
+  --size-logo-height: 2rem;
+  --size-textarea: 5.5rem;
+  --size-empty-state: 12rem;
+  --size-content-max: 28rem;
+  --size-mobile-menu: 16rem;
+  --size-cycle-viz: 400px;
 }
 
 /* Admin density override */
@@ -366,7 +370,7 @@
   .prose-page h1 {
     font-family: var(--font-display);
     font-weight: 900;
-    font-size: clamp(1.8rem, 5vw, 2.8rem);
+    font-size: var(--text-page-title);
     line-height: 1.15;
     letter-spacing: -0.02em; /* inherent: spec-defined display heading tracking */
     margin-bottom: var(--density-space-md);
@@ -526,7 +530,7 @@
 
   /* ── Field enhancements ───────────────────────────────────────── */
   .field-input {
-    min-height: 44px; /* structural: WCAG 2.5.8 minimum touch target */
+    min-height: var(--size-touch-target);
   }
 
   select.field-input {
@@ -551,15 +555,15 @@
 
   /* ── Button enhancements ──────────────────────────────────────── */
   .btn {
-    min-height: 44px; /* structural: WCAG 2.5.8 minimum touch target */
+    min-height: var(--size-touch-target);
   }
 
   .btn[data-size="sm"] {
-    min-height: var(--size-touch-control); /* structural: 44px touch target — padding alone produces 36px */
+    min-height: var(--size-touch-target);
   }
 
   .btn[data-size="lg"] {
-    min-height: 48px; /* structural: large button touch target */
+    min-height: var(--size-touch-target-lg);
   }
 
   a.btn {
@@ -678,7 +682,7 @@
   .empty-state-body {
     font-size: var(--text-sm);
     color: var(--color-text-muted);
-    max-width: var(--size-modal);
+    max-width: var(--size-content-max);
   }
 
   /* ── Skeleton ─────────────────────────────────────────────────── */
@@ -950,7 +954,7 @@
     border: none;
     border-radius: var(--radius-lg);
     padding: var(--density-space-lg);
-    max-width: var(--size-modal);
+    max-width: var(--size-content-max);
     width: 100%;
     box-shadow: 0 8px 24px oklch(from var(--color-brand-black) l c h / 0.2); /* structural: elevation shadow */
   }
@@ -978,8 +982,8 @@
     align-items: center;
     justify-content: center;
     gap: 0.3rem; /* structural: hamburger bar spacing, calibrated visually */
-    width: var(--size-touch-control);
-    height: var(--size-touch-control);
+    width: var(--size-touch-target);
+    height: var(--size-touch-target);
     border: none;
     background: none;
     color: var(--color-text);
@@ -1026,13 +1030,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: var(--size-touch-control);
-    height: var(--size-touch-control);
+    width: var(--size-touch-target);
+    height: var(--size-touch-target);
     border: none;
     background: none;
     color: var(--color-text-muted);
     cursor: pointer;
-    font-size: var(--text-otp);
+    font-size: var(--text-icon);
     border-radius: var(--radius-md);
     margin-bottom: var(--density-space-sm);
   }
@@ -1083,7 +1087,7 @@
 
   .cycle-viz {
     width: 100%;
-    max-width: 400px; /* structural: visualization canvas max-width */
+    max-width: var(--size-cycle-viz);
     aspect-ratio: 1;
   }
 
