@@ -97,6 +97,7 @@
 
   body {
     font-family: var(--font-body);
+    font-size: 1.05rem; /* spec: body = 1.05rem (16.8px) */
     background: var(--color-surface);
     color: var(--color-text);
     overflow-x: clip;
@@ -115,6 +116,11 @@
     outline-offset: 2px;
   }
 
+  /* z-index layer map:
+     1  — grain overlay (body::after)
+     40 — mobile menu overlay, dropdowns
+     50 — mobile menu panel, modals, toasts
+     60 — confetti burst (above modals during delivery phase) */
   body::after {
     content: '';
     position: fixed;
@@ -133,8 +139,8 @@
     }
 
     *, *::before, *::after {
-      transition: none !important;
-      animation: none !important;
+      transition: none !important; /* documented exception: override all component transitions */
+      animation: none !important;  /* documented exception: override all component animations */
     }
 
     /* Explicit documentation of animated components */
@@ -160,6 +166,7 @@
     line-height: 1.4;
     color: var(--_fg);
     background: var(--_bg);
+    /* transparent border for layout stability across secondary variant (which has a visible border) */
     border: 1.5px solid transparent;
     border-radius: var(--radius-pill);
     padding: 0.625rem 1.25rem;
@@ -168,8 +175,11 @@
     text-decoration: none;
   }
 
-  .btn:hover {
-    filter: brightness(0.9);
+  /* hover only on pointer devices — touch devices have no hover state */
+  @media (hover: hover) {
+    .btn:hover:not(:disabled):not([aria-busy="true"]) {
+      filter: brightness(0.9);
+    }
   }
 
   .btn:focus-visible {
@@ -181,6 +191,13 @@
   .btn[aria-disabled="true"] {
     opacity: 0.45;
     cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* loading state — less opaque than disabled, cursor signals in-progress work */
+  .btn[aria-busy="true"] {
+    opacity: 0.75;
+    cursor: wait;
     pointer-events: none;
   }
 
@@ -234,7 +251,8 @@
     line-height: 1.5;
     color: var(--color-text);
     background: var(--color-surface-raised);
-    border: 1.5px solid oklch(from var(--color-brand-gray) l c h / 0.6);
+    /* spec: 1.5px solid --color-brand-gray (full opacity) */
+    border: 1.5px solid var(--color-brand-gray);
     border-radius: var(--radius-md);
     padding: 0.625rem 0.75rem;
     transition: border-color 120ms ease, box-shadow 120ms ease;
@@ -247,6 +265,12 @@
   }
 
   .field-input[aria-invalid="true"] {
+    border-color: var(--color-error);
+    box-shadow: 0 0 0 3px oklch(from var(--color-error) l c h / 0.15);
+  }
+
+  /* explicit error+focus state — prevents :focus from overriding error border */
+  .field-input[aria-invalid="true"]:focus {
     border-color: var(--color-error);
     box-shadow: 0 0 0 3px oklch(from var(--color-error) l c h / 0.15);
   }
@@ -296,6 +320,7 @@
     background: var(--color-brand-gray);
   }
 
+  /* confirmed uses brand-blue (oklch 0.78 — light); black text required for WCAG AA */
   .badge[data-status="confirmed"] {
     background: var(--color-brand-blue);
     color: var(--color-brand-black);
@@ -440,7 +465,8 @@
     margin-bottom: var(--density-space-sm);
   }
 
-  .sms-trigger h2 {
+  /* components use <h3> inside .sms-trigger */
+  .sms-trigger h3 {
     font-size: 0.875rem;
     font-weight: 600;
     margin-bottom: 0.25rem;
@@ -452,6 +478,26 @@
     margin-bottom: var(--density-space-sm);
   }
 
+  /* ── Typography component classes ────────────────────────────── */
+
+  /* overline label — uppercase label appearing above section headings */
+  .overline-label {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* body secondary — step descriptions, captions */
+  .body-secondary {
+    font-family: var(--font-body);
+    font-weight: 400;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
   /* ── Field enhancements ───────────────────────────────────────── */
   .field-input {
     min-height: 44px;
@@ -459,6 +505,8 @@
 
   select.field-input {
     appearance: none;
+    /* SVG arrow uses %23565656 — hex approximation of --color-brand-gray (oklch 0.45 0.01 250).
+       CSS custom properties cannot be interpolated into data URIs; this is a documented exception. */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23565656' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.75rem center;
@@ -477,11 +525,11 @@
 
   /* ── Button enhancements ──────────────────────────────────────── */
   .btn {
-    min-height: 44px;
+    min-height: 44px; /* WCAG 2.5.8 minimum touch target */
   }
 
   .btn[data-size="sm"] {
-    min-height: 36px;
+    min-height: 2.75rem; /* 44px touch target — padding alone produces 36px */
   }
 
   .btn[data-size="lg"] {
@@ -696,7 +744,7 @@
 
   .step-label {
     font-weight: 600;
-    font-size: 0.625rem;
+    font-size: 0.75rem; /* spec minimum: 12px; previous 0.625rem (10px) was below minimum */
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-text-muted);
@@ -826,24 +874,40 @@
       padding: 0;
     }
 
+    /* column 1: primary identifier (name, code) */
     .data-table td:first-child {
       width: 100%;
       font-weight: 600;
       font-size: 1rem;
     }
 
+    /* column 2: secondary info (phone, distributor) */
     .data-table td:nth-child(2) {
       width: 100%;
       color: var(--color-text-muted);
       font-size: 0.8125rem;
     }
 
+    /* column 3: status badge — full width row so badge renders prominently */
+    .data-table td:nth-child(3) {
+      width: 100%;
+    }
+
+    /* column 4: redeemer name or additional secondary info */
+    .data-table td:nth-child(4) {
+      width: 100%;
+      color: var(--color-text-muted);
+      font-size: 0.8125rem;
+    }
+
+    /* last column: actions — push to right edge */
     .data-table td:last-child {
       margin-left: auto;
     }
   }
 
   /* ── Modal ────────────────────────────────────────────────────── */
+  /* z-index: 50 — above dropdowns (40) and mobile menu overlay (40) */
   .modal-overlay {
     position: fixed;
     inset: 0;
@@ -910,9 +974,10 @@
     position: fixed;
     inset: 0;
     background: oklch(from var(--color-brand-black) l c h / 0.4);
-    z-index: 40;
+    z-index: 40; /* below menu panel (50), above page content */
   }
 
+  /* z-index: 50 — same layer as modals; menu closes before modal can open */
   .mobile-menu {
     position: fixed;
     top: 0;
@@ -946,13 +1011,15 @@
     margin-bottom: var(--density-space-sm);
   }
 
-  .mobile-menu-close:hover {
-    color: var(--color-text);
-  }
-
   .mobile-menu-close:focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
+  }
+
+  @media (hover: hover) {
+    .mobile-menu-close:hover {
+      color: var(--color-text);
+    }
   }
 
   .mobile-menu a {
@@ -965,13 +1032,15 @@
     text-decoration: none;
   }
 
-  .mobile-menu a:hover {
-    background: oklch(from var(--color-brand-gray) l c h / 0.1);
-  }
-
   .mobile-menu a[aria-current="page"] {
     color: var(--color-accent);
     background: oklch(from var(--color-accent) l c h / 0.08);
+  }
+
+  @media (hover: hover) {
+    .mobile-menu a:hover {
+      background: oklch(from var(--color-brand-gray) l c h / 0.1);
+    }
   }
 
   @keyframes slide-in-right {
