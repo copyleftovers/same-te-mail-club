@@ -32,7 +32,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
 
     // Prevent individual actions from hanging on hydration/network issues.
-    actionTimeout: 15_000,
+    actionTimeout: 10_000,
     // Dev WASM bundle is ~14MB; SSR can slow under sustained load.
     // 30s gives headroom without masking real failures (passing tests are ~3s).
     navigationTimeout: 30_000,
