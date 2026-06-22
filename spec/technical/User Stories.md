@@ -169,12 +169,6 @@ Then they see their recipient's real name, phone number, and Nova Poshta branch
 - An SMS nudge is sent when assignment is available
 - The participant sees ONLY their own recipient — no other cohort information
 - No information about who is sending TO them
-- Assignment details are initially hidden inside an interactive envelope element
-- The participant must click, tap, or press Enter/Space to reveal their recipient
-- A brief celebratory animation plays on first reveal (suppressed under `prefers-reduced-motion: reduce`)
-- The reveal state is persisted per season — each new season delivers a fresh reveal experience
-- On subsequent visits within the same season, details are shown immediately without animation
-- The envelope is keyboard-accessible (`role="button"`, `tabindex="0"`, `aria-expanded`)
 
 ### Story 2.4: Confirm mail received
 
