@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            ic.id,\n            ic.code,\n            d.name AS distributor_name,\n            ic.status AS \"status: InviteCodeStatus\",\n            r.name AS \"redeemer_name?\",\n            ic.redeemed_at AS \"redeemed_at?\",\n            ic.created_at\n        FROM invite_codes ic\n        JOIN users d ON d.id = ic.distributor_id\n        LEFT JOIN users r ON r.id = ic.redeemer_id\n        ORDER BY ic.created_at DESC\n        ",
+  "query": "\n        SELECT\n            ic.id,\n            ic.code,\n            d.name AS distributor_name,\n            ic.status AS \"status: InviteCodeStatus\",\n            r.name AS \"redeemer_name?\",\n            ic.redeemed_at AS \"redeemed_at?\"\n        FROM invite_codes ic\n        JOIN users d ON d.id = ic.distributor_id\n        LEFT JOIN users r ON r.id = ic.redeemer_id\n        ORDER BY ic.created_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -43,11 +43,6 @@
         "ordinal": 5,
         "name": "redeemed_at?",
         "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 6,
-        "name": "created_at",
-        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
@@ -59,9 +54,8 @@
       false,
       false,
       false,
-      true,
-      false
+      true
     ]
   },
-  "hash": "52a6f319e716dcd144aabf81f9d3cf5a216059c1882b0250a671d3bb6cc49394"
+  "hash": "9b6a7c78d766e5fd77d6f262c3c5514bfaf67e5a10c86148cc4f7893337bcdd4"
 }

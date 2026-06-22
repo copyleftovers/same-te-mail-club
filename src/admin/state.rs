@@ -17,12 +17,17 @@ pub struct AdminState {
 ///
 /// Combines season metadata, enrollment counts, SMS target counts,
 /// and assignment status into a single fetch.
+///
+/// Timestamps are pre-formatted as Ukrainian display strings by the server
+/// function so SSR and WASM render identical text (no hydration mismatch).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AdminSeason {
     pub id: uuid::Uuid,
     pub phase: crate::types::Phase,
-    pub signup_deadline: time::OffsetDateTime,
-    pub confirm_deadline: time::OffsetDateTime,
+    /// Pre-formatted signup deadline, e.g. "25 березня 2026, 21:09".
+    pub signup_deadline: String,
+    /// Pre-formatted confirm deadline, e.g. "25 березня 2026, 21:09".
+    pub confirm_deadline: String,
     pub theme: Option<String>,
     pub launched: bool,
     pub enrolled_count: i64,
@@ -187,8 +192,8 @@ pub async fn get_admin_state() -> Result<AdminState, ServerFnError> {
         season: Some(AdminSeason {
             id: row.id,
             phase: row.phase,
-            signup_deadline: row.signup_deadline,
-            confirm_deadline: row.confirm_deadline,
+            signup_deadline: crate::date_format::format_date_uk(row.signup_deadline),
+            confirm_deadline: crate::date_format::format_date_uk(row.confirm_deadline),
             theme: row.theme,
             launched: row.launched,
             enrolled_count: row.enrolled_count,

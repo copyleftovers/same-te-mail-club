@@ -423,6 +423,15 @@
     margin-bottom: var(--density-space-md);
   }
 
+  /* SMS send result — neutral informational container, not an error state. */
+  .sms-report-result {
+    padding: var(--density-space-sm) var(--density-space-md);
+    border-radius: var(--radius-md);
+    background: oklch(from var(--color-success) l c h / 0.1);
+    font-size: 0.875rem;
+    margin-bottom: var(--density-space-md);
+  }
+
   .app-header {
     display: flex;
     align-items: center;

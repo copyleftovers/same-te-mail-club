@@ -211,7 +211,7 @@ pub fn AdminPage() -> impl IntoView {
 
             // ── Season section ─────────────────────────────────────────────────
             <section>
-                <h1>{t!(i18n, season_page_title)}</h1>
+                <h2>{t!(i18n, season_page_title)}</h2>
                 <Suspense fallback=move || {
                     view! {
                         <div aria-hidden="true" class="flex flex-col gap-3">
@@ -267,7 +267,7 @@ pub fn AdminPage() -> impl IntoView {
 
             // ── Participants section ───────────────────────────────────────────
             <section>
-                <h1>{t!(i18n, participants_page_title)}</h1>
+                <h2>{t!(i18n, participants_page_title)}</h2>
                 <InviteCodesSection
                     generate_invite_action=generate_invite_action
                     revoke_invite_action=revoke_invite_action
@@ -351,6 +351,7 @@ fn render_create_form(
                             required=true
                             data-testid="signup-deadline-input"
                             aria-describedby="action-error"
+                            attr:aria-invalid=move || create_action.value().get().and_then(Result::err).map(|_| "true")
                         />
                     </div>
                     <div class="field">
@@ -365,6 +366,7 @@ fn render_create_form(
                             required=true
                             data-testid="confirm-deadline-input"
                             aria-describedby="action-error"
+                            attr:aria-invalid=move || create_action.value().get().and_then(Result::err).map(|_| "true")
                         />
                     </div>
                     <div class="field">
@@ -386,6 +388,7 @@ fn render_create_form(
                         type="submit"
                         data-testid="create-season-button"
                         disabled=move || pending.get() || !hydrated.get()
+                        attr:aria-busy=move || pending.get().then_some("true")
                     >
                         {move || if pending.get() {
                             "Створюю...".into_any()
@@ -437,16 +440,9 @@ fn render_active_season(
         }
     });
 
-    // Format deadlines for display.
-    #[cfg(feature = "ssr")]
-    let signup_deadline_str = crate::date_format::format_date_uk(season.signup_deadline);
-    #[cfg(not(feature = "ssr"))]
-    let signup_deadline_str = season.signup_deadline.to_string();
-
-    #[cfg(feature = "ssr")]
-    let confirm_deadline_str = crate::date_format::format_date_uk(season.confirm_deadline);
-    #[cfg(not(feature = "ssr"))]
-    let confirm_deadline_str = season.confirm_deadline.to_string();
+    // Timestamps are pre-formatted strings in AdminSeason — no SSR/WASM branching needed.
+    let signup_deadline_str = season.signup_deadline.clone();
+    let confirm_deadline_str = season.confirm_deadline.clone();
 
     // Clone data needed in closures.
     let theme = season.theme.clone();
@@ -528,7 +524,7 @@ fn render_active_season(
             )}
 
             // Action buttons: launch, advance, cancel
-            <div class="flex flex-wrap gap-3 mt-4">
+            <div class="flex flex-wrap gap-(--density-space-sm) mt-(--density-space-md)">
                 // Launch — only when not yet launched and not terminal
                 {if !launched && !is_terminal {
                     view! {
@@ -538,6 +534,7 @@ fn render_active_season(
                                 type="submit"
                                 data-testid="launch-button"
                                 disabled=move || launch_pending.get() || !hydrated.get()
+                                attr:aria-busy=move || launch_pending.get().then_some("true")
                             >
                                 {move || if launch_pending.get() {
                                     "Запускаю...".into_any()
@@ -564,6 +561,7 @@ fn render_active_season(
                                     disabled=move || {
                                         advance_pending.get() || !hydrated.get() || advance_blocked
                                     }
+                                    attr:aria-busy=move || advance_pending.get().then_some("true")
                                 >
                                     {move || if advance_pending.get() {
                                         "Просуваю...".into_any()
@@ -599,7 +597,7 @@ fn render_active_season(
                                 view! {
                                     <div data-testid="cancel-confirmation">
                                         <p>{t!(i18n, season_cancel_confirm_prompt)}</p>
-                                        <div class="flex flex-wrap gap-3 mt-2">
+                                        <div class="flex flex-wrap gap-(--density-space-sm) mt-(--density-space-sm)">
                                             <leptos::form::ActionForm action=cancel_action>
                                                 <button
                                                     class="btn"
@@ -607,6 +605,7 @@ fn render_active_season(
                                                     type="submit"
                                                     data-testid="cancel-confirm-button"
                                                     disabled=move || cancel_pending.get() || !hydrated.get()
+                                                    attr:aria-busy=move || cancel_pending.get().then_some("true")
                                                 >
                                                     {move || if cancel_pending.get() {
                                                         "Скасовую...".into_any()
@@ -691,11 +690,11 @@ fn render_phase_sms(
         Phase::Enrollment => {
             let season_open_pending = season_open_action.pending();
             view! {
-                <div class="flex flex-col gap-3 mt-4">
+                <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)">
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_season_open_section_title)}</h3>
                         <p>{t!(i18n, sms_season_open_target)}</p>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-(--density-space-sm)">
                             <leptos::form::ActionForm action=season_open_action>
                                 <button
                                     class="btn"
@@ -703,16 +702,17 @@ fn render_phase_sms(
                                     type="submit"
                                     data-testid="send-season-open-button"
                                     disabled=move || season_open_pending.get() || !hydrated.get()
+                                    attr:aria-busy=move || season_open_pending.get().then_some("true")
                                 >
                                     {move || if season_open_pending.get() {
                                         "Надсилаю...".into_any()
                                     } else {
-                                        t!(i18n, common_send_button).into_any()
+                                        t!(i18n, sms_send_season_open_button).into_any()
                                     }}
                                 </button>
                             </leptos::form::ActionForm>
                             <span
-                                class="text-sm text-[--color-text-muted]"
+                                class="text-sm text-(--color-text-muted)"
                                 data-testid="sms-count-active-users"
                             >
                                 {t!(i18n, sms_count_active_users, count = active_user_count)}
@@ -726,11 +726,11 @@ fn render_phase_sms(
         Phase::Preparation => {
             let confirm_nudge_pending = confirm_nudge_action.pending();
             view! {
-                <div class="flex flex-col gap-3 mt-4">
+                <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)">
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_confirm_nudge_section_title)}</h3>
                         <p>{t!(i18n, sms_confirm_nudge_target)}</p>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-(--density-space-sm)">
                             <leptos::form::ActionForm action=confirm_nudge_action>
                                 <button
                                     class="btn"
@@ -738,16 +738,17 @@ fn render_phase_sms(
                                     type="submit"
                                     data-testid="send-confirm-nudge-button"
                                     disabled=move || confirm_nudge_pending.get() || !hydrated.get()
+                                    attr:aria-busy=move || confirm_nudge_pending.get().then_some("true")
                                 >
                                     {move || if confirm_nudge_pending.get() {
                                         "Надсилаю...".into_any()
                                     } else {
-                                        t!(i18n, common_send_button).into_any()
+                                        t!(i18n, sms_send_confirm_nudge_button).into_any()
                                     }}
                                 </button>
                             </leptos::form::ActionForm>
                             <span
-                                class="text-sm text-[--color-text-muted]"
+                                class="text-sm text-(--color-text-muted)"
                                 data-testid="sms-count-unconfirmed-enrolled"
                             >
                                 {t!(
@@ -766,11 +767,11 @@ fn render_phase_sms(
             let assignment_pending = assignment_action.pending();
             let receipt_nudge_pending = receipt_nudge_action.pending();
             view! {
-                <div class="flex flex-col gap-3 mt-4">
+                <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)">
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_assignment_section_title)}</h3>
                         <p>{t!(i18n, sms_assignment_target)}</p>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-(--density-space-sm)">
                             <leptos::form::ActionForm action=assignment_action>
                                 <button
                                     class="btn"
@@ -778,16 +779,17 @@ fn render_phase_sms(
                                     type="submit"
                                     data-testid="send-assignment-button"
                                     disabled=move || assignment_pending.get() || !hydrated.get()
+                                    attr:aria-busy=move || assignment_pending.get().then_some("true")
                                 >
                                     {move || if assignment_pending.get() {
                                         "Надсилаю...".into_any()
                                     } else {
-                                        t!(i18n, common_send_button).into_any()
+                                        t!(i18n, sms_send_assignment_button).into_any()
                                     }}
                                 </button>
                             </leptos::form::ActionForm>
                             <span
-                                class="text-sm text-[--color-text-muted]"
+                                class="text-sm text-(--color-text-muted)"
                                 data-testid="sms-count-unnotified-senders"
                             >
                                 {t!(
@@ -801,7 +803,7 @@ fn render_phase_sms(
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_receipt_nudge_section_title)}</h3>
                         <p>{t!(i18n, sms_receipt_nudge_target)}</p>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-(--density-space-sm)">
                             <leptos::form::ActionForm action=receipt_nudge_action>
                                 <button
                                     class="btn"
@@ -809,16 +811,17 @@ fn render_phase_sms(
                                     type="submit"
                                     data-testid="send-receipt-nudge-button"
                                     disabled=move || receipt_nudge_pending.get() || !hydrated.get()
+                                    attr:aria-busy=move || receipt_nudge_pending.get().then_some("true")
                                 >
                                     {move || if receipt_nudge_pending.get() {
                                         "Надсилаю...".into_any()
                                     } else {
-                                        t!(i18n, common_send_button).into_any()
+                                        t!(i18n, sms_send_receipt_nudge_button).into_any()
                                     }}
                                 </button>
                             </leptos::form::ActionForm>
                             <span
-                                class="text-sm text-[--color-text-muted]"
+                                class="text-sm text-(--color-text-muted)"
                                 data-testid="sms-count-no-response"
                             >
                                 {t!(i18n, sms_count_no_response, count = no_response_count)}
@@ -857,13 +860,13 @@ fn render_sms_report(
         {move || {
             latest_report().map(|report| {
                 view! {
-                    <div class="alert" data-testid="sms-report">
+                    <div class="sms-report-result" data-testid="sms-report">
                         <p data-testid="sms-sent-confirmation">
                             {t!(i18n, sms_sent_label)} <strong>{report.sent}</strong>
                         </p>
                         {if report.failed > 0 {
                             view! {
-                                <p>
+                                <p class="text-(--color-error)">
                                     {t!(i18n, sms_failed_label)}
                                     <strong>{report.failed}</strong>
                                 </p>
@@ -913,7 +916,7 @@ fn render_assignment_section(
     let cohorts_for_viz = p.cohorts.clone();
 
     view! {
-        <div class="mt-6">
+        <div class="mt-(--density-space-lg)">
             <h2>{t!(i18n, assignments_page_title)}</h2>
 
             // Generate button (only in assignment phase)
@@ -925,6 +928,7 @@ fn render_assignment_section(
                             type="submit"
                             data-testid="generate-button"
                             disabled=move || generate_pending.get() || !hydrated.get()
+                            attr:aria-busy=move || generate_pending.get().then_some("true")
                         >
                             {move || if generate_pending.get() {
                                 "Генерую...".into_any()
@@ -1132,6 +1136,7 @@ fn SwapFormSection(
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
     links: Vec<AssignmentLink>,
 ) -> impl IntoView {
+    let swap_pending = swap_action.pending();
     let options_a = links.clone();
     let options_b = links;
     view! {
@@ -1189,7 +1194,8 @@ fn SwapFormSection(
                     data-variant="secondary"
                     type="submit"
                     data-testid="swap-button"
-                    disabled=move || !hydrated.get()
+                    disabled=move || swap_pending.get() || !hydrated.get()
+                    attr:aria-busy=move || swap_pending.get().then_some("true")
                 >
                     {t!(i18n, assignments_apply_button)}
                 </button>
@@ -1209,6 +1215,8 @@ fn InviteCodesSection(
     hydrated: ReadSignal<bool>,
 ) -> impl IntoView {
     let i18n = use_i18n();
+    let generate_pending = generate_invite_action.pending();
+    let revoke_pending = revoke_invite_action.pending();
     let (filter_query, set_filter_query) = signal(String::new());
 
     view! {
@@ -1260,7 +1268,8 @@ fn InviteCodesSection(
                                             class="btn"
                                             type="submit"
                                             data-testid="generate-code-button"
-                                            disabled=move || !hydrated.get()
+                                            disabled=move || generate_pending.get() || !hydrated.get()
+                                            attr:aria-busy=move || generate_pending.get().then_some("true")
                                         >
                                             {t!(i18n, admin_invite_codes_generate_button)}
                                         </button>
@@ -1277,7 +1286,7 @@ fn InviteCodesSection(
                 generate_invite_action.value().get().is_some_and(|r| r.is_ok())
             }>
                 <div
-                    class="flex items-center gap-3 mt-3"
+                    class="flex items-center gap-(--density-space-sm) mt-(--density-space-sm)"
                     data-testid="generated-code-display"
                     role="status"
                     aria-live="polite"
@@ -1301,19 +1310,24 @@ fn InviteCodesSection(
             </Show>
 
             // ── Invite code list subsection ───────────────────────────────────
-            <h3 class="mt-6">{t!(i18n, admin_invite_codes_list_title)}</h3>
+            <h3 class="mt-(--density-space-lg)">{t!(i18n, admin_invite_codes_list_title)}</h3>
 
-            <input
-                class="field-input mb-3"
-                type="text"
-                data-testid="invite-code-filter-input"
-                aria-label=move || t_string!(i18n, admin_invite_codes_filter_placeholder)
-                placeholder=move || t_string!(i18n, admin_invite_codes_filter_placeholder)
-                prop:value=move || filter_query.get()
-                on:input=move |ev| {
-                    set_filter_query.set(event_target_value(&ev));
-                }
-            />
+            <div class="field">
+                <label class="field-label" for="invite-code-filter">
+                    {t!(i18n, admin_invite_codes_filter_placeholder)}
+                </label>
+                <input
+                    class="field-input"
+                    id="invite-code-filter"
+                    type="text"
+                    data-testid="invite-code-filter-input"
+                    placeholder=move || t_string!(i18n, admin_invite_codes_filter_placeholder)
+                    prop:value=move || filter_query.get()
+                    on:input=move |ev| {
+                        set_filter_query.set(event_target_value(&ev));
+                    }
+                />
+            </div>
 
             <div data-testid="invite-code-list">
                 <Suspense fallback=|| ()>
@@ -1455,12 +1469,8 @@ fn InviteCodesSection(
                                                                 }}
                                                             </td>
                                                             <td data-testid="invite-code-redeemer-cell">
-                                                                {match (code.redeemer_name.clone(), code.redeemed_at) {
-                                                                    (Some(name), Some(dt)) => {
-                                                                        #[cfg(feature = "ssr")]
-                                                                        let date_str = crate::date_format::format_date_uk(dt);
-                                                                        #[cfg(not(feature = "ssr"))]
-                                                                        let date_str = dt.to_string();
+                                                                {match (code.redeemer_name.clone(), code.redeemed_at.clone()) {
+                                                                    (Some(name), Some(date_str)) => {
                                                                         format!("{name} ({date_str})")
                                                                     }
                                                                     (Some(name), None) => name,
@@ -1485,7 +1495,8 @@ fn InviteCodesSection(
                                                                                 data-size="sm"
                                                                                 type="submit"
                                                                                 data-testid="invite-code-revoke-button"
-                                                                                disabled=move || !hydrated.get()
+                                                                                disabled=move || revoke_pending.get() || !hydrated.get()
+                                                                                attr:aria-busy=move || revoke_pending.get().then_some("true")
                                                                             >
                                                                                 {t!(
                                                                                     i18n,
@@ -1632,6 +1643,7 @@ fn ParticipantListSection(
                                                                                             disabled=move || {
                                                                                                 deactivate_pending.get() || !hydrated.get()
                                                                                             }
+                                                                                            attr:aria-busy=move || deactivate_pending.get().then_some("true")
                                                                                         >
                                                                                             {move || if deactivate_pending.get() {
                                                                                                 "Деактивую...".into_any()

@@ -17,6 +17,9 @@ use leptos::prelude::*;
 ///
 /// Includes resolved names for the distributor and (optionally) the redeemer
 /// so the admin UI can render the list without additional lookups.
+///
+/// Timestamps are pre-formatted as Ukrainian display strings by the server
+/// function so SSR and WASM render identical text (no hydration mismatch).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct InviteCodeRow {
     pub id: uuid::Uuid,
@@ -24,9 +27,9 @@ pub struct InviteCodeRow {
     pub distributor_name: String,
     pub status: InviteCodeStatus,
     pub redeemer_name: Option<String>,
-    /// Timestamp when the code was redeemed (populated when status is `Used`).
-    pub redeemed_at: Option<time::OffsetDateTime>,
-    pub created_at: time::OffsetDateTime,
+    /// Pre-formatted redemption timestamp, e.g. "25 березня 2026, 21:09".
+    /// `None` when the code has not been redeemed.
+    pub redeemed_at: Option<String>,
 }
 
 /// A user eligible to be selected as a code distributor.
@@ -50,7 +53,6 @@ struct InviteCodeQueryRow {
     status: InviteCodeStatus,
     redeemer_name: Option<String>,
     redeemed_at: Option<time::OffsetDateTime>,
-    created_at: time::OffsetDateTime,
 }
 
 /// Private query row for `list_distributor_options` — not exposed outside this module.
@@ -143,8 +145,7 @@ pub async fn list_invite_codes() -> Result<Vec<InviteCodeRow>, ServerFnError> {
             d.name AS distributor_name,
             ic.status AS "status: InviteCodeStatus",
             r.name AS "redeemer_name?",
-            ic.redeemed_at AS "redeemed_at?",
-            ic.created_at
+            ic.redeemed_at AS "redeemed_at?"
         FROM invite_codes ic
         JOIN users d ON d.id = ic.distributor_id
         LEFT JOIN users r ON r.id = ic.redeemer_id
@@ -163,8 +164,7 @@ pub async fn list_invite_codes() -> Result<Vec<InviteCodeRow>, ServerFnError> {
             distributor_name: r.distributor_name,
             status: r.status,
             redeemer_name: r.redeemer_name,
-            redeemed_at: r.redeemed_at,
-            created_at: r.created_at,
+            redeemed_at: r.redeemed_at.map(crate::date_format::format_date_uk),
         })
         .collect())
 }
