@@ -19,6 +19,7 @@ One of the workflows where this pattern lends itself beautifully is objective fa
 - @guidance/leptos-idioms.md — Leptos 0.8 patterns (mandatory for all component work)
 - @guidance/debugging-policy.md — E2E failure delegation, long-running command rules
 - @guidance/design-system.md — palette, typography, components, density, accessibility (**binding**)
+- @guidance/component-evaluation-framework.md — single-project component evaluation criteria, mobile-first (**binding**)
 - @guidance/frontend-protocol.md — Tailwind v4 setup, CSS architecture, banned patterns (**binding**)
 - @end2end/README.md — E2E testing guide, POM contract, wait strategies (**binding**)
 
