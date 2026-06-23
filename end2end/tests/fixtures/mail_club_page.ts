@@ -179,11 +179,11 @@ export class MailClubPage {
   // ── Confirm ready (Story 2.2) ──
 
   async confirmReady() {
-    await this.page.getByTestId("confirm-ready-button").click();
+    const btn = this.page.getByTestId("confirm-ready-button");
+    await expect(btn).toBeEnabled();
+    await btn.click();
     // Wait for refetch to complete — confirm button disappears when confirmed.
-    await expect(
-      this.page.getByTestId("confirm-ready-button"),
-    ).not.toBeVisible();
+    await expect(btn).not.toBeVisible();
   }
 
   async expectConfirmed() {
@@ -211,18 +211,14 @@ export class MailClubPage {
   // ── Receipt confirmation (Story 2.4) ──
 
   async confirmReceipt(received: boolean, note?: string) {
+    const btn = this.page.getByTestId(received ? "received-button" : "not-received-button");
+    await expect(btn).toBeEnabled();
     if (note) {
       await this.page.getByTestId("receipt-note-input").fill(note);
     }
-    if (received) {
-      await this.page.getByTestId("received-button").click();
-      // Wait for refetch to complete — completion signal appears.
-      await expect(this.page.getByTestId("receipt-thanks")).toBeVisible();
-    } else {
-      await this.page.getByTestId("not-received-button").click();
-      // Wait for refetch to complete — completion signal appears.
-      await expect(this.page.getByTestId("receipt-thanks")).toBeVisible();
-    }
+    await btn.click();
+    // Wait for refetch to complete — completion signal appears.
+    await expect(this.page.getByTestId("receipt-thanks")).toBeVisible();
   }
 
   // ── Invite codes (Stories 1.1, 1.5, 1.6) ──
