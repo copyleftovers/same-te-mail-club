@@ -204,10 +204,20 @@ test.describe.serial("Visual Audit", () => {
 
   // ── Admin: season creation ────────────────────────────────────────────────────
 
+  // mail_club.spec.ts leaves a cancelled season. A terminal season embeds the
+  // create form (is_terminal=true), so create-season-button is present in both
+  // "no season" and "terminal season" states.
+  //
+  // Explicit page.goto() is required here: after login, the browser is already
+  // on /admin via a redirect. goToDashboard() would skip the navigation and only
+  // wait for main — not sufficient to guarantee the SSR Suspense (admin_state
+  // Resource) has resolved and injected create-season-button into the HTML.
+  // A fresh goto forces a complete SSR round-trip, so the resolved state is
+  // present before the enabled check starts.
   test("capture admin — no active season (create form visible)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await app.goToDashboard();
+    await page.goto("/admin");
     await expect(page.getByTestId("create-season-button")).toBeEnabled();
     await captureState(page, "admin-no-season-create-form");
   });
