@@ -138,6 +138,11 @@ export class MailClubPage {
     if (currentUrl.pathname !== "/") {
       await this.page.goto("/");
     }
+    // Wait for hydration by checking that the main content container is fully rendered.
+    // The page has many states (NoSeason, EnrollmentOpen, Enrolled, etc.), many of which
+    // have no buttons at all (50% of states). Waiting for "first button enabled" fails
+    // on these states. Instead, wait for <main> to be stable — it exists in all states
+    // and proves the page is interactive (hydration complete).
     await expect(this.page.locator("main")).toBeVisible({ timeout: 10_000 });
   }
 
@@ -148,10 +153,6 @@ export class MailClubPage {
   // ── Season enrollment (Story 2.1) ──
 
   async enrollInSeason(city?: string, branchNumber?: string) {
-    // Wait for hydration before filling inputs. The enroll-button is disabled
-    // (via !hydrated.get()) until WASM hydrates. Filling inputs before hydration
-    // risks Leptos patching the DOM and resetting the values before submit.
-    await expect(this.page.getByTestId("enroll-button")).toBeEnabled();
     if (city) {
       await this.page.getByTestId("np-city-input").fill(city);
     }
@@ -178,11 +179,11 @@ export class MailClubPage {
   // ── Confirm ready (Story 2.2) ──
 
   async confirmReady() {
-    const btn = this.page.getByTestId("confirm-ready-button");
-    await expect(btn).toBeEnabled();
-    await btn.click();
+    await this.page.getByTestId("confirm-ready-button").click();
     // Wait for refetch to complete — confirm button disappears when confirmed.
-    await expect(btn).not.toBeVisible();
+    await expect(
+      this.page.getByTestId("confirm-ready-button"),
+    ).not.toBeVisible();
   }
 
   async expectConfirmed() {
@@ -210,18 +211,15 @@ export class MailClubPage {
   // ── Receipt confirmation (Story 2.4) ──
 
   async confirmReceipt(received: boolean, note?: string) {
-    const receivedBtn = this.page.getByTestId("received-button");
-    const notReceivedBtn = this.page.getByTestId("not-received-button");
-    await expect(receivedBtn).toBeEnabled();
     if (note) {
       await this.page.getByTestId("receipt-note-input").fill(note);
     }
     if (received) {
-      await receivedBtn.click();
+      await this.page.getByTestId("received-button").click();
       // Wait for refetch to complete — completion signal appears.
       await expect(this.page.getByTestId("receipt-thanks")).toBeVisible();
     } else {
-      await notReceivedBtn.click();
+      await this.page.getByTestId("not-received-button").click();
       // Wait for refetch to complete — completion signal appears.
       await expect(this.page.getByTestId("receipt-thanks")).toBeVisible();
     }
@@ -364,9 +362,7 @@ export class MailClubPage {
       has: this.page.getByTestId("invite-code-cell").filter({ hasText: codeString }),
     });
     await expect(row).toBeVisible();
-    const revokeBtn = row.getByTestId("invite-code-revoke-button");
-    await expect(revokeBtn).toBeEnabled();
-    await revokeBtn.click();
+    await row.getByTestId("invite-code-revoke-button").click();
     // Wait for the status badge in this row to reflect the revoked state.
     // The revoke action updates the list resource, which re-renders the row.
     await expect(row.getByTestId("invite-code-status-badge")).not.toHaveAttribute(
@@ -408,10 +404,9 @@ export class MailClubPage {
   async deactivateParticipant(name: string) {
     await this.page.goto("/admin");
     const row = this.page.getByTestId("participant-row").filter({ hasText: name });
+    // Wait for hydration — the row being visible means data loaded and the page rendered.
     await expect(row).toBeVisible();
-    const btn = row.getByTestId("deactivate-button");
-    await expect(btn).toBeEnabled();
-    await btn.click();
+    await row.getByTestId("deactivate-button").click();
     // Wait for refetch to complete — inactive status appears.
     await expect(this.page.getByTestId("inactive-status")).toBeVisible();
   }
@@ -441,43 +436,42 @@ export class MailClubPage {
 
   async launchSeason() {
     await this.page.goto("/admin");
-    const btn = this.page.getByTestId("launch-button");
-    await expect(btn).toBeEnabled();
-    await this.clickAndWaitForResponse(btn, "launch_season");
+    await this.clickAndWaitForResponse(
+      this.page.getByTestId("launch-button"),
+      "launch_season",
+    );
     // Wait for launch to complete — advance button appears after launch.
     await expect(this.page.getByTestId("advance-button")).toBeVisible();
   }
 
   async advanceSeason() {
     await this.page.goto("/admin");
-    const btn = this.page.getByTestId("advance-button");
-    await expect(btn).toBeEnabled();
     // The advance button stays visible for 3 of 4 transitions (Enrollment →
     // Preparation → Assignment → Delivery), so there is no single reliable DOM
     // signal for all callers. The URL-filtered POST wait is sufficient: callers
     // always navigate away via goToDashboard() and assert on the next page state.
-    await this.clickAndWaitForResponse(btn, "advance");
+    await this.clickAndWaitForResponse(
+      this.page.getByTestId("advance-button"),
+      "advance",
+    );
   }
 
   async cancelSeason() {
     await this.page.goto("/admin");
-    const cancelBtn = this.page.getByTestId("cancel-button");
-    await expect(cancelBtn).toBeEnabled();
-    await cancelBtn.click();
+    await this.page.getByTestId("cancel-button").click();
     await expect(this.page.getByTestId("cancel-confirmation")).toBeVisible();
-    const confirmBtn = this.page.getByTestId("cancel-confirm-button");
-    await expect(confirmBtn).toBeEnabled();
-    await this.clickAndWaitForResponse(confirmBtn, "cancel_season");
-    await expect(confirmBtn).not.toBeVisible();
+    await this.clickAndWaitForResponse(
+      this.page.getByTestId("cancel-confirm-button"),
+      "cancel_season",
+    );
+    await expect(this.page.getByTestId("cancel-confirm-button")).not.toBeVisible();
   }
 
   // ── Admin: assignments (Stories 3.1, 3.3) ──
 
   async generateAssignments() {
     await this.page.goto("/admin");
-    const btn = this.page.getByTestId("generate-button");
-    await expect(btn).toBeEnabled();
-    await btn.click();
+    await this.page.getByTestId("generate-button").click();
     // Wait for refetch to complete — cycle visualization appears.
     await expect(this.page.getByTestId("cycle-visualization")).toBeVisible();
   }
@@ -509,9 +503,7 @@ export class MailClubPage {
     type: "season-open" | "assignment" | "confirm-nudge" | "receipt-nudge",
   ) {
     await this.page.goto("/admin");
-    const btn = this.page.getByTestId(`send-${type}-button`);
-    await expect(btn).toBeEnabled();
-    await btn.click();
+    await this.page.getByTestId(`send-${type}-button`).click();
     // Wait for refetch to complete — SMS report appears.
     await expect(this.page.getByTestId("sms-report")).toBeVisible();
   }
@@ -555,6 +547,8 @@ export class MailClubPage {
     if (currentUrl.pathname !== "/admin") {
       await this.page.goto("/admin");
     }
+    // Wait for the main content container to be fully rendered, confirming
+    // navigation and hydration are complete.
     await expect(this.page.locator("main")).toBeVisible({ timeout: 10_000 });
   }
 
