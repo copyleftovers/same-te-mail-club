@@ -123,7 +123,7 @@ test.describe.serial("Visual Audit", () => {
   test("capture admin — invite codes section (empty list)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await page.goto("/admin");
+    await app.goToDashboard();
     await expect(page.getByTestId("generate-code-button")).toBeEnabled();
     await captureState(page, "admin-invite-codes-empty");
   });
@@ -141,7 +141,7 @@ test.describe.serial("Visual Audit", () => {
   test("capture admin — invite codes with data", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await page.goto("/admin");
+    await app.goToDashboard();
     await expect(page.getByTestId("invite-code-list")).toBeVisible();
     await captureState(page, "admin-invite-codes-populated");
   });
@@ -197,7 +197,7 @@ test.describe.serial("Visual Audit", () => {
   test("capture admin — participants list", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await page.goto("/admin");
+    await app.goToDashboard();
     await expect(page.getByTestId("participant-list")).toBeVisible();
     await captureState(page, "admin-participants-list");
   });
@@ -207,7 +207,7 @@ test.describe.serial("Visual Audit", () => {
   test("capture admin — no active season (create form visible)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await page.goto("/admin");
+    await app.goToDashboard();
     await expect(page.getByTestId("create-season-button")).toBeEnabled();
     await captureState(page, "admin-no-season-create-form");
   });
@@ -235,7 +235,7 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.launchSeason();
-    await page.goto("/admin");
+    await app.goToDashboard();
     await expect(page.getByTestId("advance-button")).toBeVisible();
     await captureState(page, "admin-signup-phase");
   });
@@ -280,7 +280,7 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.advanceSeason();
-    await page.goto("/admin");
+    await app.goToDashboard();
     await expect(page.getByTestId("advance-button")).toBeVisible();
     await captureState(page, "admin-confirm-phase");
   });
@@ -317,7 +317,7 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.advanceSeason();
-    await page.goto("/admin");
+    await app.goToDashboard();
     await expect(page.getByTestId("generate-button")).toBeVisible();
     await captureState(page, "admin-assignment-phase-pre-generate");
   });
@@ -337,7 +337,7 @@ test.describe.serial("Visual Audit", () => {
   test("capture admin — swap UI visible", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await page.goto("/admin");
+    await app.goToDashboard();
     await expect(page.getByTestId("override-available")).toBeVisible();
     await captureState(page, "admin-swap-ui");
   });
@@ -348,7 +348,7 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.advanceSeason();
-    await page.goto("/admin");
+    await app.goToDashboard();
     await expect(page.getByTestId("send-assignment-button")).toBeVisible();
     await captureState(page, "admin-delivery-phase-sms-controls");
   });
@@ -418,7 +418,7 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.advanceSeason();
-    await page.goto("/admin");
+    await app.goToDashboard();
     await expect(page.locator("main")).toBeVisible();
     await captureState(page, "admin-season-complete");
   });
@@ -446,7 +446,7 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.cancelSeason();
-    await page.goto("/admin");
+    await app.goToDashboard();
     await expect(page.locator("main")).toBeVisible();
     await captureState(page, "admin-season-cancelled");
   });

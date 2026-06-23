@@ -100,7 +100,7 @@ test.describe.serial("The Mail Club", () => {
     test("1.5 — generated codes appear in admin list with unused status", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
 
       // All three codes from the previous test should be visible as unused.
       await app.expectInviteCodeStatus(CODES.A, "unused");
@@ -276,7 +276,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.1 — second active season is rejected", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       // Create form should NOT be visible (season already exists)
       await expect(page.getByTestId("create-season-button")).not.toBeVisible();
       // Management panel should be visible instead
@@ -304,7 +304,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.5 — all admin functionality on /admin", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
 
       // Season section visible
@@ -324,7 +324,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.5 — phase-stepper visible after launch", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
       // Phase-stepper appears when a season is active and launched.
       await expect(page.getByTestId("phase-stepper")).toBeVisible();
@@ -334,7 +334,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.6 — enrollment phase shows only season-open SMS button", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
 
       // Correct phase signal: season-open button is visible
@@ -350,7 +350,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.7 — advance not blocked in enrollment phase", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       // Wait for Suspense to resolve — advance-button must be visible first.
       await expect(page.getByTestId("advance-button")).toBeVisible();
       await expect(page.getByTestId("advance-blocked-hint")).not.toBeVisible();
@@ -365,7 +365,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
       // Story 4.4-A: active user count visible in Enrollment phase
-      await page.goto("/admin");
+      await app.goToDashboard();
       await app.expectSmsCountVisible("sms-count-active-users");
       // 3 active participants registered in test setup
       await app.expectSmsCount("sms-count-active-users", "3");
@@ -461,7 +461,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.6 — preparation phase shows only confirm-nudge SMS button", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
 
       // Correct phase signal: confirm-nudge button is visible
@@ -487,7 +487,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.4 — confirm-nudge count shows unconfirmed enrolled participants", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       await app.expectSmsCountVisible("sms-count-unconfirmed-enrolled");
       // All 3 enrolled participants have not yet confirmed ready.
       await app.expectSmsCount("sms-count-unconfirmed-enrolled", "3");
@@ -572,7 +572,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.6 — assignment phase shows no SMS buttons", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
 
       // Phase signal: generate-button is the canonical Assignment-phase indicator
@@ -597,7 +597,7 @@ test.describe.serial("The Mail Club", () => {
     test("3.1 — admin sees confirmed count before generating", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       // Confirmed count should be visible (3 participants)
       await expect(page.getByTestId("confirmed-count")).toBeVisible();
     });
@@ -607,7 +607,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.7 — advance blocked before assignments are generated", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       // Wait for Suspense to resolve — advance-button must be present.
       await expect(page.getByTestId("advance-button")).toBeVisible();
       await app.expectAdvanceBlocked();
@@ -621,7 +621,7 @@ test.describe.serial("The Mail Club", () => {
       await app.generateAssignments();
       await app.expectCycleVisualization();
       // Story 4.7-B: advance is now unblocked since assignments exist in DB.
-      await page.goto("/admin");
+      await app.goToDashboard();
       await expect(page.getByTestId("advance-button")).toBeVisible();
       await app.expectAdvanceEnabled();
     });
@@ -640,7 +640,7 @@ test.describe.serial("The Mail Club", () => {
     test("3.3 — swap UI available to admin", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       await expect(page.getByTestId("override-available")).toBeVisible();
       // Story 4.8-A: sender-a-input and sender-b-input are <select> elements rendered inside override-available.
       await expect(page.getByTestId("sender-a-input")).toBeVisible();
@@ -674,7 +674,7 @@ test.describe.serial("The Mail Club", () => {
     test("4.6 — delivery phase shows assignment and receipt-nudge SMS buttons only", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
 
       // Correct phase signals: both Delivery SMS buttons are visible
@@ -694,7 +694,7 @@ test.describe.serial("The Mail Club", () => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
       // Story 4.4-C before send: count > 0 (3 senders not yet notified).
-      await page.goto("/admin");
+      await app.goToDashboard();
       await app.expectSmsCountVisible("sms-count-unnotified-senders");
       await expect(
         page.getByTestId("sms-count-unnotified-senders"),
@@ -812,7 +812,7 @@ test.describe.serial("The Mail Club", () => {
     test("cancel — back button dismisses confirmation", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
-      await page.goto("/admin");
+      await app.goToDashboard();
       await page.getByTestId("cancel-button").click();
       await expect(page.getByTestId("cancel-confirmation")).toBeVisible();
       await page.getByTestId("cancel-back-button").click();
@@ -871,7 +871,7 @@ test.describe.serial("Account Management", () => {
   test("setup — deactivation target appears in participant list", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await page.goto("/admin");
+    await app.goToDashboard();
     await app.expectParticipantInList(DEACTIVATE_NAME);
   });
 
