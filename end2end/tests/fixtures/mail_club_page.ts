@@ -153,6 +153,10 @@ export class MailClubPage {
   // ── Season enrollment (Story 2.1) ──
 
   async enrollInSeason(city?: string, branchNumber?: string) {
+    // Wait for hydration before filling inputs. The enroll-button is disabled
+    // (via !hydrated.get()) until WASM hydrates. Filling inputs before hydration
+    // risks Leptos patching the DOM and resetting the values before submit.
+    await expect(this.page.getByTestId("enroll-button")).toBeEnabled();
     if (city) {
       await this.page.getByTestId("np-city-input").fill(city);
     }

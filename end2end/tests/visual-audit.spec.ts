@@ -123,7 +123,7 @@ test.describe.serial("Visual Audit", () => {
   test("capture admin — invite codes section (empty list)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await page.goto("/admin");
+    // Admin lands on /admin after login — no redundant goto.
     await expect(page.getByTestId("generate-code-button")).toBeEnabled();
     await captureState(page, "admin-invite-codes-empty");
   });
@@ -141,7 +141,7 @@ test.describe.serial("Visual Audit", () => {
   test("capture admin — invite codes with data", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await page.goto("/admin");
+    // Admin lands on /admin after login — no redundant goto.
     await expect(page.getByTestId("invite-code-list")).toBeVisible();
     await captureState(page, "admin-invite-codes-populated");
   });
@@ -197,7 +197,7 @@ test.describe.serial("Visual Audit", () => {
   test("capture admin — participants list", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await page.goto("/admin");
+    // Admin lands on /admin after login — no redundant goto.
     await expect(page.getByTestId("participant-list")).toBeVisible();
     await captureState(page, "admin-participants-list");
   });
@@ -207,7 +207,9 @@ test.describe.serial("Visual Audit", () => {
   test("capture admin — no active season (create form visible)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await page.goto("/admin");
+    // Admin lands on /admin after login — no redundant goto.
+    // create-season-button appears when state.season is None OR is_terminal (Cancelled/Complete).
+    // After mail_club.spec.ts, a terminal cancelled season exists; the create form is embedded.
     await expect(page.getByTestId("create-season-button")).toBeEnabled();
     await captureState(page, "admin-no-season-create-form");
   });
@@ -337,7 +339,7 @@ test.describe.serial("Visual Audit", () => {
   test("capture admin — swap UI visible", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await page.goto("/admin");
+    // Admin lands on /admin after login — no redundant goto.
     await expect(page.getByTestId("override-available")).toBeVisible();
     await captureState(page, "admin-swap-ui");
   });
