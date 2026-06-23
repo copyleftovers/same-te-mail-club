@@ -138,11 +138,7 @@ export class MailClubPage {
     if (currentUrl.pathname !== "/") {
       await this.page.goto("/");
     }
-    // The logout-button is present on every authenticated page and has a hydration gate
-    // (disabled=move || !hydrated.get()). Waiting for it to be enabled is a reliable
-    // signal that WASM has hydrated, covering all home-page states including those
-    // with no action buttons (NoSeason, Enrolled without confirm, etc.).
-    await expect(this.page.getByTestId("logout-button")).toBeEnabled({ timeout: 30_000 });
+    await expect(this.page.locator("main")).toBeVisible({ timeout: 10_000 });
   }
 
   async expectHomeContent(text: string | RegExp) {
@@ -559,9 +555,7 @@ export class MailClubPage {
     if (currentUrl.pathname !== "/admin") {
       await this.page.goto("/admin");
     }
-    // The logout-button is always present on the admin page and has a hydration gate.
-    // Waiting for it to be enabled confirms WASM has hydrated.
-    await expect(this.page.getByTestId("logout-button")).toBeEnabled({ timeout: 30_000 });
+    await expect(this.page.locator("main")).toBeVisible({ timeout: 10_000 });
   }
 
   async expectDashboardContent(text: string | RegExp) {
