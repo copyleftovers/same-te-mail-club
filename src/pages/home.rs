@@ -660,7 +660,7 @@ fn render_enrollment_open(
 ) -> AnyView {
     let pending = enroll_action.pending();
     view! {
-        <h2>{t!(i18n, home_enroll_open_heading)}</h2>
+        <h1>{t!(i18n, home_enroll_open_heading)}</h1>
 
         {theme
             .map(|theme_val| {
@@ -744,7 +744,7 @@ fn render_preparing(
 ) -> AnyView {
     let confirm_pending = confirm_action.pending();
     view! {
-        <h2>{t!(i18n, home_preparing_heading)}</h2>
+        <h1>{t!(i18n, home_preparing_heading)}</h1>
         <p>{t!(i18n, home_preparing_body)}</p>
         <p class="deadline" data-testid="season-deadline">
             {t!(i18n, home_deadline_label)}
@@ -855,7 +855,7 @@ fn render_assignment_details(
     );
 
     view! {
-        <h2>{t!(i18n, home_assigned_heading)}</h2>
+        <h1>{t!(i18n, home_assigned_heading)}</h1>
         <p>{t!(i18n, home_send_instructions)}</p>
 
         <article class="card">
@@ -920,7 +920,7 @@ fn render_home_state(
         ),
 
         HomeState::Enrolled { confirm_deadline } => view! {
-            <h2>{t!(i18n, home_enrolled_heading)}</h2>
+            <h1>{t!(i18n, home_enrolled_heading)}</h1>
             <p>{t!(i18n, home_enrolled_desc)}</p>
             <p class="deadline">{t!(i18n, home_confirm_deadline_label)} {confirm_deadline}</p>
         }
@@ -938,13 +938,13 @@ fn render_home_state(
         ),
 
         HomeState::Confirmed => view! {
-            <h2>{t!(i18n, home_ready_confirmed_heading)}</h2>
+            <h1>{t!(i18n, home_ready_confirmed_heading)}</h1>
             <p>{t!(i18n, home_waiting_assignment)}</p>
         }
         .into_any(),
 
         HomeState::Assigning => view! {
-            <h2>{t!(i18n, home_assigning_heading)}</h2>
+            <h1>{t!(i18n, home_assigning_heading)}</h1>
             <p>{t!(i18n, home_assigning_desc)}</p>
         }
         .into_any(),
@@ -965,20 +965,20 @@ fn render_home_state(
         ),
 
         HomeState::ReceiptConfirmed => view! {
-            <h2>{t!(i18n, home_thanks_heading)}</h2>
+            <h1>{t!(i18n, home_thanks_heading)}</h1>
             <p data-testid="receipt-thanks">{t!(i18n, home_reported_label)}</p>
         }
         .into_any(),
 
         HomeState::Complete => view! {
-            <h2>{t!(i18n, home_complete_heading)}</h2>
+            <h1>{t!(i18n, home_complete_heading)}</h1>
             <p>{t!(i18n, home_thanks_participation)}</p>
         }
         .into_any(),
 
         HomeState::Cancelled => view! {
             <div data-testid="season-cancelled">
-                <h2>{t!(i18n, home_season_cancelled_title)}</h2>
+                <h1>{t!(i18n, home_season_cancelled_title)}</h1>
                 <p class="text-(--color-text-muted)">{t!(i18n, home_season_cancelled_body)}</p>
             </div>
         }
