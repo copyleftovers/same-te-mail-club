@@ -137,7 +137,7 @@ pub fn OnboardingPage() -> impl IntoView {
                     })}
                 </div>
                 <button
-                    class="btn"
+                    class="btn w-full"
                     type="submit"
                     data-testid="save-onboarding-button"
                     disabled=move || onboard_pending.get() || !hydrated.get()
