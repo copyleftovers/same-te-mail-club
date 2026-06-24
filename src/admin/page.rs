@@ -252,7 +252,7 @@ pub fn AdminPage() -> impl IntoView {
 
             // ── Participants section ───────────────────────────────────────────
             <section>
-                <h2>{t!(i18n, participants_page_title)}</h2>
+                <h2 class="mb-(--density-space-md)">{t!(i18n, participants_page_title)}</h2>
                 <InviteCodesSection
                     generate_invite_action=generate_invite_action
                     revoke_invite_action=revoke_invite_action
@@ -1328,7 +1328,7 @@ fn InviteCodesSection(
 
             <div class="field">
                 <label class="field-label" for="invite-code-filter">
-                    {t!(i18n, admin_invite_codes_filter_placeholder)}
+                    {t!(i18n, admin_invite_codes_filter_label)}
                 </label>
                 <input
                     class="field-input"

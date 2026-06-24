@@ -151,6 +151,7 @@
   "admin_invite_codes_generated_toast": "Код створено!",
   "admin_invite_codes_revoked_toast": "Код відкликано!",
   "admin_invite_codes_filter_placeholder": "Фільтр за кодом, розповсюджувачем, статусом…",
+  "admin_invite_codes_filter_label": "Фільтр",
   "sms_send_season_open_button": "Надіслати відкриття",
   "sms_send_assignment_button": "Надіслати призначення",
   "sms_send_confirm_nudge_button": "Нагадати про підтвердження",
