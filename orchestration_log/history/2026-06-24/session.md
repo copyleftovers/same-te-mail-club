@@ -1,0 +1,71 @@
+## Checkpoint — 14:30
+
+### Narrative
+
+Session branched from "binding" as "otp". Focus: OTP and SMS subsystem security hardening.
+
+**Phase 1 — Investigation (parallel)**
+- Dispatched `general-bound` agent to investigate OTP code model end-to-end. First agent lost to process exit; re-dispatched. Report landed at `recon/2026-06-24/otp-investigation.md`.
+- Key findings: no `Secure` cookie flag, no constant-time hash comparison, duplicate `sha256_hex`, no expired OTP cleanup, no IP rate limiting.
+
+**Phase 2 — OTP security hardening (1 unit)**
+- 4 trivial fixes scoped: Secure flag, `subtle::ConstantTimeEq`, dedup sha256_hex to `pub(crate)`, DELETE expired rows before INSERT.
+- Opus implementer dispatched in worktree. Spec review PASS. Quality review "ready to merge with fixes" — 3 findings (transaction wrapping, `#[must_use]`, cookie helper DRY).
+- User demanded all findings fixed. Fix agent dispatched to same worktree (platform created new worktree due to isolation). Re-review PASS.
+- Integrated as `2917d42`.
+
+**Phase 3 — SMS production path investigation**
+- Parallel with OTP implementer. `general-bound` agent investigated non-dry-run SMS path.
+- Report at `recon/2026-06-24/sms-production-path-investigation.md`.
+- Critical: silent OTP delivery failure, no HTTP timeout, new client per call. Moderate: empty-string credentials, response_result absence silent, 3/4 batch fns not idempotent.
+
+**Phase 4 — SMS hardening (4 units, dependency-ordered)**
+
+Decomposition:
+- Unit A (sms.rs rewrite): shared client, timeout, response validation, transient retry, dry-run from config. Touches sms.rs, config.rs, main.rs, call sites.
+- Unit B (admin SMS idempotency): migration + 3 batch fn tracking. Depends on A.
+- Unit C (OTP error propagation): login.rs SMS failure → user error + OTP cleanup. Depends on A.
+- Unit D (config hardening): empty-string credential rejection, sms_dry_run field. Independent.
+
+Execution:
+- A and D dispatched in parallel (first attempt hit session limits — zero work. Re-dispatched successfully).
+- D completed first (sonnet). Spec PASS. Quality PASS (ready to merge, sms.rs dual-read noted as out-of-scope per spec).
+- A completed (opus). Spec PASS. Quality "ready to merge with fixes" — `is_request()` overly broad in transient check, hardcoded timeout, doc overpromise.
+- Fix agent addressed all 3 A findings. Re-review PASS.
+- Integrated A (f5030de) then D (dc460f9) — config.rs conflict resolved (both added sms_dry_run; D's empty-string validation was the unique addition).
+- B and C dispatched in parallel after A+D integration.
+- C completed. Spec PASS. Quality PASS (ready to merge).
+- B completed. Spec PASS. Quality "ready to merge with fixes" — ON CONFLICT DO NOTHING, rename active_user_count. Agent self-applied fixes.
+- Integrated B (2bd97b2) then C (1012dfe). No conflicts.
+
+**Phase 5 — Verification**
+- Unit tests: 9/9 pass.
+- E2E: 3 consecutive greens (111/111 each — 1.2m, 55s, 53s).
+- Pushed to origin/main.
+- CI: both jobs green (Check + E2E).
+
+### Decisions
+
+| Decision | Context | Rationale |
+|----------|---------|-----------|
+| Single unit for OTP fixes | All 4 touch auth.rs/login.rs | File conflict prevents parallel split |
+| Opus for all implementers | User requested | Override from default sonnet |
+| A before B,C | B and C depend on send_sms signature change | True data dependency |
+| D parallel with A | D touches only config.rs | No file overlap |
+| Separate tracking table for season-open | Column on users wouldn't reset between seasons | Season-scoped, not user-scoped |
+| state.rs counts in Unit B | Count queries must match SMS target queries | DRY — not scope creep |
+| Skip IP rate limiting | Architectural (needs middleware/external store) | Different category from quick fixes |
+
+### Failures
+
+| Failure | Root cause | Correction |
+|---------|-----------|------------|
+| First OTP investigation agent lost | Process exit during background run | Re-dispatched; created output dir preemptively |
+| Units A+D first dispatch zero work | Session token limit hit | Re-dispatched in new session window |
+| Quality review D wrote to worktree path | Agent sandboxed to worktree; gitignored recon dir absent | Read from worktree path instead |
+| Quality review C wrote to worktree path | Same cause | Read from worktree path |
+| Unit A fix agent created new worktree | Platform isolation — can't edit another agent's worktree | Cherry-picked from the fix agent's worktree instead |
+
+### Working State
+
+All SMS hardening work complete and shipped. CI green. No in-progress work.
