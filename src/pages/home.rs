@@ -979,7 +979,7 @@ fn render_home_state(
         HomeState::Cancelled => view! {
             <div data-testid="season-cancelled">
                 <h1>{t!(i18n, home_season_cancelled_title)}</h1>
-                <p class="text-(--color-text-muted)">{t!(i18n, home_season_cancelled_body)}</p>
+                <p>{t!(i18n, home_season_cancelled_body)}</p>
             </div>
         }
         .into_any(),
