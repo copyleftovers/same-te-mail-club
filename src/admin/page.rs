@@ -255,14 +255,6 @@ pub fn AdminPage() -> impl IntoView {
                     }}
                 </Suspense>
 
-                // SMS report from any SMS action
-                {render_sms_report(
-                    season_open_action,
-                    assignment_action,
-                    confirm_nudge_action,
-                    receipt_nudge_action,
-                    i18n,
-                )}
             </section>
 
             // ── Participants section ───────────────────────────────────────────
@@ -520,6 +512,15 @@ fn render_active_season(
                 assignment_action,
                 receipt_nudge_action,
                 hydrated,
+                i18n,
+            )}
+
+            // SMS report — adjacent to the SMS section it reports on
+            {render_sms_report(
+                season_open_action,
+                assignment_action,
+                confirm_nudge_action,
+                receipt_nudge_action,
                 i18n,
             )}
 
