@@ -437,6 +437,11 @@
     vertical-align: middle;
   }
 
+  /* Invite-code words are a closed vocabulary — they must not wrap at the hyphen */
+  .data-table td:first-child {
+    white-space: nowrap;
+  }
+
   .alert {
     padding: var(--density-space-sm) var(--density-space-md);
     border-radius: var(--radius-md);
@@ -909,11 +914,12 @@
       padding: 0;
     }
 
-    /* column 1: primary identifier (name, code) */
+    /* column 1: primary identifier (name, code) — reset nowrap so card can fill full width */
     .data-table td:first-child {
       width: 100%;
       font-weight: 600;
       font-size: var(--text-base);
+      white-space: normal;
     }
 
     /* column 2: secondary info (phone, distributor) */
