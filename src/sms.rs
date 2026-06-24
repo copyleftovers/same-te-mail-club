@@ -30,7 +30,7 @@ pub fn build_http_client() -> Result<reqwest::Client, reqwest::Error> {
 ///
 /// Returns `Err` on HTTP transport error, non-success API response,
 /// missing `response_result` in the `TurboSMS` payload, or a non-zero
-/// `responseCode` in any result entry.
+/// `response_code` in any result entry.
 pub async fn send_sms(
     config: &Config,
     client: &reqwest::Client,
@@ -94,10 +94,13 @@ async fn post_to_turbosms(
 /// Parse the `TurboSMS` JSON response and ensure every recipient succeeded.
 ///
 /// Requires `response_result` to be present as an array.
-/// Each entry must have `responseCode == 0`; any non-zero code or
-/// missing `responseCode` is treated as an error.
+/// Each entry must have `response_code == 0`; any non-zero code or
+/// missing `response_code` is treated as an error.
 async fn validate_turbosms_response(response: reqwest::Response) -> Result<(), SmsError> {
-    let json: serde_json::Value = response.json().await?;
+    let body = response.text().await?;
+    tracing::debug!(raw_body = %body, "TurboSMS response body");
+
+    let json: serde_json::Value = serde_json::from_str(&body)?;
 
     let results = json
         .get("response_result")
@@ -108,15 +111,15 @@ async fn validate_turbosms_response(response: reqwest::Response) -> Result<(), S
 
     for result in results {
         let code = result
-            .get("responseCode")
+            .get("response_code")
             .and_then(serde_json::Value::as_i64)
             .ok_or_else(|| {
-                SmsError::ApiError("missing responseCode in TurboSMS result entry".to_owned())
+                SmsError::ApiError("missing response_code in TurboSMS result entry".to_owned())
             })?;
 
         if code != 0 {
             let msg = result
-                .get("responseMessage")
+                .get("response_status")
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or("unknown error")
                 .to_owned();

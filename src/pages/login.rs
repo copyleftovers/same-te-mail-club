@@ -3,6 +3,15 @@ use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 use leptos::server_fn::ServerFn;
 
+/// Extract the user-facing message from a `ServerFnError`, stripping
+/// the framework-added "error running server function: " prefix.
+fn strip_server_error_prefix(e: &ServerFnError) -> String {
+    let msg = e.to_string();
+    msg.strip_prefix("error running server function: ")
+        .unwrap_or(&msg)
+        .to_string()
+}
+
 // ── DTOs ─────────────────────────────────────────────────────────────────────
 
 /// Result of requesting an OTP.
@@ -717,7 +726,7 @@ fn LoginStepRouter(
                     >
                         {move || request_action.value().get()
                             .and_then(Result::err)
-                            .map(|e| e.to_string())}
+                            .map(|e| strip_server_error_prefix(&e))}
                     </p>
                 </div>
                 <button
@@ -853,7 +862,7 @@ where
             .value()
             .get()
             .and_then(Result::err)
-            .map(|e| e.to_string())
+            .map(|e| strip_server_error_prefix(&e))
     };
 
     view! {
@@ -966,7 +975,7 @@ where
                 >
                     {move || register_action.value().get()
                         .and_then(Result::err)
-                        .map(|e| e.to_string())}
+                        .map(|e| strip_server_error_prefix(&e))}
                 </p>
             </div>
             <button
