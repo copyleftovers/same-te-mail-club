@@ -1,6 +1,6 @@
 # Conventions
 
-Last updated: 2026-06-20
+Last updated: 2026-06-22
 
 ## Model Tier Overrides
 
@@ -47,8 +47,20 @@ Last updated: 2026-06-20
 | `#[cfg(feature = "ssr")]` for values that must match across hydration | SSR and WASM branches produce different initial values, causing hydration mismatch. Use query params, shared constants, or Resource (with stable fallback) instead. | Session 2026-04-29: `is_pending` was true on SSR, false on client — invite-code-step disappeared during hydration. |
 | ActionForm for server fns that set HttpOnly cookies | Fetch API's Set-Cookie handling differs from native POST. Cookies set via `ResponseOptions` may not apply to ActionForm fetch responses. Use native `<form method="post">` instead. | Session 2026-04-29: register_with_code session cookie never set via ActionForm; switched to native POST. |
 | LEFT JOIN columns without `"column?"` suffix in sqlx query_as! | sqlx's offline cache may mark LEFT JOIN columns as non-nullable. At runtime, NULL values cause decode errors. Always use `"column?"` to force nullable decode. | Session 2026-04-29: list_invite_codes failed with "unexpected null; try decoding as Option" for redeemer_name. |
+| `toBeEnabled()` guards on `goHome()`/`goToDashboard()` | When WASM fails to init (intermittent dev-mode), explicit `toBeEnabled` waits 15-30s then hard-fails. Playwright's `click()` auto-retry is more resilient — it retries continuously with backoff. | Session 2026-06-22: goHome logout-button 30s wait caused worse flakiness than the original `<main>` visible check. |
+| Removing `page.goto("/admin")` after admin login in tests | Login redirect to /admin is not deterministic — SSR Suspense may not resolve admin state before the test proceeds. Explicit goto forces fresh SSR round-trip. | Session 2026-06-22: visual-audit test 207 failed consistently after goto removal. Restored. |
+| `cargo sqlx prepare` without `--features ssr` | Queries exist only in the SSR feature gate. Bare prepare finds 0 queries, deletes the entire cache. Always: `cargo sqlx prepare --workspace -- --features ssr` | Session 2026-06-22: empty .sqlx/ after prepare. |
+| Stripping `content-encoding` from cached-context.ts headers | Hypothesis was wrong — Chromium handles the Content-Encoding: br mismatch on route.fulfill() more gracefully than receiving raw bytes with no encoding header. The "fix" made hydration worse. | Session 2026-06-22: 4 consecutive failures after applying the encoding fix. Reverted. |
 
 ## Test Philosophy
+
+- `just e2e` runs release binary (471KB WASM). `just e2e-dev` for dev mode (14MB, flaky).
+- E2E tests are serial (shared DB state). Independent blocks (Epic 6, Logout) run separately.
+- Static assets cached across tests via `cached-context.ts` fixture. Import `test`/`expect` from there, not `@playwright/test`.
+- Pre-compressed WASM served via `precompress-and-test.sh`. `CompressionLayer` skips already-encoded responses.
+- Verify with 3 consecutive green runs before declaring stability.
+- `waitForLoadState` is banned in all forms after redirects. Use auto-retrying `toHaveURL` / `not.toHaveURL` assertions.
+- Every review chain runs sequentially within a unit (spec → quality). Multiple units' chains can run in parallel.
 
 - E2E tests are serial (shared DB state). Independent blocks (Epic 6, Logout) run separately.
 - Static assets cached across tests via `cached-context.ts` fixture. Import `test`/`expect` from there, not `@playwright/test`.
