@@ -86,7 +86,8 @@ pub fn OnboardingPage() -> impl IntoView {
     });
 
     view! {
-        <div class="prose-page">
+        // pt-[10svh]: viewport-relative top padding matches login layout for visual continuity
+        <div class="prose-page flex flex-col items-center text-center pt-[10svh]">
             <h1>{t!(i18n, onboarding_page_title)}</h1>
             <p>{t!(i18n, onboarding_description)}</p>
 
