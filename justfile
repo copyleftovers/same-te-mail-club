@@ -60,7 +60,9 @@ _precompress quality="--best":
     done
 
 # Reset database (drop, create, migrate)
+# Force-disconnects all external clients (DataGrip, psql) before dropping so the drop is unconditional.
 db-reset:
+    docker compose exec -T db psql -U samete -d postgres -c "select pg_terminate_backend(pid) from pg_stat_activity where datname='samete' and pid <> pg_backend_pid();" || true
     sqlx database drop -y && sqlx database create && sqlx migrate run
 
 # Seed test admin (for E2E)
