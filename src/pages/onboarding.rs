@@ -1,5 +1,6 @@
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
+use crate::pages::login::strip_server_error_prefix;
 use leptos::prelude::*;
 
 // ── Server function ───────────────────────────────────────────────────────────
@@ -78,8 +79,9 @@ pub fn OnboardingPage() -> impl IntoView {
         }
         Some(Err(e)) => {
             set_error_msg.set(Some(format!(
-                "{}{e}",
-                t_string!(i18n, onboarding_error_prefix)
+                "{}{}",
+                t_string!(i18n, onboarding_error_prefix),
+                strip_server_error_prefix(&e)
             )));
         }
         None => {}
