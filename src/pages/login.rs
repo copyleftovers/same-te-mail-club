@@ -159,8 +159,7 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
 
             let response_options =
                 leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
-            let cookie =
-                format!("session={raw_token}; HttpOnly; SameSite=Strict; Max-Age=7776000; Path=/");
+            let cookie = set_cookie_header("session", &raw_token, 7_776_000);
             response_options.append_header(
                 axum::http::header::SET_COOKIE,
                 axum::http::HeaderValue::from_str(&cookie)
@@ -194,9 +193,7 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
             // cookie = security, query param = UI.
             let response_options =
                 leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
-            let cookie = format!(
-                "pending_phone={normalized}; HttpOnly; SameSite=Strict; Max-Age=300; Path=/"
-            );
+            let cookie = set_cookie_header("pending_phone", &normalized, 300);
             response_options.append_header(
                 axum::http::header::SET_COOKIE,
                 axum::http::HeaderValue::from_str(&cookie)
@@ -218,20 +215,7 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
 /// On failure: returns `Err(())`.
 #[cfg(feature = "ssr")]
 async fn verify_otp_for_phone(pool: &sqlx::PgPool, phone: &str, code: &str) -> Result<(), ()> {
-    use sha2::{Digest, Sha256};
-
-    fn sha256_hex(input: &str) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(input.as_bytes());
-        hasher
-            .finalize()
-            .iter()
-            .fold(String::with_capacity(64), |mut acc, b| {
-                use std::fmt::Write as _;
-                write!(acc, "{b:02x}").expect("write to String is infallible");
-                acc
-            })
-    }
+    use crate::auth::{constant_time_hash_eq, sha256_hex};
 
     struct OtpRow {
         id: uuid::Uuid,
@@ -270,7 +254,7 @@ async fn verify_otp_for_phone(pool: &sqlx::PgPool, phone: &str, code: &str) -> R
 
     let submitted_hash = sha256_hex(code);
 
-    if submitted_hash != row.code_hash {
+    if !constant_time_hash_eq(&submitted_hash, &row.code_hash) {
         let _ = sqlx::query!(
             "UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1",
             row.id
@@ -441,21 +425,29 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
 
     let response_options = leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
 
-    let session_cookie =
-        format!("session={raw_token}; HttpOnly; SameSite=Strict; Max-Age=7776000; Path=/");
+    let session_cookie = set_cookie_header("session", &raw_token, 7_776_000);
     () = response_options.append_header(
         axum::http::header::SET_COOKIE,
         axum::http::HeaderValue::from_str(&session_cookie).unwrap(),
     );
 
-    let clear_cookie = "pending_phone=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/";
+    let clear_cookie = set_cookie_header("pending_phone", "", 0);
     () = response_options.append_header(
         axum::http::header::SET_COOKIE,
-        axum::http::HeaderValue::from_str(clear_cookie).unwrap(),
+        axum::http::HeaderValue::from_str(&clear_cookie).unwrap(),
     );
 
     leptos_axum::redirect("/onboarding");
     Ok(())
+}
+
+/// Build a `Set-Cookie` header value with the project's standard attributes.
+///
+/// All cookies in this module share `HttpOnly; Secure; SameSite=Strict; Path=/`.
+/// `max_age` is in seconds (0 = expire immediately, `7_776_000` = 90 days).
+#[cfg(feature = "ssr")]
+fn set_cookie_header(name: &str, value: &str, max_age: u32) -> String {
+    format!("{name}={value}; HttpOnly; Secure; SameSite=Strict; Max-Age={max_age}; Path=/")
 }
 
 /// Extract the `pending_phone` cookie value from request parts.
@@ -513,10 +505,10 @@ pub async fn logout() -> Result<(), ServerFnError> {
 
     // Clear the session cookie by setting it with Max-Age=0
     let response_options = leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
-    let cookie = "session=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/";
+    let cookie = set_cookie_header("session", "", 0);
     response_options.append_header(
         axum::http::header::SET_COOKIE,
-        axum::http::HeaderValue::from_str(cookie)
+        axum::http::HeaderValue::from_str(&cookie)
             .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
     );
 

@@ -27,9 +27,9 @@ struct UserRow {
     onboarded: bool,
 }
 
-// ── Internal helpers ──────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-fn sha256_hex(input: &str) -> String {
+pub(crate) fn sha256_hex(input: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(input.as_bytes());
     hasher
@@ -40,6 +40,13 @@ fn sha256_hex(input: &str) -> String {
             write!(acc, "{b:02x}").expect("write to String is infallible");
             acc
         })
+}
+
+/// Compare two hex-encoded hashes in constant time to prevent timing attacks.
+#[must_use]
+pub(crate) fn constant_time_hash_eq(a: &str, b: &str) -> bool {
+    use subtle::ConstantTimeEq as _;
+    a.as_bytes().ct_eq(b.as_bytes()).into()
 }
 
 fn extract_session_cookie(parts: &http::request::Parts) -> Option<String> {
@@ -77,6 +84,13 @@ pub async fn create_otp(pool: &PgPool, phone: &str) -> Result<String, AppError> 
 
     let code_hash = sha256_hex(&code);
 
+    let mut tx = pool.begin().await?;
+
+    // Piggyback cleanup: remove all expired OTP rows to prevent unbounded table growth
+    sqlx::query!("DELETE FROM otp_codes WHERE expires_at < now()")
+        .execute(&mut *tx)
+        .await?;
+
     sqlx::query!(
         r#"
         INSERT INTO otp_codes (phone, code_hash, expires_at)
@@ -85,8 +99,10 @@ pub async fn create_otp(pool: &PgPool, phone: &str) -> Result<String, AppError> 
         phone,
         code_hash,
     )
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     Ok(code)
 }
@@ -183,7 +199,7 @@ pub async fn verify_otp(
 
     let submitted_hash = sha256_hex(code);
 
-    if submitted_hash != row.code_hash {
+    if !constant_time_hash_eq(&submitted_hash, &row.code_hash) {
         sqlx::query!(
             "UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1",
             row.id
