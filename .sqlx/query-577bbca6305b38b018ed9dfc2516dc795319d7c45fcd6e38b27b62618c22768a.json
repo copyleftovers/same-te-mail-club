@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT e.user_id, u.phone\n        FROM enrollments e\n        JOIN users u ON u.id = e.user_id\n        WHERE e.season_id = $1\n          AND e.confirmed_ready_at IS NULL\n          AND e.confirm_nudge_sent_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "phone",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "577bbca6305b38b018ed9dfc2516dc795319d7c45fcd6e38b27b62618c22768a"
+}

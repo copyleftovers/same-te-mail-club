@@ -37,7 +37,7 @@ pub struct AdminSeason {
     /// True when at least one assignment row exists for this season.
     pub assignments_released: bool,
     // SMS target counts
-    pub active_user_count: i64,
+    pub season_open_target_count: i64,
     pub unnotified_sender_count: i64,
     pub unconfirmed_enrolled_count: i64,
     pub no_response_count: i64,
@@ -74,13 +74,29 @@ async fn query_participant_count(pool: &sqlx::PgPool) -> Result<i64, ServerFnErr
 
 /// Query SMS-related counts for a season.
 ///
-/// Returns `(active_user_count, unnotified_sender_count, unconfirmed_enrolled_count, no_response_count)`.
+/// Each count matches the corresponding `send_*_sms` function's target query,
+/// so the admin sees exactly how many recipients will receive the SMS.
+///
+/// Returns `(season_open_target_count, unnotified_sender_count, unconfirmed_enrolled_count, no_response_count)`.
 #[cfg(feature = "ssr")]
 async fn query_sms_counts(
     pool: &sqlx::PgPool,
     season_id: uuid::Uuid,
 ) -> Result<(i64, i64, i64, i64), ServerFnError> {
-    let active_user_count = query_participant_count(pool).await?;
+    let season_open_target_count = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) AS "count!: i64"
+        FROM users u
+        LEFT JOIN season_open_notifications son
+            ON son.user_id = u.id AND son.season_id = $1
+        WHERE u.status = 'active' AND u.role = 'participant'
+          AND son.user_id IS NULL
+        "#,
+        season_id,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(db_err)?;
 
     let unnotified_sender_count = sqlx::query_scalar!(
         r#"
@@ -98,7 +114,9 @@ async fn query_sms_counts(
         r#"
         SELECT COUNT(*) AS "count!: i64"
         FROM enrollments e
-        WHERE e.season_id = $1 AND e.confirmed_ready_at IS NULL
+        WHERE e.season_id = $1
+          AND e.confirmed_ready_at IS NULL
+          AND e.confirm_nudge_sent_at IS NULL
         "#,
         season_id,
     )
@@ -110,7 +128,9 @@ async fn query_sms_counts(
         r#"
         SELECT COUNT(*) AS "count!: i64"
         FROM assignments a
-        WHERE a.season_id = $1 AND a.receipt_status = 'no_response'
+        WHERE a.season_id = $1
+          AND a.receipt_status = 'no_response'
+          AND a.receipt_nudge_sent_at IS NULL
         "#,
         season_id,
     )
@@ -119,7 +139,7 @@ async fn query_sms_counts(
     .map_err(db_err)?;
 
     Ok((
-        active_user_count,
+        season_open_target_count,
         unnotified_sender_count,
         unconfirmed_enrolled_count,
         no_response_count,
@@ -185,8 +205,12 @@ pub async fn get_admin_state() -> Result<AdminState, ServerFnError> {
         });
     };
 
-    let (active_user_count, unnotified_sender_count, unconfirmed_enrolled_count, no_response_count) =
-        query_sms_counts(&pool, row.id).await?;
+    let (
+        season_open_target_count,
+        unnotified_sender_count,
+        unconfirmed_enrolled_count,
+        no_response_count,
+    ) = query_sms_counts(&pool, row.id).await?;
 
     Ok(AdminState {
         season: Some(AdminSeason {
@@ -200,7 +224,7 @@ pub async fn get_admin_state() -> Result<AdminState, ServerFnError> {
             confirmed_count: row.confirmed_count,
             not_received_count: row.not_received_count,
             assignments_released: row.assignments_released,
-            active_user_count,
+            season_open_target_count,
             unnotified_sender_count,
             unconfirmed_enrolled_count,
             no_response_count,

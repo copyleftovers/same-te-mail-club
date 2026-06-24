@@ -16,10 +16,27 @@ pub struct SmsReport {
     pub failed_phones: Vec<String>,
 }
 
-/// SSR-only row type for assignment notification targets.
+/// SSR-only row type for notification targets identified by a single UUID.
+/// Used by assignment SMS (id = assignment.id) and receipt nudge (id = assignment.id).
 #[cfg(feature = "ssr")]
 struct AssignmentTarget {
     id: uuid::Uuid,
+    phone: String,
+}
+
+/// SSR-only row type for season-open notification targets.
+/// `user_id` is needed to insert into `season_open_notifications` on success.
+#[cfg(feature = "ssr")]
+struct SeasonOpenTarget {
+    user_id: uuid::Uuid,
+    phone: String,
+}
+
+/// SSR-only row type for confirm-nudge notification targets.
+/// `user_id` is the enrollment FK needed to update `confirm_nudge_sent_at`.
+#[cfg(feature = "ssr")]
+struct ConfirmNudgeTarget {
+    user_id: uuid::Uuid,
     phone: String,
 }
 
@@ -28,7 +45,9 @@ struct AssignmentTarget {
 /// Story 5.3: Season-open notification to all active participants.
 ///
 /// Sent when the organizer launches a season. Targets every active participant
-/// (excludes admin accounts), not just enrolled users.
+/// (excludes admin accounts) who hasn't been notified yet for this season.
+/// On success, inserts a row into `season_open_notifications`; on failure,
+/// leaves no row so the admin can re-trigger.
 ///
 /// # Errors
 ///
@@ -48,8 +67,25 @@ pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
     let http_client = leptos::context::use_context::<reqwest::Client>()
         .ok_or_else(|| ServerFnError::new("no HTTP client in context"))?;
 
-    let phones = sqlx::query_scalar!(
-        r#"SELECT phone FROM users WHERE status = 'active' AND role = 'participant'"#,
+    let season_id = sqlx::query_scalar!(
+        r#"SELECT id FROM seasons WHERE phase NOT IN ('complete', 'cancelled') AND launched_at IS NOT NULL"#,
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(db_err)?
+    .ok_or_else(|| ServerFnError::new("no active launched season"))?;
+
+    let targets = sqlx::query_as!(
+        SeasonOpenTarget,
+        r#"
+        SELECT u.id AS user_id, u.phone
+        FROM users u
+        LEFT JOIN season_open_notifications son
+            ON son.user_id = u.id AND son.season_id = $1
+        WHERE u.status = 'active' AND u.role = 'participant'
+          AND son.user_id IS NULL
+        "#,
+        season_id,
     )
     .fetch_all(&pool)
     .await
@@ -60,12 +96,21 @@ pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
     let mut sent: u32 = 0;
     let mut failed_phones: Vec<String> = Vec::new();
 
-    for phone in phones {
-        match sms::send_sms(&config, &http_client, &phone, message).await {
-            Ok(()) => sent += 1,
+    for target in targets {
+        match sms::send_sms(&config, &http_client, &target.phone, message).await {
+            Ok(()) => {
+                let _ = sqlx::query!(
+                    r#"INSERT INTO season_open_notifications (user_id, season_id) VALUES ($1, $2) ON CONFLICT (user_id, season_id) DO NOTHING"#,
+                    target.user_id,
+                    season_id,
+                )
+                .execute(&pool)
+                .await;
+                sent += 1;
+            }
             Err(e) => {
-                tracing::warn!(phone = %phone, error = %e, "SMS send failed");
-                failed_phones.push(phone);
+                tracing::warn!(phone = %target.phone, error = %e, "SMS send failed");
+                failed_phones.push(target.phone);
             }
         }
     }
@@ -159,7 +204,10 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
 
 /// Story 5.4: Pre-deadline nudge to enrolled users who haven't confirmed ready.
 ///
-/// Targets enrolled users with `confirmed_ready_at IS NULL`.
+/// Targets enrolled users with `confirmed_ready_at IS NULL` and
+/// `confirm_nudge_sent_at IS NULL` (haven't been nudged yet).
+/// On success, sets `confirm_nudge_sent_at`; on failure, leaves NULL
+/// so the admin can re-trigger.
 ///
 /// # Errors
 ///
@@ -198,12 +246,15 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
 
     let deadline_str = crate::date_format::format_date_uk(confirm_deadline);
 
-    let phones = sqlx::query_scalar!(
+    let targets = sqlx::query_as!(
+        ConfirmNudgeTarget,
         r#"
-        SELECT u.phone
+        SELECT e.user_id, u.phone
         FROM enrollments e
         JOIN users u ON u.id = e.user_id
-        WHERE e.season_id = $1 AND e.confirmed_ready_at IS NULL
+        WHERE e.season_id = $1
+          AND e.confirmed_ready_at IS NULL
+          AND e.confirm_nudge_sent_at IS NULL
         "#,
         season_id,
     )
@@ -217,12 +268,21 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     let mut sent: u32 = 0;
     let mut failed_phones: Vec<String> = Vec::new();
 
-    for phone in phones {
-        match sms::send_sms(&config, &http_client, &phone, &message).await {
-            Ok(()) => sent += 1,
+    for target in targets {
+        match sms::send_sms(&config, &http_client, &target.phone, &message).await {
+            Ok(()) => {
+                let _ = sqlx::query!(
+                    r#"UPDATE enrollments SET confirm_nudge_sent_at = now() WHERE user_id = $1 AND season_id = $2"#,
+                    target.user_id,
+                    season_id,
+                )
+                .execute(&pool)
+                .await;
+                sent += 1;
+            }
             Err(e) => {
-                tracing::warn!(phone = %phone, error = %e, "SMS send failed");
-                failed_phones.push(phone);
+                tracing::warn!(phone = %target.phone, error = %e, "SMS send failed");
+                failed_phones.push(target.phone);
             }
         }
     }
@@ -238,6 +298,9 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
 /// Story 5.2: Receipt nudge to recipients with `receipt_status = 'no_response'`.
 ///
 /// Sent after assignments have been delivered to prompt confirmation.
+/// Targets recipients whose `receipt_nudge_sent_at IS NULL` (haven't been nudged yet).
+/// On success, sets `receipt_nudge_sent_at`; on failure, leaves NULL
+/// so the admin can re-trigger.
 ///
 /// # Errors
 ///
@@ -266,12 +329,15 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     .map_err(db_err)?
     .ok_or_else(|| ServerFnError::new("no active delivery season"))?;
 
-    let phones = sqlx::query_scalar!(
+    let targets = sqlx::query_as!(
+        AssignmentTarget,
         r#"
-        SELECT u.phone
+        SELECT a.id, u.phone
         FROM assignments a
         JOIN users u ON u.id = a.recipient_id
-        WHERE a.season_id = $1 AND a.receipt_status = 'no_response'
+        WHERE a.season_id = $1
+          AND a.receipt_status = 'no_response'
+          AND a.receipt_nudge_sent_at IS NULL
         "#,
         season_id,
     )
@@ -284,12 +350,20 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     let mut sent: u32 = 0;
     let mut failed_phones: Vec<String> = Vec::new();
 
-    for phone in phones {
-        match sms::send_sms(&config, &http_client, &phone, message).await {
-            Ok(()) => sent += 1,
+    for target in targets {
+        match sms::send_sms(&config, &http_client, &target.phone, message).await {
+            Ok(()) => {
+                let _ = sqlx::query!(
+                    r#"UPDATE assignments SET receipt_nudge_sent_at = now() WHERE id = $1"#,
+                    target.id,
+                )
+                .execute(&pool)
+                .await;
+                sent += 1;
+            }
             Err(e) => {
-                tracing::warn!(phone = %phone, error = %e, "SMS send failed");
-                failed_phones.push(phone);
+                tracing::warn!(phone = %target.phone, error = %e, "SMS send failed");
+                failed_phones.push(target.phone);
             }
         }
     }

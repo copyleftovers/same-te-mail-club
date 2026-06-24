@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT a.id, u.phone\n        FROM assignments a\n        JOIN users u ON u.id = a.recipient_id\n        WHERE a.season_id = $1\n          AND a.receipt_status = 'no_response'\n          AND a.receipt_nudge_sent_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "phone",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "a45f85bebe77a9a5b33f78bf7352f175d14ce0d6593814e36977c2ad19d1187f"
+}

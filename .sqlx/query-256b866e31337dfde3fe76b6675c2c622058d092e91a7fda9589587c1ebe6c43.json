@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(*) AS \"count!: i64\"\n        FROM enrollments e\n        WHERE e.season_id = $1\n          AND e.confirmed_ready_at IS NULL\n          AND e.confirm_nudge_sent_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "256b866e31337dfde3fe76b6675c2c622058d092e91a7fda9589587c1ebe6c43"
+}

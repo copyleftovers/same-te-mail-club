@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(*) AS \"count!: i64\"\n        FROM assignments a\n        WHERE a.season_id = $1\n          AND a.receipt_status = 'no_response'\n          AND a.receipt_nudge_sent_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ddbb8e5c572d947a7740a0660179d670cf06cb5bfb557fdf54dc15b138307122"
+}

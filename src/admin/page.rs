@@ -449,7 +449,7 @@ fn render_active_season(
     let enrolled_count = season.enrolled_count;
     let confirmed_count = season.confirmed_count;
     let not_received_count = season.not_received_count;
-    let active_user_count = season.active_user_count;
+    let season_open_target_count = season.season_open_target_count;
     let unnotified_sender_count = season.unnotified_sender_count;
     let unconfirmed_enrolled_count = season.unconfirmed_enrolled_count;
     let no_response_count = season.no_response_count;
@@ -511,7 +511,7 @@ fn render_active_season(
             {render_phase_sms(
                 phase,
                 launched,
-                active_user_count,
+                season_open_target_count,
                 unnotified_sender_count,
                 unconfirmed_enrolled_count,
                 no_response_count,
@@ -669,7 +669,7 @@ fn render_active_season(
 fn render_phase_sms(
     phase: crate::types::Phase,
     launched: bool,
-    active_user_count: i64,
+    season_open_target_count: i64,
     unnotified_sender_count: i64,
     unconfirmed_enrolled_count: i64,
     no_response_count: i64,
@@ -715,7 +715,7 @@ fn render_phase_sms(
                                 class="text-sm text-(--color-text-muted)"
                                 data-testid="sms-count-active-users"
                             >
-                                {t!(i18n, sms_count_active_users, count = active_user_count)}
+                                {t!(i18n, sms_count_active_users, count = season_open_target_count)}
                             </span>
                         </div>
                     </div>

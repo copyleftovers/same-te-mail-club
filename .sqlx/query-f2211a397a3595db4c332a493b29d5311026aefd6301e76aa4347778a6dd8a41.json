@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT u.id AS user_id, u.phone\n        FROM users u\n        LEFT JOIN season_open_notifications son\n            ON son.user_id = u.id AND son.season_id = $1\n        WHERE u.status = 'active' AND u.role = 'participant'\n          AND son.user_id IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "phone",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "f2211a397a3595db4c332a493b29d5311026aefd6301e76aa4347778a6dd8a41"
+}
