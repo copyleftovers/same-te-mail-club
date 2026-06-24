@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT nova_poshta_city, nova_poshta_number\n            FROM delivery_addresses\n            WHERE user_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "nova_poshta_city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "nova_poshta_number",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "1cac91d368427a12633b25163e32f5af13abb360341d813bf07d87918761a964"
+}

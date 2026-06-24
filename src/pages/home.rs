@@ -21,6 +21,8 @@ pub enum HomeState {
     EnrollmentOpen {
         deadline: String,
         theme: Option<String>,
+        /// Pre-filled from onboarding: (city, `branch_number`). `None` if no address on file.
+        existing_address: Option<(String, i32)>,
     },
 
     /// Enrollment phase, participant IS enrolled.
@@ -117,9 +119,23 @@ async fn resolve_enrollment_state(
             confirm_deadline: confirm_str,
         })
     } else {
+        let existing_address = sqlx::query!(
+            r#"
+            SELECT nova_poshta_city, nova_poshta_number
+            FROM delivery_addresses
+            WHERE user_id = $1
+            "#,
+            user_id,
+        )
+        .fetch_optional(pool)
+        .await
+        .map_err(db_err)?
+        .map(|row| (row.nova_poshta_city, row.nova_poshta_number));
+
         Ok(HomeState::EnrollmentOpen {
             deadline: signup_str,
             theme: season.theme.clone(),
+            existing_address,
         })
     }
 }
@@ -637,6 +653,7 @@ pub fn HomePage() -> impl IntoView {
 fn render_enrollment_open(
     deadline: String,
     theme: Option<&String>,
+    existing_address: Option<(String, i32)>,
     enroll_action: ServerAction<EnrollInSeason>,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
@@ -660,35 +677,47 @@ fn render_enrollment_open(
         <p>{t!(i18n, home_guideline)}</p>
 
         <leptos::form::ActionForm action=enroll_action>
-            <div class="flex flex-col gap-(--density-space-md) sm:flex-row sm:gap-(--density-space-sm)">
-                <div class="field sm:w-1/2">
-                    <label class="field-label" for="enroll-city">
-                        {t!(i18n, home_city_label)}
-                    </label>
-                    <input
-                        class="field-input"
-                        type="text"
-                        id="enroll-city"
-                        name="city"
-                        placeholder="Київ"
-                        data-testid="np-city-input"
-                    />
-                </div>
-                <div class="field sm:w-1/2">
-                    <label class="field-label" for="enroll-number">
-                        {t!(i18n, home_np_number_label)}
-                    </label>
-                    <input
-                        class="field-input"
-                        id="enroll-number"
-                        type="text"
-                        inputmode="numeric"
-                        name="np_number"
-                        placeholder="123"
-                        data-testid="np-number-input"
-                    />
-                </div>
-            </div>
+            {match existing_address {
+                Some((city, branch_number)) => view! {
+                    <p data-testid="existing-address">
+                        {t!(i18n, home_branch_label)} " "
+                        {format!("{city}, #{branch_number}")}
+                    </p>
+                    <input type="hidden" name="city" value="" />
+                    <input type="hidden" name="np_number" value="" />
+                }.into_any(),
+                None => view! {
+                    <div class="flex flex-col gap-(--density-space-md) sm:flex-row sm:gap-(--density-space-sm)">
+                        <div class="field sm:w-1/2">
+                            <label class="field-label" for="enroll-city">
+                                {t!(i18n, home_city_label)}
+                            </label>
+                            <input
+                                class="field-input"
+                                type="text"
+                                id="enroll-city"
+                                name="city"
+                                placeholder="Київ"
+                                data-testid="np-city-input"
+                            />
+                        </div>
+                        <div class="field sm:w-1/2">
+                            <label class="field-label" for="enroll-number">
+                                {t!(i18n, home_np_number_label)}
+                            </label>
+                            <input
+                                class="field-input"
+                                id="enroll-number"
+                                type="text"
+                                inputmode="numeric"
+                                name="np_number"
+                                placeholder="123"
+                                data-testid="np-number-input"
+                            />
+                        </div>
+                    </div>
+                }.into_any(),
+            }}
             <button
                 class="btn"
                 type="submit"
@@ -702,6 +731,46 @@ fn render_enrollment_open(
                 }}
             </button>
         </leptos::form::ActionForm>
+    }
+    .into_any()
+}
+
+fn render_preparing(
+    confirm_deadline: String,
+    deadline_passed: bool,
+    confirm_action: ServerAction<ConfirmReady>,
+    hydrated: ReadSignal<bool>,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+) -> AnyView {
+    let confirm_pending = confirm_action.pending();
+    view! {
+        <h2>{t!(i18n, home_preparing_heading)}</h2>
+        <p>{t!(i18n, home_preparing_body)}</p>
+        <p class="deadline" data-testid="season-deadline">
+            {t!(i18n, home_deadline_label)}
+            {confirm_deadline}
+        </p>
+
+        {if deadline_passed {
+            None
+        } else {
+            Some(view! {
+                <leptos::form::ActionForm action=confirm_action>
+                    <button
+                        class="btn"
+                        type="submit"
+                        data-testid="confirm-ready-button"
+                        disabled=move || confirm_pending.get() || !hydrated.get()
+                    >
+                        {move || if confirm_pending.get() {
+                            "Підтверджую...".into_any()
+                        } else {
+                            t!(i18n, home_confirm_ready_button).into_any()
+                        }}
+                    </button>
+                </leptos::form::ActionForm>
+            })
+        }}
     }
     .into_any()
 }
@@ -837,9 +906,18 @@ fn render_home_state(
         }
         .into_any(),
 
-        HomeState::EnrollmentOpen { deadline, theme } => {
-            render_enrollment_open(deadline, theme.as_ref(), enroll_action, hydrated, i18n)
-        }
+        HomeState::EnrollmentOpen {
+            deadline,
+            theme,
+            existing_address,
+        } => render_enrollment_open(
+            deadline,
+            theme.as_ref(),
+            existing_address,
+            enroll_action,
+            hydrated,
+            i18n,
+        ),
 
         HomeState::Enrolled { confirm_deadline } => view! {
             <h2>{t!(i18n, home_enrolled_heading)}</h2>
@@ -851,39 +929,13 @@ fn render_home_state(
         HomeState::Preparing {
             confirm_deadline,
             deadline_passed,
-        } => {
-            let confirm_pending = confirm_action.pending();
-            view! {
-                <h2>{t!(i18n, home_preparing_heading)}</h2>
-                <p>{t!(i18n, home_preparing_body)}</p>
-                <p class="deadline" data-testid="season-deadline">
-                    {t!(i18n, home_deadline_label)}
-                    {confirm_deadline}
-                </p>
-
-                {if deadline_passed {
-                    None
-                } else {
-                    Some(view! {
-                        <leptos::form::ActionForm action=confirm_action>
-                            <button
-                                class="btn"
-                                type="submit"
-                                data-testid="confirm-ready-button"
-                                disabled=move || confirm_pending.get() || !hydrated.get()
-                            >
-                                {move || if confirm_pending.get() {
-                                    "Підтверджую...".into_any()
-                                } else {
-                                    t!(i18n, home_confirm_ready_button).into_any()
-                                }}
-                            </button>
-                        </leptos::form::ActionForm>
-                    })
-                }}
-            }
-            .into_any()
-        }
+        } => render_preparing(
+            confirm_deadline,
+            deadline_passed,
+            confirm_action,
+            hydrated,
+            i18n,
+        ),
 
         HomeState::Confirmed => view! {
             <h2>{t!(i18n, home_ready_confirmed_heading)}</h2>
