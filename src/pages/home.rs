@@ -699,6 +699,8 @@ fn render_enrollment_open(
                                 name="city"
                                 placeholder="Київ"
                                 data-testid="np-city-input"
+                                attr:aria-invalid=move || enroll_action.value().get().and_then(Result::err).map(|_| "true")
+                                aria-describedby="action-error"
                             />
                         </div>
                         <div class="field sm:w-1/2">
@@ -713,6 +715,8 @@ fn render_enrollment_open(
                                 name="np_number"
                                 placeholder="123"
                                 data-testid="np-number-input"
+                                attr:aria-invalid=move || enroll_action.value().get().and_then(Result::err).map(|_| "true")
+                                aria-describedby="action-error"
                             />
                         </div>
                     </div>
