@@ -449,6 +449,11 @@
     white-space: nowrap;
   }
 
+  /* Actions column must not shrink below the button's natural width */
+  .data-table td:last-child {
+    white-space: nowrap;
+  }
+
   .alert {
     padding: var(--density-space-sm) var(--density-space-md);
     border-radius: var(--radius-md);
@@ -777,6 +782,13 @@
   @media (min-width: 640px) {
     .stepper {
       justify-content: center; /* re-center once viewport fits all 5 steps */
+    }
+  }
+
+  @media (max-width: 639px) {
+    .stepper {
+      mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent 100%);
+      -webkit-mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent 100%);
     }
   }
 
