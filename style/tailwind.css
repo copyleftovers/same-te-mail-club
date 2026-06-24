@@ -728,10 +728,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
+    gap: calc(var(--spacing) * 1);
     padding: var(--density-space-md) calc(var(--spacing) * 4);
     list-style: none;
     margin: 0;
+    overflow-x: auto; /* prevents page-level horizontal scroll at 375px when 5 steps exceed viewport */
   }
 
   .step {
@@ -779,7 +780,8 @@
     letter-spacing: 0.04em; /* inherent: spec-defined step label tracking */
     color: var(--color-text-muted);
     text-align: center;
-    max-width: calc(var(--spacing) * 16);
+    max-width: calc(var(--spacing) * 18);
+    overflow-wrap: break-word;
   }
 
   .step[data-status="current"] .step-label {
