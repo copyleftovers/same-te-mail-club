@@ -528,6 +528,22 @@
     text-transform: uppercase;
   }
 
+  /* When .overline-label is applied to a heading element, the heading's
+     own specificity (.prose-page h2 is 0-1-1 vs .overline-label 0-1-0)
+     would otherwise override display properties. This rule restores the
+     correct overline appearance regardless of element type. */
+  h1.overline-label,
+  h2.overline-label,
+  h3.overline-label {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: var(--text-overline);
+    line-height: 1.4;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin: 0 0 calc(var(--spacing) * 1) 0;
+  }
+
   /* body secondary — step descriptions, captions */
   .body-secondary {
     font-family: var(--font-body);
