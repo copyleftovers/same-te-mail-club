@@ -350,8 +350,10 @@
     color: var(--color-brand-black);
   }
 
+  /* unused invite code: blue (confirmed-style) — distinct from active-participant green */
   .badge[data-status="unused"] {
-    background: var(--color-success);
+    background: var(--color-brand-blue);
+    color: var(--color-brand-black); /* brand-blue oklch 0.78 is light; black text for WCAG AA */
   }
 
   .badge[data-status="used"] {
