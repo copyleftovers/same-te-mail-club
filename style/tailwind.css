@@ -60,12 +60,14 @@
   --size-cycle-viz: 400px;
 }
 
-/* Admin density override */
-[data-layout="admin"] {
-  --density-space-sm: calc(var(--spacing) * 1.5);
-  --density-space-md: calc(var(--spacing) * 3);
-  --density-space-lg: calc(var(--spacing) * 5);
-  --text-section: 1.1rem; /* admin section headings one step above body, not page-title scale */
+/* Admin density override — in @layer base so Tailwind utilities can override via higher layers */
+@layer base {
+  [data-layout="admin"] {
+    --density-space-sm: calc(var(--spacing) * 1.5);
+    --density-space-md: calc(var(--spacing) * 3);
+    --density-space-lg: calc(var(--spacing) * 5);
+    --text-section: 1.1rem; /* admin section headings one step above body, not page-title scale */
+  }
 }
 
 /* Dark mode (system only, no toggle) */
