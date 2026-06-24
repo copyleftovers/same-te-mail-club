@@ -785,6 +785,13 @@
     }
   }
 
+  @media (max-width: 639px) {
+    .stepper {
+      mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent 100%);
+      -webkit-mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent 100%);
+    }
+  }
+
   .step {
     display: flex;
     flex-direction: column;
