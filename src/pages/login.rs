@@ -87,6 +87,19 @@ pub async fn request_otp(phone: String) -> Result<RequestOtpOutcome, ServerFnErr
     let message = format!("{prefix}{code}");
     if let Err(e) = sms::send_sms(&config, &http_client, &normalized, &message).await {
         tracing::warn!("SMS send failed for {}: {}", normalized, e);
+
+        // The OTP row is useless without delivery — delete it so it does not
+        // waste a rate-limit slot the user can never redeem.
+        let _ = sqlx::query!(
+            "DELETE FROM otp_codes WHERE phone = $1 AND expires_at > now()",
+            normalized,
+        )
+        .execute(&pool)
+        .await;
+
+        return Err(ServerFnError::new(
+            "Failed to send verification code. Please try again.",
+        ));
     }
 
     Ok(outcome)
