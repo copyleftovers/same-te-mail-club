@@ -30,7 +30,7 @@ pub fn use_toast() -> WriteSignal<Option<String>> {
 
 /// Toast notification component.
 ///
-/// Renders a fixed-position toast at the bottom of the viewport.
+/// Renders a fixed-position toast at the top-center of the viewport.
 /// Only renders when the signal contains a message.
 /// Auto-dismisses after 5 seconds.
 #[component]
