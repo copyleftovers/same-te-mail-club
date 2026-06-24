@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            a.sender_id,\n            a.recipient_id,\n            su.name AS sender_name,\n            ru.name AS recipient_name\n        FROM assignments a\n        JOIN users su ON su.id = a.sender_id\n        JOIN users ru ON ru.id = a.recipient_id\n        WHERE a.season_id = $1\n        ORDER BY a.created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sender_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "recipient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "sender_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "recipient_name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f742c89a7c574b4498c33646732f7faefceb42c16127435cf86e9932cb8f3cf8"
+}

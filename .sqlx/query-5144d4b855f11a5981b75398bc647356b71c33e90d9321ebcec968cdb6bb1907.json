@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT status AS \"status: InviteCodeStatus\"\n        FROM invite_codes\n        WHERE id = $1\n        FOR UPDATE\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status: InviteCodeStatus",
+        "type_info": {
+          "Custom": {
+            "name": "invite_code_status",
+            "kind": {
+              "Enum": [
+                "unused",
+                "used",
+                "revoked"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5144d4b855f11a5981b75398bc647356b71c33e90d9321ebcec968cdb6bb1907"
+}

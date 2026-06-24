@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE enrollments\n        SET confirmed_ready_at = now()\n        WHERE user_id = $1 AND season_id = $2\n          AND confirmed_ready_at IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "15c79278bd8cd733ea5ac78ab9ca6ed6389a4f857fcdfbb239fc6a0c34b6e6d3"
+}

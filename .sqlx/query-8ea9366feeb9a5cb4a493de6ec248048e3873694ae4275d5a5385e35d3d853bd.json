@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, phase AS \"phase: Phase\"\n        FROM seasons\n        WHERE phase NOT IN ('complete', 'cancelled')\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "phase: Phase",
+        "type_info": {
+          "Custom": {
+            "name": "season_phase",
+            "kind": {
+              "Enum": [
+                "enrollment",
+                "preparation",
+                "assignment",
+                "delivery",
+                "complete",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "8ea9366feeb9a5cb4a493de6ec248048e3873694ae4275d5a5385e35d3d853bd"
+}

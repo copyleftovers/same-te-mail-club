@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT a.sender_id, a.recipient_id\n        FROM assignments a\n        JOIN seasons s ON s.id = a.season_id\n        WHERE s.phase IN ('complete', 'cancelled')\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sender_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "recipient_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "497c823bc6b75fc530095268564e5ef4580a9c14e844f7ef16755d9b7b2e1372"
+}

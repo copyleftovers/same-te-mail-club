@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE assignments\n        SET receipt_status = $1, receipt_note = $2\n        WHERE id = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "receipt_status",
+            "kind": {
+              "Enum": [
+                "no_response",
+                "received",
+                "not_received"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ae353c406fda08b72ba09a3dad6e61e120a6f77909bbfcf205aed6a5c9e3e880"
+}

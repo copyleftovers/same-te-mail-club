@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id\n        FROM assignments\n        WHERE recipient_id = $1 AND season_id = $2\n          AND receipt_status = 'no_response'\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "864f199eef2539a4211f6836c5ba6c08e2668f7b2f6b443acedecf999fb7e4f1"
+}

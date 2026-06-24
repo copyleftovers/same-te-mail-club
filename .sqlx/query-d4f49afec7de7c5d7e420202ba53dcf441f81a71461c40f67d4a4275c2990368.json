@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE seasons SET phase = $1 WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "season_phase",
+            "kind": {
+              "Enum": [
+                "enrollment",
+                "preparation",
+                "assignment",
+                "delivery",
+                "complete",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d4f49afec7de7c5d7e420202ba53dcf441f81a71461c40f67d4a4275c2990368"
+}

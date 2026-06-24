@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT phase AS \"phase: Phase\"\n            FROM seasons\n            ORDER BY created_at DESC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "phase: Phase",
+        "type_info": {
+          "Custom": {
+            "name": "season_phase",
+            "kind": {
+              "Enum": [
+                "enrollment",
+                "preparation",
+                "assignment",
+                "delivery",
+                "complete",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "55661925814a3f3479ab98ac0097835cb53d745f6c3963cbc43545c241158416"
+}

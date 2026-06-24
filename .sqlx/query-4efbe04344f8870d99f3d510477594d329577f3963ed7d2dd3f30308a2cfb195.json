@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT a.id, u.phone\n        FROM assignments a\n        JOIN users u ON u.id = a.sender_id\n        WHERE a.season_id = $1 AND a.notified_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "phone",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "4efbe04344f8870d99f3d510477594d329577f3963ed7d2dd3f30308a2cfb195"
+}
