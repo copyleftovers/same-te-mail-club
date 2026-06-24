@@ -15,34 +15,52 @@ pub enum ConfigError {
     MissingTurbosmsToken,
     #[error("missing TURBOSMS_SENDER")]
     MissingTurbosmsSender,
+    #[error("TURBOSMS_TOKEN must not be empty")]
+    EmptyTurbosmsToken,
+    #[error("TURBOSMS_SENDER must not be empty")]
+    EmptyTurbosmsSender,
 }
 
 impl Config {
-    /// Read from environment. Fails fast naming the missing variable.
+    /// Read from environment. Fails fast naming the missing or invalid variable.
     ///
-    /// When `SAMETE_SMS_DRY_RUN=true`, TURBOSMS credentials are optional
-    /// (they are never used in dry-run mode, so requiring them would block
-    /// local development and E2E testing without real SMS credentials).
+    /// When `SAMETE_SMS_DRY_RUN=true`, `TurboSMS` credentials are optional and
+    /// not validated — they are never used in dry-run mode, so requiring them
+    /// would block local development and E2E testing without real credentials.
+    ///
+    /// In production (non-dry-run), both `TURBOSMS_TOKEN` and `TURBOSMS_SENDER`
+    /// must be present and non-empty. An empty bearer token would cause a 401
+    /// at the first SMS send.
     ///
     /// # Errors
     ///
-    /// Returns `Err` if any required environment variable is absent.
+    /// Returns `Err` if any required environment variable is absent or empty.
     pub fn from_env() -> Result<Self, ConfigError> {
         let database_url =
             std::env::var("DATABASE_URL").map_err(|_| ConfigError::MissingDatabaseUrl)?;
 
-        let dry_run = std::env::var("SAMETE_SMS_DRY_RUN").as_deref() == Ok("true");
+        let sms_dry_run = std::env::var("SAMETE_SMS_DRY_RUN").as_deref() == Ok("true");
 
-        let turbosms_token = if dry_run {
+        let turbosms_token = if sms_dry_run {
             std::env::var("TURBOSMS_TOKEN").unwrap_or_default()
         } else {
-            std::env::var("TURBOSMS_TOKEN").map_err(|_| ConfigError::MissingTurbosmsToken)?
+            let token =
+                std::env::var("TURBOSMS_TOKEN").map_err(|_| ConfigError::MissingTurbosmsToken)?;
+            if token.is_empty() {
+                return Err(ConfigError::EmptyTurbosmsToken);
+            }
+            token
         };
 
-        let turbosms_sender = if dry_run {
+        let turbosms_sender = if sms_dry_run {
             std::env::var("TURBOSMS_SENDER").unwrap_or_default()
         } else {
-            std::env::var("TURBOSMS_SENDER").map_err(|_| ConfigError::MissingTurbosmsSender)?
+            let sender =
+                std::env::var("TURBOSMS_SENDER").map_err(|_| ConfigError::MissingTurbosmsSender)?;
+            if sender.is_empty() {
+                return Err(ConfigError::EmptyTurbosmsSender);
+            }
+            sender
         };
 
         let csrf_secret = std::env::var("CSRF_SECRET")
@@ -55,7 +73,7 @@ impl Config {
             turbosms_token,
             turbosms_sender,
             csrf_secret,
-            sms_dry_run: dry_run,
+            sms_dry_run,
         })
     }
 }
