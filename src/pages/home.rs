@@ -323,7 +323,10 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
 
 /// Enroll the current participant in the active season.
 ///
-/// Also UPSERTs the Nova Poshta delivery address if provided.
+/// When `use_existing_address` is `true`, the existing delivery address is used
+/// as-is and `city`/`np_number` are ignored. When `false`, the provided
+/// `city` and `np_number` are validated and upserted as the delivery address.
+///
 /// Enrollment requires a delivery address to exist (set during onboarding or here).
 ///
 /// # Errors
@@ -331,7 +334,11 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
 /// Returns `Err` if not logged in, season not in Enrollment phase, deadline passed,
 /// no delivery address, or already enrolled.
 #[server]
-pub async fn enroll_in_season(city: String, np_number: String) -> Result<(), ServerFnError> {
+pub async fn enroll_in_season(
+    use_existing_address: bool,
+    city: String,
+    np_number: String,
+) -> Result<(), ServerFnError> {
     use crate::auth;
 
     let (pool, user) = auth::require_auth().await?;
@@ -356,35 +363,34 @@ pub async fn enroll_in_season(city: String, np_number: String) -> Result<(), Ser
         return Err(ServerFnError::new("enrollment deadline has passed"));
     }
 
-    // UPSERT delivery address from the split fields
-    let city = city.trim().to_owned();
-    let number: i32 = if np_number.trim().is_empty() {
-        // If no number provided but city is, skip UPSERT (use existing address)
-        0
-    } else {
-        np_number
-            .trim()
-            .parse()
-            .map_err(|_| ServerFnError::new("invalid branch number"))?
-    };
-
-    if !city.is_empty() && number > 0 {
-        sqlx::query!(
-            r#"
-            INSERT INTO delivery_addresses (user_id, nova_poshta_city, nova_poshta_number)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (user_id) DO UPDATE
-                SET nova_poshta_city = EXCLUDED.nova_poshta_city,
+    if !use_existing_address {
+        let city = city.trim().to_owned();
+        let number: i32 = if np_number.trim().is_empty() {
+            0
+        } else {
+            np_number
+                .trim()
+                .parse()
+                .map_err(|_| ServerFnError::new("invalid branch number"))?
+        };
+        if !city.is_empty() && number > 0 {
+            sqlx::query!(
+                r#"
+                INSERT INTO delivery_addresses (user_id, nova_poshta_city, nova_poshta_number)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (user_id) DO UPDATE
+                    SET nova_poshta_city = EXCLUDED.nova_poshta_city,
                     nova_poshta_number = EXCLUDED.nova_poshta_number,
                     updated_at = now()
-            "#,
-            user.id,
-            city,
-            number,
-        )
-        .execute(&pool)
-        .await
-        .map_err(db_err)?;
+                "#,
+                user.id,
+                city,
+                number,
+            )
+            .execute(&pool)
+            .await
+            .map_err(db_err)?;
+        }
     }
 
     // Verify user has a delivery address
@@ -676,10 +682,14 @@ fn render_enrollment_open(
                         {t!(i18n, home_branch_label)} " "
                         {format!("{city}, #{branch_number}")}
                     </p>
+                    <input type="hidden" name="use_existing_address" value="true" />
+                    // city and np_number are required by form deserialization but
+                    // ignored by the server when use_existing_address is true.
                     <input type="hidden" name="city" value="" />
                     <input type="hidden" name="np_number" value="" />
                 }.into_any(),
                 None => view! {
+                    <input type="hidden" name="use_existing_address" value="false" />
                     <div class="flex flex-col gap-(--density-space-md) sm:flex-row sm:gap-(--density-space-sm)">
                         <div class="field sm:w-1/2">
                             <label class="field-label" for="enroll-city">
