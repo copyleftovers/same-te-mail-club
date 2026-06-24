@@ -45,6 +45,8 @@ pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
     let (pool, _user) = auth::require_admin().await?;
     let config = leptos::context::use_context::<Config>()
         .ok_or_else(|| ServerFnError::new("no config in context"))?;
+    let http_client = leptos::context::use_context::<reqwest::Client>()
+        .ok_or_else(|| ServerFnError::new("no HTTP client in context"))?;
 
     let phones = sqlx::query_scalar!(
         r#"SELECT phone FROM users WHERE status = 'active' AND role = 'participant'"#,
@@ -59,7 +61,7 @@ pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
     let mut failed_phones: Vec<String> = Vec::new();
 
     for phone in phones {
-        match sms::send_sms(&config, &phone, message).await {
+        match sms::send_sms(&config, &http_client, &phone, message).await {
             Ok(()) => sent += 1,
             Err(e) => {
                 tracing::warn!(phone = %phone, error = %e, "SMS send failed");
@@ -96,6 +98,8 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
     let (pool, _user) = auth::require_admin().await?;
     let config = leptos::context::use_context::<Config>()
         .ok_or_else(|| ServerFnError::new("no config in context"))?;
+    let http_client = leptos::context::use_context::<reqwest::Client>()
+        .ok_or_else(|| ServerFnError::new("no HTTP client in context"))?;
 
     // Assignment season required (assignment or delivery phase — both have assignments)
     let season_id = sqlx::query_scalar!(
@@ -127,7 +131,7 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
     let mut failed_phones: Vec<String> = Vec::new();
 
     for target in targets {
-        match sms::send_sms(&config, &target.phone, message).await {
+        match sms::send_sms(&config, &http_client, &target.phone, message).await {
             Ok(()) => {
                 // Mark notified_at on success; leave NULL on failure
                 let _ = sqlx::query!(
@@ -172,6 +176,8 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     let (pool, _user) = auth::require_admin().await?;
     let config = leptos::context::use_context::<Config>()
         .ok_or_else(|| ServerFnError::new("no config in context"))?;
+    let http_client = leptos::context::use_context::<reqwest::Client>()
+        .ok_or_else(|| ServerFnError::new("no HTTP client in context"))?;
 
     // Active preparation season required
     let season_id = sqlx::query_scalar!(
@@ -212,7 +218,7 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     let mut failed_phones: Vec<String> = Vec::new();
 
     for phone in phones {
-        match sms::send_sms(&config, &phone, &message).await {
+        match sms::send_sms(&config, &http_client, &phone, &message).await {
             Ok(()) => sent += 1,
             Err(e) => {
                 tracing::warn!(phone = %phone, error = %e, "SMS send failed");
@@ -248,6 +254,8 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     let (pool, _user) = auth::require_admin().await?;
     let config = leptos::context::use_context::<Config>()
         .ok_or_else(|| ServerFnError::new("no config in context"))?;
+    let http_client = leptos::context::use_context::<reqwest::Client>()
+        .ok_or_else(|| ServerFnError::new("no HTTP client in context"))?;
 
     // Active delivery season required
     let season_id = sqlx::query_scalar!(
@@ -277,7 +285,7 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     let mut failed_phones: Vec<String> = Vec::new();
 
     for phone in phones {
-        match sms::send_sms(&config, &phone, message).await {
+        match sms::send_sms(&config, &http_client, &phone, message).await {
             Ok(()) => sent += 1,
             Err(e) => {
                 tracing::warn!(phone = %phone, error = %e, "SMS send failed");

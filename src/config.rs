@@ -4,6 +4,7 @@ pub struct Config {
     pub turbosms_token: String,
     pub turbosms_sender: String,
     pub csrf_secret: u128,
+    pub sms_dry_run: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -54,6 +55,7 @@ impl Config {
             turbosms_token,
             turbosms_sender,
             csrf_secret,
+            sms_dry_run: dry_run,
         })
     }
 }

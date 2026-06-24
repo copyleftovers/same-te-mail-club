@@ -29,6 +29,9 @@ async fn main() {
         .await
         .expect("migrations failed");
 
+    // 3b. Shared HTTP client for SMS delivery
+    let http_client = samete::sms::build_http_client().expect("HTTP client build failed");
+
     // 4. Leptos
     let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;
@@ -43,9 +46,11 @@ async fn main() {
             {
                 let pool = pool.clone();
                 let config = config.clone();
+                let http_client = http_client.clone();
                 move || {
                     leptos::context::provide_context(pool.clone());
                     leptos::context::provide_context(config.clone());
+                    leptos::context::provide_context(http_client.clone());
                 }
             },
             {

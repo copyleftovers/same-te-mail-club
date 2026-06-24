@@ -46,6 +46,8 @@ pub async fn request_otp(phone: String) -> Result<RequestOtpOutcome, ServerFnErr
         .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
     let config = leptos::context::use_context::<Config>()
         .ok_or_else(|| ServerFnError::new("no config in context"))?;
+    let http_client = leptos::context::use_context::<reqwest::Client>()
+        .ok_or_else(|| ServerFnError::new("no HTTP client in context"))?;
 
     // Normalize — on format error, return AccountExists silently (no leakage)
     let Ok(normalized) = phone_mod::normalize(&phone) else {
@@ -83,7 +85,7 @@ pub async fn request_otp(phone: String) -> Result<RequestOtpOutcome, ServerFnErr
     // Send SMS (dry-run mode logs instead of sending)
     let prefix = td_string!(Locale::uk, login_otp_sms_body_prefix);
     let message = format!("{prefix}{code}");
-    if let Err(e) = sms::send_sms(&config, &normalized, &message).await {
+    if let Err(e) = sms::send_sms(&config, &http_client, &normalized, &message).await {
         tracing::warn!("SMS send failed for {}: {}", normalized, e);
     }
 
