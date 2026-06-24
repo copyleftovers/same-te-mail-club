@@ -474,6 +474,22 @@ fn render_active_season(
                 }}
             </dl>
 
+            // Terminal-state badge — inline status indicator for Cancelled/Complete
+            {if is_terminal {
+                let (status, label) = if phase == crate::types::Phase::Cancelled {
+                    ("inactive", t_string!(i18n, season_phase_cancelled))
+                } else {
+                    ("confirmed", t_string!(i18n, season_phase_complete))
+                };
+                view! {
+                    <span class="badge" data-status=status data-testid="season-terminal-badge">
+                        {label}
+                    </span>
+                }.into_any()
+            } else {
+                ().into_any()
+            }}
+
             // Not-received alert (only in delivery/complete with non-zero count)
             {if not_received_count > 0 {
                 view! {
