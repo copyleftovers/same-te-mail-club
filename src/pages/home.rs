@@ -896,10 +896,8 @@ fn render_home_state(
 ) -> AnyView {
     match state {
         HomeState::NoSeason => view! {
-            <div class="empty-state">
-                <p class="empty-state-headline">{t!(i18n, dashboard_no_season)}</p>
-                <p class="empty-state-body">{t!(i18n, home_no_season)}</p>
-            </div>
+            <h1>{t!(i18n, dashboard_no_season)}</h1>
+            <p>{t!(i18n, home_no_season)}</p>
         }
         .into_any(),
 
