@@ -726,22 +726,19 @@
 
   /* ── Toast ────────────────────────────────────────────────────── */
   /* z-index: 50 — above dropdowns/mobile menu (40), same layer as modals */
-  /* top offset clears the header band on both participant and admin layouts */
+  /* sticky top:0 so the banner pins to the top of <main> on scroll and
+     participates in normal flow — pushes page content down, never overlaps h1 */
   .toast-container {
-    position: fixed;
-    top: calc(var(--header-height) + calc(var(--spacing) * 4));
-    left: 50%;
-    translate: -50% 0;
+    position: sticky;
+    top: 0;
     z-index: 50;
-    width: calc(100% - calc(var(--spacing) * 8));
-    max-width: 24rem;
+    width: 100%;
   }
 
   .toast {
     --_border: var(--toast-border, var(--color-success));
     background: var(--color-surface-raised);
-    border: 1px solid var(--_border); /* structural: 1px toast border */
-    border-radius: var(--radius-md);
+    border-bottom: 1px solid var(--_border); /* structural: bottom border marks the banner edge */
     padding: var(--density-space-md);
     box-shadow: 0 4px 12px oklch(from var(--color-brand-black) l c h / 0.15); /* structural: elevation shadow */
     animation: toast-in 200ms ease;
@@ -757,9 +754,9 @@
     color: var(--color-text);
   }
 
-  /* Slides down from above — origin matches the top anchor position */
+  /* Slides down into view from above — correct for a sticky top banner */
   @keyframes toast-in {
-    from { opacity: 0; translate: 0 calc(var(--spacing) * -4); }
+    from { opacity: 0; translate: 0 -100%; }
     to { opacity: 1; translate: 0 0; }
   }
 

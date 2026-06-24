@@ -93,6 +93,7 @@ pub fn App() -> impl IntoView {
             <div class="flex min-h-dvh flex-col">
                 <Header />
                 <main class="flex-1">
+                    <Toast />
                     <Routes fallback=move || view! {
                         <p data-testid="not-found">{t!(i18n, app_not_found)}</p>
                     }>
@@ -134,8 +135,6 @@ pub fn App() -> impl IntoView {
                 </main>
             </div>
         </Router>
-
-        <Toast />
     }
 }
 
