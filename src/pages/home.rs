@@ -1,3 +1,4 @@
+use crate::components::skeleton::SkeletonFallback;
 use crate::components::toast::use_toast;
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
@@ -619,15 +620,7 @@ pub fn HomePage() -> impl IntoView {
                 }}
             </div>
 
-            <Suspense fallback=move || {
-                view! {
-                    <div aria-hidden="true" class="flex flex-col gap-3">
-                        <div class="skeleton-line h-4 w-3/4"></div>
-                        <div class="skeleton-line h-4 w-1/2"></div>
-                        <div class="skeleton-line h-4 w-5/8"></div>
-                    </div>
-                }
-            }>
+            <Suspense fallback=move || view! { <SkeletonFallback /> }>
                 {move || {
                     home_state
                         .get()

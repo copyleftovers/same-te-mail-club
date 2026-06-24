@@ -12,6 +12,7 @@ use crate::admin::sms::{
     SendAssignmentSms, SendConfirmNudgeSms, SendReceiptNudgeSms, SendSeasonOpenSms, SmsReport,
 };
 use crate::admin::state::{AdminSeason, AdminState, get_admin_state};
+use crate::components::skeleton::SkeletonFallback;
 use crate::components::stepper::PhaseStepper;
 use crate::components::toast::use_toast;
 use crate::hooks::use_hydrated;
@@ -212,15 +213,7 @@ pub fn AdminPage() -> impl IntoView {
             // ── Season section ─────────────────────────────────────────────────
             <section>
                 <h2>{t!(i18n, season_page_title)}</h2>
-                <Suspense fallback=move || {
-                    view! {
-                        <div aria-hidden="true" class="flex flex-col gap-3">
-                            <div class="skeleton-line h-4 w-3/4"></div>
-                            <div class="skeleton-line h-4 w-1/2"></div>
-                            <div class="skeleton-line h-4 w-5/8"></div>
-                        </div>
-                    }
-                }>
+                <Suspense fallback=move || view! { <SkeletonFallback /> }>
                     {move || {
                         admin_state
                             .get()
@@ -1566,15 +1559,7 @@ fn ParticipantListSection(
 
     view! {
         <div data-testid="participant-list">
-            <Suspense fallback=move || {
-                view! {
-                    <div aria-hidden="true" class="flex flex-col gap-3">
-                        <div class="skeleton-line h-4 w-3/4"></div>
-                        <div class="skeleton-line h-4 w-1/2"></div>
-                        <div class="skeleton-line h-4 w-5/8"></div>
-                    </div>
-                }
-            }>
+            <Suspense fallback=move || view! { <SkeletonFallback /> }>
                 {move || {
                     participants
                         .get()
