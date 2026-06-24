@@ -449,6 +449,11 @@
     white-space: nowrap;
   }
 
+  /* Actions column must not shrink below the button's natural width */
+  .data-table td:last-child {
+    white-space: nowrap;
+  }
+
   .alert {
     padding: var(--density-space-sm) var(--density-space-md);
     border-radius: var(--radius-md);
