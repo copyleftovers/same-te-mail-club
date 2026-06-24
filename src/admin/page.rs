@@ -1221,7 +1221,7 @@ fn InviteCodesSection(
 
     view! {
         <section data-testid="invite-codes-section">
-            <h2>{t!(i18n, admin_invite_codes_section_title)}</h2>
+            <p class="overline-label">{t!(i18n, admin_invite_codes_section_title)}</p>
 
             // ── Generate subsection ───────────────────────────────────────────
             <h3>{t!(i18n, admin_invite_codes_generate_subsection_title)}</h3>
