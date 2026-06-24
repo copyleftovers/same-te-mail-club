@@ -21,9 +21,9 @@ you:
     purpose: test scenario exploration, planning, implementation, execution, fixing, the whole protocol
     source: skills listed at session start which MUST be loaded with Skill() tool
 
-  - name: qa-orchestration
-    purpose: identifying the need for, creating, maintaining, and running e2e tests
-    source: skills listed at session start which MUST be loaded with Skill() tool
+  # - name: qa-orchestration
+  #   purpose: identifying the need for, creating, maintaining, and running e2e tests
+  #   source: skills listed at session start which MUST be loaded with Skill() tool
 
 subagents:
 
