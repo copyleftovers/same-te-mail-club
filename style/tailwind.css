@@ -58,6 +58,10 @@
   --size-content-max: 28rem;
   --size-mobile-menu: 16rem;
   --size-cycle-viz: 400px;
+
+  /* Header height: logo (2rem) + top+bottom padding (3*spacing each side = 6*spacing total) + 1px border.
+     Used by .toast-container so the toast always clears the header band on every layout. */
+  --header-height: calc(var(--size-logo-height) + calc(var(--spacing) * 6) + 1px);
 }
 
 /* Admin density override — in @layer base so Tailwind utilities can override via higher layers */
@@ -720,6 +724,18 @@
   }
 
   /* ── Toast ────────────────────────────────────────────────────── */
+  /* z-index: 50 — above dropdowns/mobile menu (40), same layer as modals */
+  /* top offset clears the header band on both participant and admin layouts */
+  .toast-container {
+    position: fixed;
+    top: calc(var(--header-height) + calc(var(--spacing) * 4));
+    left: 50%;
+    translate: -50% 0;
+    z-index: 50;
+    width: calc(100% - calc(var(--spacing) * 8));
+    max-width: 24rem;
+  }
+
   .toast {
     --_border: var(--toast-border, var(--color-success));
     background: var(--color-surface-raised);
@@ -740,8 +756,9 @@
     color: var(--color-text);
   }
 
+  /* Slides down from above — origin matches the top anchor position */
   @keyframes toast-in {
-    from { opacity: 0; translate: 0 calc(var(--spacing) * 4); }
+    from { opacity: 0; translate: 0 calc(var(--spacing) * -4); }
     to { opacity: 1; translate: 0 0; }
   }
 

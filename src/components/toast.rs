@@ -55,7 +55,7 @@ pub fn Toast() -> impl IntoView {
             role="status"
             aria-live="polite"
             aria-atomic="true"
-            class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] sm:w-auto sm:max-w-96"
+            class="toast-container"
         >
             {move || message.get().map(|msg| view! {
                 <div class="toast" data-testid="toast">
