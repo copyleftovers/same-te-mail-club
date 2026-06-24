@@ -60,8 +60,8 @@ pub async fn complete_onboarding(city: String, np_number: String) -> Result<(), 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /// Onboarding form: collect Nova Poshta delivery address.
-/// Shown only on first login; navigates to `/` on success via client-side
-/// `use_navigate` (primary) with server-side `redirect("/")` as fallback.
+/// Shown only on first login; navigates to `/` on success via a full page
+/// reload so SSR re-runs `get_current_user()` with `onboarded=true`.
 #[component]
 pub fn OnboardingPage() -> impl IntoView {
     let i18n = use_i18n();
@@ -72,10 +72,9 @@ pub fn OnboardingPage() -> impl IntoView {
 
     let hydrated = use_hydrated();
 
-    let navigate = leptos_router::hooks::use_navigate();
     Effect::new(move |_| match onboard_action.value().get() {
         Some(Ok(())) => {
-            navigate("/", leptos_router::NavigateOptions::default());
+            let _ = leptos::prelude::window().location().set_href("/");
         }
         Some(Err(e)) => {
             set_error_msg.set(Some(format!(
