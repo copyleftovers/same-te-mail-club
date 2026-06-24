@@ -441,7 +441,7 @@
   .data-table td {
     padding: var(--density-space-sm) var(--density-space-sm);
     border-bottom: 1px solid oklch(from var(--color-brand-gray) l c h / 0.2); /* structural: 1px thin separator */
-    vertical-align: middle;
+    vertical-align: top;
   }
 
   /* Invite-code words are a closed vocabulary — they must not wrap at the hyphen */
