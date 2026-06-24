@@ -120,12 +120,12 @@ test.describe.serial("Visual Audit", () => {
 
   // ── Admin: generate invite codes ─────────────────────────────────────────────
 
-  test("capture admin — invite codes section (empty list)", async ({ page }) => {
+  test("capture admin — invite codes section (initial state)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.goToDashboard();
     await expect(page.getByTestId("generate-code-button")).toBeEnabled();
-    await captureState(page, "admin-invite-codes-empty");
+    await captureState(page, "admin-invite-codes-initial");
   });
 
   test("setup — generate invite codes for audit participants", async ({ page }) => {
@@ -214,12 +214,12 @@ test.describe.serial("Visual Audit", () => {
   // Resource) has resolved and injected create-season-button into the HTML.
   // A fresh goto forces a complete SSR round-trip, so the resolved state is
   // present before the enabled check starts.
-  test("capture admin — no active season (create form visible)", async ({ page }) => {
+  test("capture admin — terminal season (create form visible)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await page.goto("/admin");
     await expect(page.getByTestId("create-season-button")).toBeEnabled();
-    await captureState(page, "admin-no-season-create-form");
+    await captureState(page, "admin-terminal-season-create-form");
   });
 
   test("capture admin — unlaunched season (launch button visible)", async ({ page }) => {
@@ -381,24 +381,15 @@ test.describe.serial("Visual Audit", () => {
     await captureState(page, "admin-sms-report");
   });
 
-  // ── Home: participant sees assignment ─────────────────────────────────────────
+  // ── Home: participant sees assignment (includes receipt form in same DOM) ─────
 
   test("capture home — assignment visible to participant", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(AUDIT_PHONES.A);
     await app.goHome();
     await expect(page.getByTestId("recipient-name")).toBeVisible();
-    await captureState(page, "home-assignment-visible");
-  });
-
-  // ── Home: receipt confirmation form ──────────────────────────────────────────
-
-  test("capture home — receipt confirmation form", async ({ page }) => {
-    const app = new MailClubPage(page);
-    await app.login(AUDIT_PHONES.A);
-    await app.goHome();
     await expect(page.getByTestId("received-button")).toBeVisible();
-    await captureState(page, "home-receipt-form");
+    await captureState(page, "home-assignment-and-receipt-form");
   });
 
   // ── Home: receipt confirmed (thank you) ──────────────────────────────────────
@@ -470,12 +461,12 @@ test.describe.serial("Visual Audit", () => {
     await captureState(page, "admin-season-cancelled");
   });
 
-  test("capture home — no active season after cancel", async ({ page }) => {
+  test("capture home — cancelled season state", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(AUDIT_PHONES.A);
     await app.goHome();
     await expect(page.locator("main")).toBeVisible();
-    await captureState(page, "home-no-active-season");
+    await captureState(page, "home-cancelled-season");
   });
 
 });
