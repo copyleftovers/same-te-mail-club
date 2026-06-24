@@ -645,7 +645,6 @@
     }
     .info-label {
       min-width: calc(var(--spacing) * 32);
-      text-align: right;
     }
   }
 
