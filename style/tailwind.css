@@ -1046,7 +1046,6 @@
     display: flex;
     justify-content: center;
     padding: var(--density-space-md);
-    padding-bottom: calc(var(--spacing) * 20); /* toast clearance: fixed bottom toast is ~80px tall+offset; graph nodes must remain above it */
   }
 
   .cycle-viz {
