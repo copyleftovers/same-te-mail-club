@@ -65,6 +65,7 @@
   --density-space-sm: calc(var(--spacing) * 1.5);
   --density-space-md: calc(var(--spacing) * 3);
   --density-space-lg: calc(var(--spacing) * 5);
+  --text-section: 1.1rem; /* admin section headings one step above body, not page-title scale */
 }
 
 /* Dark mode (system only, no toggle) */
