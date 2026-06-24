@@ -377,7 +377,7 @@
     font-weight: 900;
     font-size: var(--text-page-title);
     line-height: 1.15;
-    letter-spacing: -0.02em; /* inherent: spec-defined display heading tracking */
+    letter-spacing: -0.01em; /* relaxed from -0.02em: CyGrotesk Cyrillic "є" glyphs overlap at clamp ceiling with -0.02em */
     margin-bottom: var(--density-space-md);
     text-wrap: balance;
   }
@@ -599,6 +599,7 @@
     border: 1px solid oklch(from var(--color-brand-gray) l c h / 0.15); /* structural: 1px card border */
     border-radius: var(--radius-md);
     padding: var(--density-space-md);
+    max-width: var(--size-content-max); /* prevents sparse 4-column spread on wide desktop prose column */
   }
 
   /* ── Info list ────────────────────────────────────────────────── */
@@ -636,10 +637,11 @@
   @media (min-width: 640px) {
     .info-item {
       flex-direction: row;
+      align-items: baseline; /* baseline-aligns value text with label text */
       gap: var(--density-space-md);
     }
     .info-label {
-      min-width: calc(var(--spacing) * 32);
+      min-width: calc(var(--spacing) * 20); /* tightened from 32 to eliminate dead horizontal gap */
     }
   }
 
@@ -747,12 +749,20 @@
   .stepper {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start; /* flex-start keeps scroll origin reachable; justify-content:center on overflowing containers pushes content before the scroll origin */
     gap: calc(var(--spacing) * 1);
     padding: var(--density-space-md) calc(var(--spacing) * 4);
     list-style: none;
     margin: 0;
-    overflow-x: auto; /* prevents page-level horizontal scroll at 375px when 5 steps exceed viewport */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* momentum scroll on iOS */
+    scroll-padding-inline: calc(var(--spacing) * 4);
+  }
+
+  @media (min-width: 640px) {
+    .stepper {
+      justify-content: center; /* re-center once viewport fits all 5 steps */
+    }
   }
 
   .step {
@@ -761,7 +771,7 @@
     align-items: center;
     gap: calc(var(--spacing) * 1.5);
     flex-shrink: 0;
-    min-width: calc(var(--spacing) * 12);
+    min-width: calc(var(--spacing) * 16);
   }
 
   .step-marker {
@@ -800,8 +810,8 @@
     letter-spacing: 0.04em; /* inherent: spec-defined step label tracking */
     color: var(--color-text-muted);
     text-align: center;
-    max-width: calc(var(--spacing) * 18);
-    overflow-wrap: break-word;
+    max-width: calc(var(--spacing) * 24);
+    white-space: nowrap; /* prevents mid-word Cyrillic wrap; stepper scrolls horizontally on mobile */
   }
 
   .step[data-status="current"] .step-label {
