@@ -92,8 +92,8 @@ pub fn OnboardingPage() -> impl IntoView {
             <p>{t!(i18n, onboarding_description)}</p>
 
             <leptos::form::ActionForm action=onboard_action>
-                <div class="flex flex-col gap-(--density-space-md) sm:flex-row sm:gap-(--density-space-sm)">
-                    <div class="field sm:w-1/2">
+                <div class="flex flex-col gap-(--density-space-md)">
+                    <div class="field w-full">
                         <label class="field-label" for="np-city">
                             {t!(i18n, onboarding_city_label)}
                         </label>
@@ -109,7 +109,7 @@ pub fn OnboardingPage() -> impl IntoView {
                             aria-describedby="np-onboarding-error"
                         />
                     </div>
-                    <div class="field sm:w-1/2">
+                    <div class="field w-full">
                         <label class="field-label" for="np-number">
                             {t!(i18n, onboarding_np_number_label)}
                         </label>
