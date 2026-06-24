@@ -142,7 +142,7 @@
   "admin_invite_codes_table_code": "Код",
   "admin_invite_codes_table_distributor": "Розповсюджувач",
   "admin_invite_codes_table_redeemer": "Хто використав",
-  "admin_invite_codes_status_unused": "Не використаний",
+  "admin_invite_codes_status_unused": "Відкритий",
   "admin_invite_codes_status_used": "Використаний",
   "admin_invite_codes_status_revoked": "Відкликаний",
   "admin_invite_codes_revoke_button": "Відкликати",

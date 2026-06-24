@@ -330,6 +330,7 @@
     padding: calc(var(--spacing) * 1) calc(var(--spacing) * 2.5);
     border-radius: var(--radius-pill);
     color: white;
+    white-space: nowrap; /* structural: badges are single-line pills; wrapping distorts uniform height */
   }
 
   .badge[data-status="active"] {
