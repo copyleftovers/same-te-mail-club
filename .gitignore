@@ -19,3 +19,4 @@ end2end/results.json
 orchestration_log/recon/
 orchestration_log/reference/implementation_plan.md
 orchestration_log/history/*/cost.md
+end2end/screenshots/
