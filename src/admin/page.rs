@@ -1172,6 +1172,8 @@ fn SwapFormSection(
                         name="sender_a"
                         data-testid="sender-a-input"
                         required=true
+                        attr:aria-invalid=move || swap_action.value().get().and_then(Result::err).map(|_| "true")
+                        aria-describedby="action-error"
                     >
                         <option value="">{t!(i18n, assignments_select_sender)}</option>
                         {options_a
@@ -1194,6 +1196,8 @@ fn SwapFormSection(
                         name="sender_b"
                         data-testid="sender-b-input"
                         required=true
+                        attr:aria-invalid=move || swap_action.value().get().and_then(Result::err).map(|_| "true")
+                        aria-describedby="action-error"
                     >
                         <option value="">{t!(i18n, assignments_select_sender)}</option>
                         {options_b
