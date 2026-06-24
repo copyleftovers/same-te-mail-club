@@ -1082,9 +1082,9 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                     />
                     <text
                         x=cx
-                        y=cy + node_radius + 14.0
+                        y=cy + node_radius + 26.0
                         text-anchor="middle"
-                        font-size="10"
+                        font-size="13"
                         font-weight="600"
                         fill="var(--color-text)"
                     >
