@@ -33,7 +33,7 @@ export default defineConfig({
 
     // Prevent individual actions from hanging on hydration/network issues.
     actionTimeout: 10_000,
-    // Dev WASM bundle is ~14MB; SSR can slow under sustained load.
+    // Release WASM bundle is 471KB brotli; SSR is fast under sustained load.
     // 30s gives headroom without masking real failures (passing tests are ~3s).
     navigationTimeout: 30_000,
   },

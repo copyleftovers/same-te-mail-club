@@ -20,20 +20,23 @@ clippy:
 _kill-stale:
     -lsof -i :3000 -t | xargs kill 2>/dev/null || true
 
-# Run E2E tests via cargo-leptos + Playwright
-e2e: _kill-stale db-reset db-seed
+# Run E2E tests against the release binary (471KB brotli WASM — CI-stable)
+e2e: e2e-release
+
+# Run E2E tests in dev mode — only for debugging; 14MB WASM may intermittently fail
+e2e-dev: _kill-stale db-reset db-seed
     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
 
-# Run a single test by grep pattern — includes DB reset and rebuild.
+# Run a single test by grep pattern against the release binary — includes DB reset and rebuild.
 # Only useful for tests that don't depend on prior DB state (e.g. block 1 tests).
 # For dependent tests: run `just e2e` first, then target with `just e2e-single`.
 e2e-single pattern: _kill-stale db-reset db-seed
-    SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end -- --grep "{{pattern}}"
+    SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release -- --grep "{{pattern}}"
 
 # Re-run E2E tests without resetting the DB — use when DB is already in correct state.
-# Rebuilds the app. Kills any stale server on :3000 first.
+# Rebuilds the release binary. Kills any stale server on :3000 first.
 e2e-rerun: _kill-stale
-    SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
+    SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
 
 # Build release with pre-compressed static assets
 build:

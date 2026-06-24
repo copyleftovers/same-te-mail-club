@@ -327,7 +327,12 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.advanceSeason();
-    await app.goToDashboard();
+    // Explicit page.goto() required: advanceSeason() leaves the browser on
+    // /admin after the POST. goToDashboard() would skip navigation and only
+    // wait for main — not sufficient after a phase advance, because the
+    // admin_state Resource refetch is async. A fresh SSR goto guarantees
+    // the resolved Assignment-phase state (generate-button) is in the HTML.
+    await page.goto("/admin");
     await expect(page.getByTestId("generate-button")).toBeVisible();
     await captureState(page, "admin-assignment-phase-pre-generate");
   });
@@ -358,7 +363,10 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.advanceSeason();
-    await app.goToDashboard();
+    // Explicit page.goto() required: same race as assignment-phase test.
+    // Delivery phase introduces send-assignment-button; fresh SSR round-trip
+    // ensures it is present before the assertion starts.
+    await page.goto("/admin");
     await expect(page.getByTestId("send-assignment-button")).toBeVisible();
     await captureState(page, "admin-delivery-phase-sms-controls");
   });
@@ -428,7 +436,8 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.advanceSeason();
-    await app.goToDashboard();
+    // Explicit page.goto() required: same race as other post-advance tests.
+    await page.goto("/admin");
     await expect(page.locator("main")).toBeVisible();
     await captureState(page, "admin-season-complete");
   });
