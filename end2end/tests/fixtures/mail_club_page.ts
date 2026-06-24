@@ -153,11 +153,15 @@ export class MailClubPage {
   // ── Season enrollment (Story 2.1) ──
 
   async enrollInSeason(city?: string, branchNumber?: string) {
-    if (city) {
-      await this.page.getByTestId("np-city-input").fill(city);
-    }
-    if (branchNumber) {
-      await this.page.getByTestId("np-number-input").fill(branchNumber);
+    const cityInput = this.page.getByTestId("np-city-input");
+    // The enrollment form has two branches: onboarded users see read-only address
+    // text + hidden inputs (city input not in DOM); new users see editable fields.
+    // Only fill when the input is actually visible — attempting to fill hidden
+    // inputs causes a timeout.
+    if (city && await cityInput.isVisible()) {
+      await expect(this.page.getByTestId("enroll-button")).toBeEnabled();
+      await cityInput.fill(city);
+      await this.page.getByTestId("np-number-input").fill(branchNumber ?? "");
     }
     await this.page.getByTestId("enroll-button").click();
     // Wait for refetch to complete — enroll button disappears when enrolled.
