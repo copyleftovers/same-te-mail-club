@@ -60,11 +60,8 @@ pub async fn complete_onboarding(city: String, np_number: String) -> Result<(), 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /// Onboarding form: collect Nova Poshta delivery address.
-/// Shown only on first login; redirects to `/` on success via server redirect.
-///
-/// Uses `ActionForm` which reads form values from DOM directly.
-/// The server issues a redirect on success, which `ActionForm`'s redirect
-/// hook handles via `window.location.set_href("/")`.
+/// Shown only on first login; navigates to `/` on success via client-side
+/// `use_navigate` (primary) with server-side `redirect("/")` as fallback.
 #[component]
 pub fn OnboardingPage() -> impl IntoView {
     let i18n = use_i18n();
@@ -75,13 +72,18 @@ pub fn OnboardingPage() -> impl IntoView {
 
     let hydrated = use_hydrated();
 
-    Effect::new(move |_| {
-        if let Some(Err(e)) = onboard_action.value().get() {
+    let navigate = leptos_router::hooks::use_navigate();
+    Effect::new(move |_| match onboard_action.value().get() {
+        Some(Ok(())) => {
+            navigate("/", leptos_router::NavigateOptions::default());
+        }
+        Some(Err(e)) => {
             set_error_msg.set(Some(format!(
                 "{}{e}",
                 t_string!(i18n, onboarding_error_prefix)
             )));
         }
+        None => {}
     });
 
     view! {
@@ -100,7 +102,7 @@ pub fn OnboardingPage() -> impl IntoView {
                             type="text"
                             id="np-city"
                             name="city"
-                            value="Київ"
+                            placeholder="Київ"
                             required
                             data-testid="np-city-input"
                             attr:aria-invalid=move || error_msg.get().map(|_| "true")

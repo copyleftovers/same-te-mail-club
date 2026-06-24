@@ -670,7 +670,7 @@ fn render_enrollment_open(
                         type="text"
                         id="enroll-city"
                         name="city"
-                        value="Київ"
+                        placeholder="Київ"
                         data-testid="np-city-input"
                     />
                 </div>
