@@ -320,7 +320,7 @@ fn render_create_form(
     let pending = create_action.pending();
     view! {
         <div data-testid="create-season-form">
-            <p>{t!(i18n, dashboard_no_season)}</p>
+            <p class="text-sm text-(--color-text-muted) mb-(--density-space-sm)">{t!(i18n, dashboard_no_season)}</p>
             <section>
                 <h2>{t!(i18n, season_create_form_title)}</h2>
                 <leptos::form::ActionForm action=create_action>
@@ -501,7 +501,7 @@ fn render_active_season(
             {if !launched && !is_terminal {
                 view! {
                     <p class="text-sm text-(--color-text-muted)" data-testid="pre-launch-participant-count">
-                        {t!(i18n, dashboard_enrolled_label)} {participant_count}
+                        {t!(i18n, dashboard_enrolled_label)} " " {participant_count}
                     </p>
                 }.into_any()
             } else {
@@ -534,7 +534,7 @@ fn render_active_season(
             )}
 
             // Action buttons: launch, advance, cancel
-            <div class="flex flex-wrap gap-(--density-space-sm) mt-(--density-space-md)" data-testid="season-action-buttons">
+            <div class="flex flex-wrap items-start gap-(--density-space-sm) mt-(--density-space-md)" data-testid="season-action-buttons">
                 // Launch — only when not yet launched and not terminal
                 {if !launched && !is_terminal {
                     view! {
@@ -1373,162 +1373,142 @@ fn InviteCodesSection(
                                 }
                                 Ok(codes) => {
                                     view! {
-                                        <div class="data-table-wrapper">
-                                            <table class="data-table data-table--invite">
-                                                <thead>
-                                                    <tr>
-                                                        <th>
-                                                            {t!(
-                                                                i18n,
-                                                                admin_invite_codes_table_code
-                                                            )}
-                                                        </th>
-                                                        <th>
-                                                            {t!(
-                                                                i18n,
-                                                                admin_invite_codes_table_distributor
-                                                            )}
-                                                        </th>
-                                                        <th>
-                                                            {t!(i18n, participants_table_status)}
-                                                        </th>
-                                                        <th>
-                                                            {t!(
-                                                                i18n,
-                                                                admin_invite_codes_table_redeemer
-                                                            )}
-                                                        </th>
-                                                        <th>
-                                                            {t!(i18n, participants_table_actions)}
-                                                        </th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <For
-                                                        each=move || {
-                                                            let query = filter_query.get().to_lowercase();
-                                                            if query.is_empty() {
-                                                                return codes.clone();
-                                                            }
-                                                            codes
-                                                                .iter()
-                                                                .filter(|c| {
-                                                                    c.code.to_lowercase().contains(&query)
-                                                                        || c.distributor_name.to_lowercase().contains(&query)
-                                                                        || matches_invite_status(c.status, &query)
-                                                                        || c.redeemer_name
-                                                                            .as_deref()
-                                                                            .is_some_and(|n| n.to_lowercase().contains(&query))
-                                                                })
-                                                                .cloned()
-                                                                .collect::<Vec<_>>()
-                                                        }
-                                                        key=|c| c.id
-                                                        let:code
+                                        <ul class="invite-code-list">
+                                            <For
+                                                each=move || {
+                                                    let query = filter_query.get().to_lowercase();
+                                                    if query.is_empty() {
+                                                        return codes.clone();
+                                                    }
+                                                    codes
+                                                        .iter()
+                                                        .filter(|c| {
+                                                            c.code.to_lowercase().contains(&query)
+                                                                || c.distributor_name.to_lowercase().contains(&query)
+                                                                || matches_invite_status(c.status, &query)
+                                                                || c.redeemer_name
+                                                                    .as_deref()
+                                                                    .is_some_and(|n| n.to_lowercase().contains(&query))
+                                                        })
+                                                        .cloned()
+                                                        .collect::<Vec<_>>()
+                                                }
+                                                key=|c| c.id
+                                                let:code
+                                            >
+                                                <li class="invite-code-card" data-testid="invite-code-row">
+                                                    // Code — primary identifier
+                                                    <span
+                                                        class="invite-code-card-code"
+                                                        data-testid="invite-code-cell"
                                                     >
-                                                        <tr data-testid="invite-code-row">
-                                                            <td data-testid="invite-code-cell">
-                                                                {code.code.clone()}
-                                                            </td>
-                                                            <td data-testid="invite-code-distributor-cell">
-                                                                {code.distributor_name.clone()}
-                                                            </td>
-                                                            <td data-testid="invite-code-status-cell">
-                                                                {match code.status {
-                                                                    InviteCodeStatus::Unused => {
-                                                                        view! {
-                                                                            <span
-                                                                                class="badge"
-                                                                                data-testid="invite-code-status-badge"
-                                                                                data-status="unused"
-                                                                            >
-                                                                                {t!(
-                                                                                    i18n,
-                                                                                    admin_invite_codes_status_unused
-                                                                                )}
-                                                                            </span>
-                                                                        }
-                                                                        .into_any()
-                                                                    }
-                                                                    InviteCodeStatus::Used => {
-                                                                        view! {
-                                                                            <span
-                                                                                class="badge"
-                                                                                data-testid="invite-code-status-badge"
-                                                                                data-status="used"
-                                                                            >
-                                                                                {t!(
-                                                                                    i18n,
-                                                                                    admin_invite_codes_status_used
-                                                                                )}
-                                                                            </span>
-                                                                        }
-                                                                        .into_any()
-                                                                    }
-                                                                    InviteCodeStatus::Revoked => {
-                                                                        view! {
-                                                                            <span
-                                                                                class="badge"
-                                                                                data-testid="invite-code-status-badge"
-                                                                                data-status="revoked"
-                                                                            >
-                                                                                {t!(
-                                                                                    i18n,
-                                                                                    admin_invite_codes_status_revoked
-                                                                                )}
-                                                                            </span>
-                                                                        }
-                                                                        .into_any()
-                                                                    }
-                                                                }}
-                                                            </td>
-                                                            <td data-testid="invite-code-redeemer-cell">
-                                                                {match (code.redeemer_name.clone(), code.redeemed_at.clone()) {
-                                                                    (Some(name), Some(date_str)) => {
-                                                                        format!("{name} ({date_str})")
-                                                                    }
-                                                                    (Some(name), None) => name,
-                                                                    _ => String::new(),
-                                                                }}
-                                                            </td>
-                                                            <td>
-                                                                {if code.status
-                                                                    == InviteCodeStatus::Unused
-                                                                {
-                                                                    let code_id = code.id.to_string();
-                                                                    view! {
-                                                                        <leptos::form::ActionForm action=revoke_invite_action>
-                                                                            <input
-                                                                                type="hidden"
-                                                                                name="id"
-                                                                                value=code_id
-                                                                            />
-                                                                            <button
-                                                                                class="btn"
-                                                                                data-variant="destructive"
-                                                                                data-size="sm"
-                                                                                type="submit"
-                                                                                data-testid="invite-code-revoke-button"
-                                                                                disabled=move || revoke_pending.get() || !hydrated.get()
-                                                                                attr:aria-busy=move || revoke_pending.get().then_some("true")
-                                                                            >
-                                                                                {t!(
-                                                                                    i18n,
-                                                                                    admin_invite_codes_revoke_button
-                                                                                )}
-                                                                            </button>
-                                                                        </leptos::form::ActionForm>
-                                                                    }
-                                                                    .into_any()
-                                                                } else {
-                                                                    ().into_any()
-                                                                }}
-                                                            </td>
-                                                        </tr>
-                                                    </For>
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                                        {code.code.clone()}
+                                                    </span>
+                                                    // Distributor — secondary line
+                                                    <span
+                                                        class="invite-code-card-meta"
+                                                        data-testid="invite-code-distributor-cell"
+                                                    >
+                                                        {code.distributor_name.clone()}
+                                                    </span>
+                                                    // Status badge
+                                                    <span data-testid="invite-code-status-cell">
+                                                        {match code.status {
+                                                            InviteCodeStatus::Unused => {
+                                                                view! {
+                                                                    <span
+                                                                        class="badge"
+                                                                        data-testid="invite-code-status-badge"
+                                                                        data-status="unused"
+                                                                    >
+                                                                        {t!(
+                                                                            i18n,
+                                                                            admin_invite_codes_status_unused
+                                                                        )}
+                                                                    </span>
+                                                                }
+                                                                .into_any()
+                                                            }
+                                                            InviteCodeStatus::Used => {
+                                                                view! {
+                                                                    <span
+                                                                        class="badge"
+                                                                        data-testid="invite-code-status-badge"
+                                                                        data-status="used"
+                                                                    >
+                                                                        {t!(
+                                                                            i18n,
+                                                                            admin_invite_codes_status_used
+                                                                        )}
+                                                                    </span>
+                                                                }
+                                                                .into_any()
+                                                            }
+                                                            InviteCodeStatus::Revoked => {
+                                                                view! {
+                                                                    <span
+                                                                        class="badge"
+                                                                        data-testid="invite-code-status-badge"
+                                                                        data-status="revoked"
+                                                                    >
+                                                                        {t!(
+                                                                            i18n,
+                                                                            admin_invite_codes_status_revoked
+                                                                        )}
+                                                                    </span>
+                                                                }
+                                                                .into_any()
+                                                            }
+                                                        }}
+                                                    </span>
+                                                    // Redeemer + timestamp (only when used)
+                                                    <span
+                                                        class="invite-code-card-redeemer"
+                                                        data-testid="invite-code-redeemer-cell"
+                                                    >
+                                                        {match (code.redeemer_name.clone(), code.redeemed_at.clone()) {
+                                                            (Some(name), Some(date_str)) => {
+                                                                format!("{name} ({date_str})")
+                                                            }
+                                                            (Some(name), None) => name,
+                                                            _ => String::new(),
+                                                        }}
+                                                    </span>
+                                                    // Revoke action (only for unused codes)
+                                                    <span class="invite-code-card-action">
+                                                        {if code.status == InviteCodeStatus::Unused {
+                                                            let code_id = code.id.to_string();
+                                                            view! {
+                                                                <leptos::form::ActionForm action=revoke_invite_action>
+                                                                    <input
+                                                                        type="hidden"
+                                                                        name="id"
+                                                                        value=code_id
+                                                                    />
+                                                                    <button
+                                                                        class="btn"
+                                                                        data-variant="destructive"
+                                                                        data-size="sm"
+                                                                        type="submit"
+                                                                        data-testid="invite-code-revoke-button"
+                                                                        disabled=move || revoke_pending.get() || !hydrated.get()
+                                                                        attr:aria-busy=move || revoke_pending.get().then_some("true")
+                                                                    >
+                                                                        {t!(
+                                                                            i18n,
+                                                                            admin_invite_codes_revoke_button
+                                                                        )}
+                                                                    </button>
+                                                                </leptos::form::ActionForm>
+                                                            }
+                                                            .into_any()
+                                                        } else {
+                                                            ().into_any()
+                                                        }}
+                                                    </span>
+                                                </li>
+                                            </For>
+                                        </ul>
                                     }
                                     .into_any()
                                 }

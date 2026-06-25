@@ -8,6 +8,7 @@ use leptos::prelude::*;
 /// - Completed: green checkmark
 /// - Current: orange/accent highlight
 /// - Locked: dimmed/gray
+/// - Abandoned: muted (when the season was cancelled before completion)
 ///
 /// Used on both admin dashboard and participant home.
 #[component]
@@ -26,6 +27,8 @@ pub fn PhaseStepper(
         Phase::Complete,
     ];
 
+    let is_cancelled = current_phase == Phase::Cancelled;
+
     view! {
         <nav aria-label="Season progress" data-testid="phase-stepper">
             <ol class="stepper">
@@ -33,11 +36,15 @@ pub fn PhaseStepper(
                     .into_iter()
                     .enumerate()
                     .flat_map(|(idx, phase)| {
-                        // Determine status
-                        let status = match phase.cmp(&current_phase) {
-                            std::cmp::Ordering::Less => "completed",
-                            std::cmp::Ordering::Equal => "current",
-                            std::cmp::Ordering::Greater => "locked",
+                        // Cancelled: all phases show as "abandoned" — muted, not success-green
+                        let status = if is_cancelled {
+                            "abandoned"
+                        } else {
+                            match phase.cmp(&current_phase) {
+                                std::cmp::Ordering::Less => "completed",
+                                std::cmp::Ordering::Equal => "current",
+                                std::cmp::Ordering::Greater => "locked",
+                            }
                         };
 
                         // Get phase label from i18n
@@ -51,12 +58,17 @@ pub fn PhaseStepper(
                         };
 
                         // Connector before step (except for first step).
-                        // Green when the preceding step is completed.
+                        // Green when the preceding step is completed; abandoned when cancelled.
                         // Uses <li> (not <div>) — <div> inside <ol> is invalid HTML
                         // and causes browser re-parenting that breaks sibling selectors.
                         let connector = if idx > 0 {
-                            let prev_completed = phases[idx - 1] < current_phase;
-                            let connector_status = if prev_completed { "completed" } else { "pending" };
+                            let connector_status = if is_cancelled {
+                                "abandoned"
+                            } else if phases[idx - 1] < current_phase {
+                                "completed"
+                            } else {
+                                "pending"
+                            };
                             Some(view! {
                                 <li
                                     class="step-connector"
@@ -68,9 +80,11 @@ pub fn PhaseStepper(
                             None
                         };
 
-                        // Marker content: checkmark for completed, number for others
+                        // Marker content: checkmark for completed, dash for abandoned, number otherwise
                         let marker_content = if status == "completed" {
                             "\u{2713}".to_string()
+                        } else if status == "abandoned" {
+                            "\u{2013}".to_string()
                         } else {
                             (idx + 1).to_string()
                         };

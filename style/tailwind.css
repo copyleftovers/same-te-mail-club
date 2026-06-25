@@ -444,59 +444,56 @@
     vertical-align: top;
   }
 
-  /* Invite-code words are a closed vocabulary — they must not wrap at the hyphen */
-  .data-table td:first-child {
-    white-space: nowrap;
-  }
-
-  /* Actions column: reserve enough width for the widest action button ("Відкликати" sm pill).
-     min-width prevents table-layout:auto from squeezing this column below the button's rendered
-     size when a 5-column table (invite codes) must fit within the 65ch prose-page container.
-     The 4-column participant table already has room; this fixes only the 5-column case. */
   .data-table th:last-child,
   .data-table td:last-child {
     white-space: nowrap;
-    min-width: 7rem; /* sm pill: ~1.5rem horiz padding + ~5.5rem Cyrillic text at text-xs */
   }
 
-  /* Redeemer column cap: constrains col-4 in the invite-codes table (5 cols, redeemer is col 4,
-     not last) without touching the participant table (4 cols, actions is col 4 AND :last-child).
-     Desktop-only — mobile card-stack gives each cell width:100%. */
-  @media (min-width: 640px) {
-    .data-table th:nth-child(4):not(:last-child),
-    .data-table td:nth-child(4):not(:last-child) {
-      max-width: 10rem;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+  /* ── Invite code card list ────────────────────────────────────── */
+  /* One form for all viewports — avoids the 5-column table that cannot fit the 65ch container. */
+  .invite-code-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--density-space-sm);
   }
 
-  /* Invite-codes table: fixed layout so the browser treats column widths as LAW.
-     Under table-layout:auto the actions column can be squeezed below the pill's rendered
-     width when a long redeemer string consumes most of the 65ch budget; table-layout:fixed
-     removes that freedom — assigned widths are honored regardless of cell content.
-     Desktop-only: mobile renders as card-stack (display:block), table-layout has no effect. */
-  @media (min-width: 640px) {
-    .data-table--invite {
-      table-layout: fixed;
-    }
+  .invite-code-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2) var(--density-space-sm);
+    padding: var(--density-space-sm) var(--density-space-md);
+    border: 1px solid oklch(from var(--color-brand-gray) l c h / 0.15); /* structural: 1px card border */
+    border-radius: var(--radius-md);
+  }
 
-    /* Column widths for 5-column invite table. Must sum ≤ inner prose-page width (~30.5rem).
-       col1 code      6rem — invite words "word-word-word", fixed vocabulary, nowrap already set
-       col2 distributor: auto — receives remaining ~4rem; distributor names may wrap, that is fine
-       col3 status    5rem — short badge ("Активний", "Використано", "Відкликано")
-       col4 redeemer  7.5rem — truncated by the :not(:last-child) rule above
-       col5 actions   8rem — guaranteed width for "Відкликати" sm pill (text-xs + 0.75rem padding×2)
-       Fixed total: 6 + 5 + 7.5 + 8 = 26.5rem; distributor receives ~4rem of the remaining ~30.5rem */
-    .data-table--invite th:nth-child(1),
-    .data-table--invite td:nth-child(1) { width: 6rem; }
-    .data-table--invite th:nth-child(3),
-    .data-table--invite td:nth-child(3) { width: 5rem; }
-    .data-table--invite th:nth-child(4),
-    .data-table--invite td:nth-child(4) { width: 7.5rem; }
-    .data-table--invite th:nth-child(5),
-    .data-table--invite td:nth-child(5) { width: 8rem; }
+  /* Code — primary identifier, full width, monospace weight */
+  .invite-code-card-code {
+    width: 100%;
+    font-weight: 600;
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
+
+  /* Distributor — secondary muted line */
+  .invite-code-card-meta {
+    font-size: var(--text-secondary);
+    color: var(--color-text-muted);
+  }
+
+  /* Redeemer + timestamp — secondary muted line, grows to fill available space */
+  .invite-code-card-redeemer {
+    flex: 1;
+    font-size: var(--text-secondary);
+    color: var(--color-text-muted);
+  }
+
+  /* Action — pushed to the right edge */
+  .invite-code-card-action {
+    margin-left: auto;
   }
 
   .alert {
@@ -904,6 +901,15 @@
     opacity: 0.4;
   }
 
+  /* Cancelled season: all steps muted — visually distinct from the all-green completed path */
+  .step[data-status="abandoned"] .step-marker {
+    opacity: 0.35;
+  }
+
+  .step[data-status="abandoned"] .step-label {
+    opacity: 0.45;
+  }
+
   .step-label {
     font-weight: 600;
     font-size: var(--text-xs); /* spec minimum: 12px; previous 0.625rem (10px) was below minimum */
@@ -930,6 +936,10 @@
 
   .step-connector[data-status="completed"] {
     background: var(--color-success);
+  }
+
+  .step-connector[data-status="abandoned"] {
+    opacity: 0.35;
   }
 
   /* ── Data table wrapper ───────────────────────────────────────── */
