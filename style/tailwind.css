@@ -459,6 +459,19 @@
     min-width: 7rem; /* sm pill: ~1.5rem horiz padding + ~5.5rem Cyrillic text at text-xs */
   }
 
+  /* Redeemer column cap: constrains col-4 in the invite-codes table (5 cols, redeemer is col 4,
+     not last) without touching the participant table (4 cols, actions is col 4 AND :last-child).
+     Desktop-only — mobile card-stack gives each cell width:100%. */
+  @media (min-width: 640px) {
+    .data-table th:nth-child(4):not(:last-child),
+    .data-table td:nth-child(4):not(:last-child) {
+      max-width: 10rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
   .alert {
     padding: var(--density-space-sm) var(--density-space-md);
     border-radius: var(--radius-md);
