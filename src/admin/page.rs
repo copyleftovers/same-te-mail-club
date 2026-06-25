@@ -1374,7 +1374,7 @@ fn InviteCodesSection(
                                 Ok(codes) => {
                                     view! {
                                         <div class="data-table-wrapper">
-                                            <table class="data-table">
+                                            <table class="data-table data-table--invite">
                                                 <thead>
                                                     <tr>
                                                         <th>

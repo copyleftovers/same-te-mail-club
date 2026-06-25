@@ -472,6 +472,33 @@
     }
   }
 
+  /* Invite-codes table: fixed layout so the browser treats column widths as LAW.
+     Under table-layout:auto the actions column can be squeezed below the pill's rendered
+     width when a long redeemer string consumes most of the 65ch budget; table-layout:fixed
+     removes that freedom — assigned widths are honored regardless of cell content.
+     Desktop-only: mobile renders as card-stack (display:block), table-layout has no effect. */
+  @media (min-width: 640px) {
+    .data-table--invite {
+      table-layout: fixed;
+    }
+
+    /* Column widths for 5-column invite table. Must sum ≤ inner prose-page width (~30.5rem).
+       col1 code      6rem — invite words "word-word-word", fixed vocabulary, nowrap already set
+       col2 distributor: auto — receives remaining ~4rem; distributor names may wrap, that is fine
+       col3 status    5rem — short badge ("Активний", "Використано", "Відкликано")
+       col4 redeemer  7.5rem — truncated by the :not(:last-child) rule above
+       col5 actions   8rem — guaranteed width for "Відкликати" sm pill (text-xs + 0.75rem padding×2)
+       Fixed total: 6 + 5 + 7.5 + 8 = 26.5rem; distributor receives ~4rem of the remaining ~30.5rem */
+    .data-table--invite th:nth-child(1),
+    .data-table--invite td:nth-child(1) { width: 6rem; }
+    .data-table--invite th:nth-child(3),
+    .data-table--invite td:nth-child(3) { width: 5rem; }
+    .data-table--invite th:nth-child(4),
+    .data-table--invite td:nth-child(4) { width: 7.5rem; }
+    .data-table--invite th:nth-child(5),
+    .data-table--invite td:nth-child(5) { width: 8rem; }
+  }
+
   .alert {
     padding: var(--density-space-sm) var(--density-space-md);
     border-radius: var(--radius-md);
