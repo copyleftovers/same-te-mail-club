@@ -827,42 +827,6 @@
     }
   }
 
-  /* Mobile stepper: all 5 steps must fit within 375px without clipping.
-     Strategy: hide all step labels except the current one; shrink step min-width to the
-     marker circle size; compress connectors and gap. The current step's label stays visible
-     below its circle so the admin always sees which phase is active.
-     Width budget at 375px ≈ 23.4rem available.
-     5 circles × 2.5rem + 4 connectors × 0.5rem + 8 gaps × 0.25rem = 12.5 + 2 + 2 = 16.5rem content,
-     plus stepper padding-inline 2 × 0.5rem = 1rem → 17.5rem total occupied ≤ 23.4rem — fits. */
-  @media (max-width: 639px) {
-    .stepper {
-      mask-image: none;
-      -webkit-mask-image: none;
-      gap: calc(var(--spacing) * 1);
-      justify-content: center;
-      padding-inline: calc(var(--spacing) * 2);
-    }
-
-    .step {
-      min-width: var(--size-step-marker);
-      gap: calc(var(--spacing) * 1);
-    }
-
-    /* Hide all step labels on mobile */
-    .step-label {
-      display: none;
-    }
-
-    /* Show only the current step label so the admin knows which phase is active */
-    .step[data-status="current"] .step-label {
-      display: block;
-    }
-
-    .step-connector {
-      width: calc(var(--spacing) * 2);
-    }
-  }
-
   .step {
     display: flex;
     flex-direction: column;
