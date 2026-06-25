@@ -449,9 +449,14 @@
     white-space: nowrap;
   }
 
-  /* Actions column must not shrink below the button's natural width */
+  /* Actions column: reserve enough width for the widest action button ("Відкликати" sm pill).
+     min-width prevents table-layout:auto from squeezing this column below the button's rendered
+     size when a 5-column table (invite codes) must fit within the 65ch prose-page container.
+     The 4-column participant table already has room; this fixes only the 5-column case. */
+  .data-table th:last-child,
   .data-table td:last-child {
     white-space: nowrap;
+    min-width: 7rem; /* sm pill: ~1.5rem horiz padding + ~5.5rem Cyrillic text at text-xs */
   }
 
   .alert {
