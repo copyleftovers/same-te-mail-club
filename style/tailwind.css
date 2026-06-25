@@ -465,6 +465,9 @@
     flex-wrap: wrap;
     align-items: center;
     gap: calc(var(--spacing) * 2) var(--density-space-sm);
+    /* Reserve a consistent baseline so empty-redeemer and single-line cards
+       stack with even rhythm; only genuine 2-line redeemers exceed it. */
+    min-height: calc(var(--spacing) * 14);
     padding: var(--density-space-sm) var(--density-space-md);
     border: 1px solid oklch(from var(--color-brand-gray) l c h / 0.15); /* structural: 1px card border */
     border-radius: var(--radius-md);
@@ -821,8 +824,33 @@
     scroll-padding-inline: calc(var(--spacing) * 4);
   }
 
+  /* Compact mobile indicator ("Крок N з 5: <phase>") — replaces the horizontal
+     strip below 640px, where the 5-label Ukrainian strip cannot fit 375px. */
+  .stepper-compact {
+    padding: var(--density-space-md) calc(var(--spacing) * 4);
+    margin: 0;
+    font-weight: 600;
+    font-size: var(--text-sm);
+    color: var(--color-text);
+  }
+
+  .stepper-compact[data-status="abandoned"] {
+    color: var(--color-text-muted);
+  }
+
+  /* Mobile-first: show the compact line, hide the strip. */
+  .stepper-strip {
+    display: none;
+  }
+
   @media (min-width: 640px) {
-    .stepper {
+    /* Desktop: show the full horizontal strip, hide the compact line. */
+    .stepper-compact {
+      display: none;
+    }
+
+    .stepper-strip {
+      display: flex;
       justify-content: center; /* re-center once viewport fits all 5 steps */
     }
   }

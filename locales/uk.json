@@ -112,6 +112,8 @@
   "season_phase_delivery": "Доставка",
   "season_phase_complete": "Завершено",
   "season_phase_cancelled": "Скасовано",
+  "season_stepper_compact_prefix": "Крок {{ step }} з 5:",
+  "season_stepper_cancelled": "Сезон скасовано",
   "assignments_swap_title": "Обмін",
   "assignments_swap_description": "Обери двох відправників, щоб поміняти їхніх отримувачів.",
   "assignments_sender_a_label": "Відправник А",
