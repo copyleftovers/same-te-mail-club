@@ -182,7 +182,7 @@ Both use the same tokens. Density differs via `[data-layout="admin"]` on the adm
 
 The admin layout root is the `<AdminGuard>` wrapper or a `<div data-layout="admin">` inside it. Participant pages have no `data-layout` attribute (default density applies).
 
-Admin-specific component classes (`.data-table`, `.stat-card`) live in the same `@layer components` block. They reference `--density-space-*` tokens which adapt automatically under `[data-layout="admin"]`.
+Admin-specific component classes (`.data-table`, `.invite-code-card`) live in the same `@layer components` block. They reference `--density-space-*` tokens which adapt automatically under `[data-layout="admin"]`.
 
 ---
 
