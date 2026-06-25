@@ -86,11 +86,29 @@ async function captureState(page: Page, name: string): Promise<void> {
   });
 }
 
+// ── Section screenshot helper ──────────────────────────────────────────────────
+// Captures a single admin section by testid, desktop viewport only.
+// Uses the same NN index as the parent captureState call.
+
+async function captureSection(
+  page: Page,
+  stateIndex: string,
+  stateName: string,
+  sectionTestid: string,
+): Promise<void> {
+  await page.setViewportSize(DESKTOP_VIEWPORT);
+  const locator = page.getByTestId(sectionTestid);
+  await locator.screenshot({
+    path: `screenshots/sections/${stateIndex}-${stateName}__${sectionTestid}.png`,
+  });
+}
+
 // ── Directory creation ─────────────────────────────────────────────────────────
 
 test.beforeAll(() => {
   fs.mkdirSync("screenshots/mobile", { recursive: true });
   fs.mkdirSync("screenshots/desktop", { recursive: true });
+  fs.mkdirSync("screenshots/sections", { recursive: true });
 });
 
 // ── Visual Audit ──────────────────────────────────────────────────────────────
@@ -125,7 +143,11 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await app.goToDashboard();
     await expect(page.getByTestId("generate-code-button")).toBeEnabled();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-invite-codes-initial");
+    await captureSection(page, sIdx, "admin-invite-codes-initial", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-invite-codes-initial", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-invite-codes-initial", "participant-list");
   });
 
   test("setup — generate invite codes for audit participants", async ({ page }) => {
@@ -143,7 +165,11 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await app.goToDashboard();
     await expect(page.getByTestId("invite-code-list")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-invite-codes-populated");
+    await captureSection(page, sIdx, "admin-invite-codes-populated", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-invite-codes-populated", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-invite-codes-populated", "participant-list");
   });
 
   // ── Self-registration flow (new participant) ──────────────────────────────────
@@ -199,7 +225,11 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await app.goToDashboard();
     await expect(page.getByTestId("participant-list")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-participants-list");
+    await captureSection(page, sIdx, "admin-participants-list", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-participants-list", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-participants-list", "participant-list");
   });
 
   // ── Admin: season creation ────────────────────────────────────────────────────
@@ -219,7 +249,13 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await page.goto("/admin");
     await expect(page.getByTestId("create-season-button")).toBeEnabled();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-no-season-create-form-available");
+    await captureSection(page, sIdx, "admin-no-season-create-form-available", "season-section");
+    await captureSection(page, sIdx, "admin-no-season-create-form-available", "create-season-form");
+    await captureSection(page, sIdx, "admin-no-season-create-form-available", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-no-season-create-form-available", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-no-season-create-form-available", "participant-list");
   });
 
   test("capture admin — unlaunched season (launch button visible)", async ({ page }) => {
@@ -227,7 +263,16 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await app.createSeason(SIGNUP_DEADLINE, CONFIRM_DEADLINE, SEASON_THEME);
     await expect(page.getByTestId("launch-button")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-season-created-pre-launch");
+    await captureSection(page, sIdx, "admin-season-created-pre-launch", "season-section");
+    await captureSection(page, sIdx, "admin-season-created-pre-launch", "season-summary");
+    await captureSection(page, sIdx, "admin-season-created-pre-launch", "phase-stepper");
+    await captureSection(page, sIdx, "admin-season-created-pre-launch", "pre-launch-participant-count");
+    await captureSection(page, sIdx, "admin-season-created-pre-launch", "season-action-buttons");
+    await captureSection(page, sIdx, "admin-season-created-pre-launch", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-season-created-pre-launch", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-season-created-pre-launch", "participant-list");
   });
 
   // ── Home: no enrollment available (season not yet launched) ──────────────────
@@ -247,7 +292,25 @@ test.describe.serial("Visual Audit", () => {
     await app.launchSeason();
     await app.goToDashboard();
     await expect(page.getByTestId("advance-button")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-signup-phase");
+    await captureSection(page, sIdx, "admin-signup-phase", "season-section");
+    await captureSection(page, sIdx, "admin-signup-phase", "season-summary");
+    await captureSection(page, sIdx, "admin-signup-phase", "phase-stepper");
+    await captureSection(page, sIdx, "admin-signup-phase", "sms-section-enrollment");
+    await captureSection(page, sIdx, "admin-signup-phase", "season-action-buttons");
+    await captureSection(page, sIdx, "admin-signup-phase", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-signup-phase", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-signup-phase", "participant-list");
+    // Cancel-confirmation dialog — requires client-side interaction; open, capture, dismiss.
+    await expect(page.getByTestId("cancel-button")).toBeEnabled();
+    await page.getByTestId("cancel-button").click();
+    await expect(page.getByTestId("cancel-confirmation")).toBeVisible();
+    await page.getByTestId("cancel-confirmation").screenshot({
+      path: `screenshots/sections/${sIdx}-admin-signup-phase__cancel-confirmation.png`,
+    });
+    await page.getByTestId("cancel-back-button").click();
+    await expect(page.getByTestId("cancel-button")).toBeVisible();
   });
 
   // ── Home: enrollment available ────────────────────────────────────────────────
@@ -292,7 +355,16 @@ test.describe.serial("Visual Audit", () => {
     await app.advanceSeason();
     await app.goToDashboard();
     await expect(page.getByTestId("advance-button")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-confirm-phase");
+    await captureSection(page, sIdx, "admin-confirm-phase", "season-section");
+    await captureSection(page, sIdx, "admin-confirm-phase", "season-summary");
+    await captureSection(page, sIdx, "admin-confirm-phase", "phase-stepper");
+    await captureSection(page, sIdx, "admin-confirm-phase", "sms-section-preparation");
+    await captureSection(page, sIdx, "admin-confirm-phase", "season-action-buttons");
+    await captureSection(page, sIdx, "admin-confirm-phase", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-confirm-phase", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-confirm-phase", "participant-list");
   });
 
   // ── Home: confirmed ready ─────────────────────────────────────────────────────
@@ -334,7 +406,16 @@ test.describe.serial("Visual Audit", () => {
     // the resolved Assignment-phase state (generate-button) is in the HTML.
     await page.goto("/admin");
     await expect(page.getByTestId("generate-button")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-assignment-phase-pre-generate");
+    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "season-section");
+    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "season-summary");
+    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "phase-stepper");
+    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "season-action-buttons");
+    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "assignment-section");
+    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "participant-list");
   });
 
   // ── Admin: assignments generated ─────────────────────────────────────────────
@@ -344,7 +425,20 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await app.generateAssignments();
     await expect(page.getByTestId("cycle-visualization")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-assignment-cycle");
+    await captureSection(page, sIdx, "admin-assignment-cycle", "season-section");
+    await captureSection(page, sIdx, "admin-assignment-cycle", "season-summary");
+    await captureSection(page, sIdx, "admin-assignment-cycle", "phase-stepper");
+    await captureSection(page, sIdx, "admin-assignment-cycle", "season-action-buttons");
+    await captureSection(page, sIdx, "admin-assignment-cycle", "assignment-section");
+    await page.getByTestId("cycle-visualization").first().screenshot({
+      path: `screenshots/sections/${sIdx}-admin-assignment-cycle__cycle-visualization.png`,
+    });
+    await captureSection(page, sIdx, "admin-assignment-cycle", "override-available");
+    await captureSection(page, sIdx, "admin-assignment-cycle", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-assignment-cycle", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-assignment-cycle", "participant-list");
   });
 
   // ── Admin: swap UI ────────────────────────────────────────────────────────────
@@ -354,7 +448,20 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await app.goToDashboard();
     await expect(page.getByTestId("override-available")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-swap-ui");
+    await captureSection(page, sIdx, "admin-swap-ui", "season-section");
+    await captureSection(page, sIdx, "admin-swap-ui", "season-summary");
+    await captureSection(page, sIdx, "admin-swap-ui", "phase-stepper");
+    await captureSection(page, sIdx, "admin-swap-ui", "season-action-buttons");
+    await captureSection(page, sIdx, "admin-swap-ui", "assignment-section");
+    await page.getByTestId("cycle-visualization").first().screenshot({
+      path: `screenshots/sections/${sIdx}-admin-swap-ui__cycle-visualization.png`,
+    });
+    await captureSection(page, sIdx, "admin-swap-ui", "override-available");
+    await captureSection(page, sIdx, "admin-swap-ui", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-swap-ui", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-swap-ui", "participant-list");
   });
 
   // ── Phase: advance to delivery ────────────────────────────────────────────────
@@ -368,7 +475,20 @@ test.describe.serial("Visual Audit", () => {
     // ensures it is present before the assertion starts.
     await page.goto("/admin");
     await expect(page.getByTestId("send-assignment-button")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-delivery-phase-sms-controls");
+    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "season-section");
+    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "season-summary");
+    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "phase-stepper");
+    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "sms-section-delivery");
+    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "season-action-buttons");
+    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "assignment-section");
+    await page.getByTestId("cycle-visualization").first().screenshot({
+      path: `screenshots/sections/${sIdx}-admin-delivery-phase-sms-controls__cycle-visualization.png`,
+    });
+    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "participant-list");
   });
 
   // ── Admin: SMS report after sending ──────────────────────────────────────────
@@ -378,7 +498,21 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await app.triggerSms("assignment");
     await expect(page.getByTestId("sms-report")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-sms-report");
+    await captureSection(page, sIdx, "admin-sms-report", "season-section");
+    await captureSection(page, sIdx, "admin-sms-report", "season-summary");
+    await captureSection(page, sIdx, "admin-sms-report", "phase-stepper");
+    await captureSection(page, sIdx, "admin-sms-report", "sms-section-delivery");
+    await captureSection(page, sIdx, "admin-sms-report", "sms-report");
+    await captureSection(page, sIdx, "admin-sms-report", "season-action-buttons");
+    await captureSection(page, sIdx, "admin-sms-report", "assignment-section");
+    await page.getByTestId("cycle-visualization").first().screenshot({
+      path: `screenshots/sections/${sIdx}-admin-sms-report__cycle-visualization.png`,
+    });
+    await captureSection(page, sIdx, "admin-sms-report", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-sms-report", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-sms-report", "participant-list");
   });
 
   // ── Home: participant sees assignment (includes receipt form in same DOM) ─────
@@ -430,7 +564,15 @@ test.describe.serial("Visual Audit", () => {
     // Explicit page.goto() required: same race as other post-advance tests.
     await page.goto("/admin");
     await expect(page.locator("main")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-season-complete");
+    await captureSection(page, sIdx, "admin-season-complete", "season-section");
+    await captureSection(page, sIdx, "admin-season-complete", "season-summary");
+    await captureSection(page, sIdx, "admin-season-complete", "season-terminal-badge");
+    await captureSection(page, sIdx, "admin-season-complete", "create-season-form");
+    await captureSection(page, sIdx, "admin-season-complete", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-season-complete", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-season-complete", "participant-list");
   });
 
   // ── Home: season complete ─────────────────────────────────────────────────────
@@ -458,7 +600,15 @@ test.describe.serial("Visual Audit", () => {
     await app.cancelSeason();
     await app.goToDashboard();
     await expect(page.locator("main")).toBeVisible();
+    const sIdx = String(SEQ.n).padStart(2, "0");
     await captureState(page, "admin-season-cancelled");
+    await captureSection(page, sIdx, "admin-season-cancelled", "season-section");
+    await captureSection(page, sIdx, "admin-season-cancelled", "season-summary");
+    await captureSection(page, sIdx, "admin-season-cancelled", "season-terminal-badge");
+    await captureSection(page, sIdx, "admin-season-cancelled", "create-season-form");
+    await captureSection(page, sIdx, "admin-season-cancelled", "participants-outer-section");
+    await captureSection(page, sIdx, "admin-season-cancelled", "invite-codes-section");
+    await captureSection(page, sIdx, "admin-season-cancelled", "participant-list");
   });
 
   test("capture home — cancelled season state", async ({ page }) => {

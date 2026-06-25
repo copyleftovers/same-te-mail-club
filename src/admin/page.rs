@@ -211,7 +211,7 @@ pub fn AdminPage() -> impl IntoView {
             </div>
 
             // ── Season section ─────────────────────────────────────────────────
-            <section>
+            <section data-testid="season-section">
                 <h2>{t!(i18n, season_page_title)}</h2>
                 <Suspense fallback=move || view! { <SkeletonFallback /> }>
                     {move || {
@@ -251,7 +251,7 @@ pub fn AdminPage() -> impl IntoView {
             </section>
 
             // ── Participants section ───────────────────────────────────────────
-            <section>
+            <section data-testid="participants-outer-section">
                 <h2 class="mb-(--density-space-md)">{t!(i18n, participants_page_title)}</h2>
                 <InviteCodesSection
                     generate_invite_action=generate_invite_action
@@ -319,7 +319,7 @@ fn render_create_form(
 ) -> AnyView {
     let pending = create_action.pending();
     view! {
-        <div>
+        <div data-testid="create-season-form">
             <p>{t!(i18n, dashboard_no_season)}</p>
             <section>
                 <h2>{t!(i18n, season_create_form_title)}</h2>
@@ -446,7 +446,7 @@ fn render_active_season(
             <PhaseStepper current_phase=phase />
 
             // Season summary: theme + deadlines + counts
-            <dl>
+            <dl data-testid="season-summary">
                 {theme.as_ref().map(|theme_val| view! {
                     <dt>{t!(i18n, season_theme_display_label)}</dt>
                     <dd data-testid="season-theme">{theme_val.clone()}</dd>
@@ -486,7 +486,7 @@ fn render_active_season(
             // Not-received alert (only in delivery/complete with non-zero count)
             {if not_received_count > 0 {
                 view! {
-                    <div class="alert">
+                    <div class="alert" data-testid="not-received-alert">
                         <strong>
                             {t!(i18n, dashboard_not_received_label)}
                             {not_received_count}
@@ -500,7 +500,7 @@ fn render_active_season(
             // Active participant count (shown before launch for context)
             {if !launched && !is_terminal {
                 view! {
-                    <p class="text-sm text-(--color-text-muted)">
+                    <p class="text-sm text-(--color-text-muted)" data-testid="pre-launch-participant-count">
                         {t!(i18n, dashboard_enrolled_label)} {participant_count}
                     </p>
                 }.into_any()
@@ -534,7 +534,7 @@ fn render_active_season(
             )}
 
             // Action buttons: launch, advance, cancel
-            <div class="flex flex-wrap gap-(--density-space-sm) mt-(--density-space-md)">
+            <div class="flex flex-wrap gap-(--density-space-sm) mt-(--density-space-md)" data-testid="season-action-buttons">
                 // Launch — only when not yet launched and not terminal
                 {if !launched && !is_terminal {
                     view! {
@@ -700,7 +700,7 @@ fn render_phase_sms(
         Phase::Enrollment => {
             let season_open_pending = season_open_action.pending();
             view! {
-                <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)">
+                <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)" data-testid="sms-section-enrollment">
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_season_open_section_title)}</h3>
                         <p>{t!(i18n, sms_season_open_target)}</p>
@@ -736,7 +736,7 @@ fn render_phase_sms(
         Phase::Preparation => {
             let confirm_nudge_pending = confirm_nudge_action.pending();
             view! {
-                <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)">
+                <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)" data-testid="sms-section-preparation">
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_confirm_nudge_section_title)}</h3>
                         <p>{t!(i18n, sms_confirm_nudge_target)}</p>
@@ -777,7 +777,7 @@ fn render_phase_sms(
             let assignment_pending = assignment_action.pending();
             let receipt_nudge_pending = receipt_nudge_action.pending();
             view! {
-                <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)">
+                <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)" data-testid="sms-section-delivery">
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_assignment_section_title)}</h3>
                         <p>{t!(i18n, sms_assignment_target)}</p>
@@ -926,7 +926,7 @@ fn render_assignment_section(
     let cohorts_for_viz = p.cohorts.clone();
 
     view! {
-        <div class="mt-(--density-space-lg)">
+        <div class="mt-(--density-space-lg)" data-testid="assignment-section">
             <h2>{t!(i18n, assignments_page_title)}</h2>
 
             // Generate button (only in assignment phase)
