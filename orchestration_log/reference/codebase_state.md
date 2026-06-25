@@ -62,3 +62,32 @@ Changes in 2026-06-22: Component system elevation — 43 fixes across CSS + 5 Ru
 2. `leptos_config` pulls `regex` into WASM dependency tree (LTO eliminates it, but compilation is slower)
 3. Docker Postgres adds latency vs native
 4. `CompressionLayer` re-compresses SSR HTML on the fly (small, fast — not a bottleneck)
+
+## Changes 2026-06-25 (visual-immaculate campaign — ~44 fix commits on main, HEAD `bb078b2`, NOT pushed)
+
+Verified premise correction: the component system is INTACT (the "no component system" report was false). Defects were rendered-pixel issues, fixed across 5+ re-verify rounds. Non-admin areas (auth/onboarding/home A/B) verified materially improved. **Admin still janky** (see below + deferred_items) — campaign paused there.
+
+**Toast** (`src/components/toast.rs` + `.toast-container`): now a **sticky flow-banner inside `<main>`** (`position: sticky; top:0; width:100%`, mounted before `<Routes>` in app.rs) — pushes content down, never overlaps. Was a fixed overlay; 3 fixed-position attempts collided with cycle-graph / desktop gutter / header / home h1. Slide-down keyframe; `data-testid="toast"` preserved.
+
+**Heading hierarchy:** home state headings promoted `<h2>`→`<h1>` (page-title clamp scale); admin section headings sized via `[data-layout="admin"] --text-section: 1.1rem`; `.prose-page h1` letter-spacing `-0.01em` (Cyrillic glyph overlap at clamp ceiling); `h1/h2/h3.overline-label` specificity rule so headings can carry the overline style; the `[data-layout="admin"]` density block wrapped in `@layer base` (was unlayered CSS).
+
+**`.data-table`:** `td:last-child { min-width:7rem; white-space:nowrap }`; `td vertical-align: top` (wrapped cells align top). Invite-codes table now `.data-table--invite` (class on the `<table>` in admin/page.rs) with `table-layout: fixed` + explicit column widths — ⚠️ **CURRENTLY OVERPRINTS** (status badge over redeemer, code over distributor on used rows): 5 cols don't fit 65ch. TO BE REPLACED by a form-first fix (cards / fewer columns / break 65ch). Mobile card-stack degradation intact + clean.
+
+**New:** `src/components/skeleton.rs` (`SkeletonFallback`, replaced 3 inline skeleton blocks; `components/mod.rs` updated). `guidance/ui-review-prompt.md` (shared UI reviewer method).
+
+**Dead classes removed** (-70 lines CSS): `.stat-card/.stat-value/.stat-label/.action-panel/.action-panel-title/.danger-zone/.danger-zone-title` (zero Rust usage).
+
+**ARIA:** home enrollment inputs + admin swap selects got `aria-invalid` + `aria-describedby="action-error"`.
+
+**Rust:** `strip_server_error_prefix` made `pub(crate)` (login.rs), reused in onboarding.rs error display (was duplicating the framework prefix). `enroll_in_season` gained `use_existing_address: bool` param (explicit skip; replaced implicit empty-string contract; form sends it as a hidden input in both branches).
+
+**Infra/tests:** `justfile db-reset` prepends `pg_terminate_backend` (external SQL clients block the drop). `end2end/tests/visual-audit.spec.ts`: merged the 23/24 duplicate capture, renamed 29→`home-cancelled-season`, 03→`admin-invite-codes-initial`, 09→`admin-no-season-create-form-available`. Screenshot set now **28 page-pairs** (was 29). Mobile phase-stepper fit attempt still clips steps 1/5 (deferred — needs compact "step N/5" form).
+
+**Recon artifacts:** `orchestration_log/recon/2026-06-24/` — `adhoc-audit-*`, `reviews/` (spec-/quality-/review-*), `reverify-*` (R1–R5 + def/revoke/final/gate), `fix-plan.md`, `fix-plan-round2.md`, `css-regression-rootcause.md`, `toast-rootcause.md`, `admin-revoke-investigation-2.md`, `e2e-failure-investigation.md`, `db-blocker-fix.md`, `screenshot-staleness.md`, `recent-sessions-digest.md`.
+
+**Worktrees:** all session worktrees + 3 stale prior-session worktrees removed; only main worktree remains.
+
+## Changes 2026-06-25 (continued — sectioned screenshots on main; admin de-jank in worktree)
+
+- **On main (`85f9ccb`):** `visual-audit.spec.ts` now captures per-section admin screenshots (`screenshots/sections/{NN}-{state}__{section}.png`) in addition to full-page; 11 section `data-testid`s added to `src/admin/page.rs`. Screenshot set: 28 desktop + 28 mobile full-page + 102 admin section crops. `captureSection` helper; cancel-confirmation dialog captured.
+- **SHIPPED to main + pushed (origin/main @ `405b955`, **CI green** run 28172280159) — supersedes the "NOT integrated" note below:** invite-codes table → card form (`<ul class="invite-code-list">`/`<li class="invite-code-card">`, all viewports; `.data-table--invite` table-layout:fixed CSS removed); button-group `items-start`; participant-count space; cancelled-stepper `data-status="abandoned"` treatment; compact mobile phase-stepper (`"Крок N з 5: <label>"` ≤640px, full strip ≥640px); even invite-card `min-height`; 2 `locales/uk.json` keys. Files: `src/admin/page.rs`, `src/components/stepper.rs`, `style/tailwind.css`, `locales/uk.json`.
