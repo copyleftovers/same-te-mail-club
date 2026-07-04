@@ -186,18 +186,11 @@ ALWAYS re-verify rendered pixels at native resolution, BOTH viewports (375px + d
 
 **verify-then-fix in every implementer brief.** Absorbs stale-defect-list drift: if a defect was already fixed by a prior commit, the implementer skips it cleanly rather than producing a no-op or regressing. The brief should always say "verify the defect is genuinely present before fixing; if already fixed, report it as no-op."
 
+**Docs-only close commit uses `[skip ci]`.** The session-close commit (orchestration_log/ markdown only) needs no CI; append `[skip ci]` to its one-line message so a docs-only push doesn't trigger a redundant full CI run (the code CI already ran on the preceding code push).
+
 **Forbidden (Wave 2 additions):**
 | Pattern | Why | Traced to |
 |---|---|---|
 | Pointing rendered-re-verify agents at light-only screenshots when the change touches color | Dark mode has distinct token assignments; a color change that passes light may fail dark. `screenshots/dark-desktop` and `screenshots/dark-mobile` always exist after a full capture. | 2026-07-04 Wave 2: orchestrator missed dark shots; user challenged |
 | Capping `.field` width to constrain an input | `.field-error` inherits the cap → error text wraps in a narrow column. Cap `.field-input` or the `<input>` element only. | 2026-07-04: login OTP 4-line error wrap, fix 0422a77 |
 | Desktop card split layout without a mobile breakpoint override | No auto-degradation at 375px; cards balloon/rag. Explicit `@media (max-width:639px)` required. | 2026-07-04: invite-card mobile balloon, fix c3433f5 |
-
-## Added 2026-07-04 (Wave 2 visual-immaculate close)
-
-- **Fold cheap Minor wins BEFORE integrate.** After a unit is spec+quality green, fold a reviewer's Minor finding into the unit pre-integration ONLY if it is (a) newly-introduced by this diff AND (b) cheaply fixable with an existing pattern. Skip pre-existing / cosmetic / reviewer-declined Minors (log them instead). Traced: folded D's redundant clone + np-number testid + Option-guard, F's named-timing-constants, C's inline-Ukrainian→existing key; skipped B's "document the English-infra boundary" (established convention) and G's conservative-contrast comment.
-- **Rendered re-verify catches what code AND spec review cannot.** Two real defects this wave passed both code and spec review and were caught ONLY by reading rendered screenshots: login OTP error text wrapping to 4 lines (width cap on the `.field` wrapper leaked into the error container), and admin invite-cards ballooning on mobile (desktop left/right split retained at 375px). ALWAYS re-verify the rendered pixels at native resolution.
-- **Dark mode is a separate re-verify axis — do NOT forget it.** The screenshot set has dedicated `end2end/screenshots/dark-desktop/` + `dark-mobile/` (28 each). Colour-touching work (badges, placeholder, field-error, surfaces) MUST be judged in dark too. Traced: orchestrator re-verified light-only; the user challenged rigor; a dedicated dark re-verify (rv-dark) was required (came back CLEAN — but the miss was real). Re-verify axes: {desktop, mobile 375px} × {light, dark}.
-- **verify-then-fix in every implementer brief absorbs stale-defect-list drift.** Instruct each implementer to grep/inspect current source and fix ONLY genuine defects (mark already-satisfied + skip). This wave, commit 7795997 had already done app-wide aria-invalid + create-season i18n; verify-then-fix reconciled the stale catalog with zero orchestrator bookkeeping.
-- **Premature idle ≠ completion for detached long commands.** An agent that launches `just e2e-release` (or a release build) can report `idle/available` while the `cargo-leptos` process keeps running DETACHED. Confirm completion by the log file + `pgrep`, never by the agent's idle ping.
-- **Docs-only close commit uses `[skip ci]`.** The session-close commit (orchestration_log/ markdown only) does not need CI; append `[skip ci]` to its one-line message to avoid a redundant full CI run on a docs-only push (the code CI already ran on the preceding code push).
