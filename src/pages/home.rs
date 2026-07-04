@@ -809,35 +809,37 @@ fn render_receipt_form(
                         aria-describedby="action-error"
                     ></textarea>
                 </div>
-                <button
-                    class="btn"
-                    type="submit"
-                    name="received"
-                    value="true"
-                    data-testid="received-button"
-                    disabled=move || receipt_pending.get() || !hydrated.get()
-                >
-                    {move || if receipt_pending.get() {
-                        "Надсилаю...".into_any()
-                    } else {
-                        t!(i18n, home_received_button).into_any()
-                    }}
-                </button>
-                <button
-                    class="btn"
-                    data-variant="secondary"
-                    type="submit"
-                    name="received"
-                    value="false"
-                    data-testid="not-received-button"
-                    disabled=move || receipt_pending.get() || !hydrated.get()
-                >
-                    {move || if receipt_pending.get() {
-                        "Надсилаю...".into_any()
-                    } else {
-                        t!(i18n, home_not_received_button).into_any()
-                    }}
-                </button>
+                <div class="btn-group">
+                    <button
+                        class="btn"
+                        type="submit"
+                        name="received"
+                        value="true"
+                        data-testid="received-button"
+                        disabled=move || receipt_pending.get() || !hydrated.get()
+                    >
+                        {move || if receipt_pending.get() {
+                            "Надсилаю...".into_any()
+                        } else {
+                            t!(i18n, home_received_button).into_any()
+                        }}
+                    </button>
+                    <button
+                        class="btn"
+                        data-variant="secondary"
+                        type="submit"
+                        name="received"
+                        value="false"
+                        data-testid="not-received-button"
+                        disabled=move || receipt_pending.get() || !hydrated.get()
+                    >
+                        {move || if receipt_pending.get() {
+                            "Надсилаю...".into_any()
+                        } else {
+                            t!(i18n, home_not_received_button).into_any()
+                        }}
+                    </button>
+                </div>
             </leptos::form::ActionForm>
         </section>
     }
