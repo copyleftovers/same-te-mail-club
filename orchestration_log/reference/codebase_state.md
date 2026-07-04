@@ -152,3 +152,5 @@ main @ **d4a9396** (17 commits ahead of ae39300; UNPUSHED at session close; push
 - `.btn + .btn` can't match across `<form>` → use token-based margin, not adjacent-sibling combinator
 - Width cap on `.field` (not `.field-input`) lets error text inherit the cap → cap the input element, let the field wrapper stay full-width
 - Desktop left/right card split retained on mobile without explicit breakpoint override → `@media (max-width:639px)` stacking rule required
+
+- **2026-07-04 close:** main @ `77d7d05` (code d4a9396 + close-docs c6bae49 + conventions-dedup 77d7d05), pushed to origin/main. CI run 28717592269 GREEN (Check + E2E). Wave 2 complete.

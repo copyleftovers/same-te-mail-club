@@ -188,6 +188,10 @@ ALWAYS re-verify rendered pixels at native resolution, BOTH viewports (375px + d
 
 **Docs-only close commit uses `[skip ci]`.** The session-close commit (orchestration_log/ markdown only) needs no CI; append `[skip ci]` to its one-line message so a docs-only push doesn't trigger a redundant full CI run (the code CI already ran on the preceding code push).
 
+**One writer per living ref-doc per close.** The orchestrator hand-appended a conventions section while the close-writer agent independently extended the SAME file → duplicate 2026-07-04 sections, both committed, then a dedup commit to clean up. Either the orchestrator writes a ref-doc section OR a close agent does — not both concurrently. If unavoidable, grep the dated section headers before committing.
+
+**Pre-commit fixer hooks abort the first commit.** The `trim trailing whitespace` / `fix end of files` hooks modify the staged file and fail the commit ("files were modified by this hook"); re-`git add` + re-commit lands it. Budget one retry after any doc append.
+
 **Forbidden (Wave 2 additions):**
 | Pattern | Why | Traced to |
 |---|---|---|

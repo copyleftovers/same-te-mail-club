@@ -116,3 +116,20 @@
 - Defect catalog: `orchestration_log/recon/2026-07-04/DEFECT-CATALOG-v2.md`
 - Remaining work: `orchestration_log/recon/2026-07-04/REMAINING.md`
 - Screenshots (gitignored): `end2end/screenshots/` — 33 desktop + 33 mobile + 28 dark-desktop + 28 dark-mobile + 102 admin section crops
+
+---
+
+## Checkpoint — 23:50 (post-close addendum)
+
+### Narrative
+Session-close phase, executed after the fix-wave record above. CI run 28717592269 completed **GREEN** (Check job + E2E job both success). Pushed in three commits: code `d4a9396`, session-close docs `c6bae49` [skip ci], conventions dedup `77d7d05` [skip ci]. Session record + all 3 reference docs written. No crons or agents left running.
+
+### Failures
+| Failure | Root cause | Correction |
+|---------|-----------|------------|
+| Duplicate 2026-07-04 conventions sections | Orchestrator hand-appended a conventions section WHILE the close-writer agent independently appended its own "Wave 2 lessons" to the same living doc — two concurrent writers on one file → two overlapping sections, both committed in c6bae49 | Deduped (kept the richer agent section, folded the orchestrator's unique `[skip ci]` bullet in, deleted the redundant one) → 77d7d05; convention added |
+| First dedup commit aborted | pre-commit trailing-whitespace / end-of-files fixer modified the staged file and failed the commit | Re-`git add` + re-commit landed it; budget one retry for fixer hooks |
+| TaskUpdate on the FINALIZE task returned "Task not found" at close | Tracker anomaly (task id stale/cleared) | Cosmetic; work verified + shipped regardless |
+
+### Working State
+DONE — Wave 2 shipped to origin/main @ `77d7d05`, CI GREEN. Nothing in progress, no blockers, no running crons/agents. Deferrals live in deferred_items.md.
