@@ -297,6 +297,20 @@ test.describe.serial("Visual Audit", () => {
     await expect(page).toHaveURL(/\/onboarding/);
     await expect(page.getByTestId("save-onboarding-button")).toBeEnabled();
     await captureState(page, "onboarding-branch-selection");
+    // ── Error state: per-field validation error (branch number out of range) ──
+    // Fill city with a valid value and np_number with "0" — both fields have
+    // values so browser required-validation passes; the server rejects because
+    // number < 1. No DB write occurs. np-number-error becomes non-empty.
+    // completeOnboarding() refills both fields with correct values afterwards,
+    // so the downstream serial flow is unaffected.
+    await page.getByTestId("np-city-input").fill(LONG_CITY_A);
+    await page.getByTestId("np-number-input").fill("0");
+    await app.clickAndWaitForResponse(
+      page.getByTestId("save-onboarding-button"),
+      "complete_onboarding",
+    );
+    await expect(page.getByTestId("np-number-error")).not.toBeEmpty();
+    await captureElementState(page, "onboarding-branch-selection", "error");
     // Complete onboarding with long city so the address carries through the rest
     // of the flow (enrollment forms, participant list, assignment display).
     await app.completeOnboarding(LONG_CITY_A, LONG_BRANCH_A);
