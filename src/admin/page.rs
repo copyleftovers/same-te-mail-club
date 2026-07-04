@@ -212,7 +212,7 @@ pub fn AdminPage() -> impl IntoView {
             </div>
 
             // ── Season section ─────────────────────────────────────────────────
-            <section data-testid="season-section">
+            <section class="admin-section" data-testid="season-section">
                 <h2>{t!(i18n, season_page_title)}</h2>
                 <Suspense fallback=move || view! { <SkeletonFallback /> }>
                     {move || {
@@ -236,23 +236,22 @@ pub fn AdminPage() -> impl IntoView {
                             })
                     }}
                 </Suspense>
-
-                // Assignment preview sub-section — only shown when there's a season
-                <Suspense fallback=|| ()>
-                    {move || {
-                        preview.get().map(|result| match result {
-                            Ok(Some(ref p)) => {
-                                render_assignment_section(p, generate_action, swap_action, hydrated, i18n)
-                            }
-                            _ => ().into_any(),
-                        })
-                    }}
-                </Suspense>
-
             </section>
 
+            // ── Assignments section — only shown when a preview exists ─────────
+            <Suspense fallback=|| ()>
+                {move || {
+                    preview.get().map(|result| match result {
+                        Ok(Some(ref p)) => {
+                            render_assignment_section(p, generate_action, swap_action, hydrated, i18n)
+                        }
+                        _ => ().into_any(),
+                    })
+                }}
+            </Suspense>
+
             // ── Participants section ───────────────────────────────────────────
-            <section data-testid="participants-outer-section">
+            <section class="admin-section" data-testid="participants-outer-section">
                 <h2 class="mb-(--density-space-md)">{t!(i18n, participants_page_title)}</h2>
                 <InviteCodesSection
                     generate_invite_action=generate_invite_action
@@ -261,7 +260,7 @@ pub fn AdminPage() -> impl IntoView {
                     distributor_options=distributor_options
                     hydrated=hydrated
                 />
-                <section>
+                <section class="admin-section">
                     <h2>{t!(i18n, participants_list_title)}</h2>
                     <ParticipantListSection
                         participants=participants
@@ -368,6 +367,7 @@ fn render_create_form(
                             placeholder=move || t_string!(i18n, season_theme_placeholder)
                             data-testid="theme-input"
                             aria-describedby="action-error"
+                            aria-invalid=move || create_action.value().get().and_then(Result::err).map(|_| "true")
                         />
                     </div>
                     <button
@@ -503,7 +503,7 @@ fn render_active_season(
             {if !launched && !is_terminal {
                 view! {
                     <p class="text-sm text-(--color-text-muted)" data-testid="pre-launch-participant-count">
-                        {t!(i18n, dashboard_enrolled_label)} " " {participant_count}
+                        {t!(i18n, admin_pre_launch_participant_count)} " " {participant_count}
                     </p>
                 }.into_any()
             } else {
@@ -523,15 +523,6 @@ fn render_active_season(
                 assignment_action,
                 receipt_nudge_action,
                 hydrated,
-                i18n,
-            )}
-
-            // SMS report — adjacent to the SMS section it reports on
-            {render_sms_report(
-                season_open_action,
-                assignment_action,
-                confirm_nudge_action,
-                receipt_nudge_action,
                 i18n,
             )}
 
@@ -603,8 +594,10 @@ fn render_active_season(
                     ().into_any()
                 }}
 
-                // Cancel — two-step confirmation, available while launched and not terminal
-                {if launched && !is_terminal {
+                // Cancel — two-step confirmation, available any time before terminal
+                {if is_terminal {
+                    ().into_any()
+                } else {
                     view! {
                         <Show
                             when=move || !confirming.get()
@@ -647,7 +640,7 @@ fn render_active_season(
                         >
                             <button
                                 class="btn"
-                                data-variant="destructive"
+                                data-variant="secondary"
                                 type="button"
                                 data-testid="cancel-button"
                                 disabled=move || !hydrated.get()
@@ -657,8 +650,6 @@ fn render_active_season(
                             </button>
                         </Show>
                     }.into_any()
-                } else {
-                    ().into_any()
                 }}
             </div>
 
@@ -735,6 +726,7 @@ fn render_phase_sms(
                                 {t!(i18n, sms_count_active_users, count = season_open_target_count)}
                             </span>
                         </div>
+                        {render_sms_report_inline(move || season_open_action.value().get().and_then(Result::ok), i18n)}
                     </div>
                 </div>
             }
@@ -775,6 +767,7 @@ fn render_phase_sms(
                                 )}
                             </span>
                         </div>
+                        {render_sms_report_inline(move || confirm_nudge_action.value().get().and_then(Result::ok), i18n)}
                     </div>
                 </div>
             }
@@ -816,6 +809,7 @@ fn render_phase_sms(
                                 )}
                             </span>
                         </div>
+                        {render_sms_report_inline(move || assignment_action.value().get().and_then(Result::ok), i18n)}
                     </div>
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_receipt_nudge_section_title)}</h3>
@@ -844,6 +838,7 @@ fn render_phase_sms(
                                 {t!(i18n, sms_count_no_response, count = no_response_count)}
                             </span>
                         </div>
+                        {render_sms_report_inline(move || receipt_nudge_action.value().get().and_then(Result::ok), i18n)}
                     </div>
                 </div>
             }
@@ -855,42 +850,27 @@ fn render_phase_sms(
 
 // ── SMS report rendering ───────────────────────────────────────────────────────
 
-/// Render the SMS report from the most recently completed SMS action.
-fn render_sms_report(
-    season_open_action: ServerAction<SendSeasonOpenSms>,
-    assignment_action: ServerAction<SendAssignmentSms>,
-    confirm_nudge_action: ServerAction<SendConfirmNudgeSms>,
-    receipt_nudge_action: ServerAction<SendReceiptNudgeSms>,
+/// Render an inline SMS report with sent/failed badge counts.
+///
+/// Always shows both counts (including zeros) using `.badge[data-status]` —
+/// `active` for sent (green = success), `error`/`inactive` for failed.
+/// Placed inside the trigger card that fired the action.
+fn render_sms_report_inline(
+    report_signal: impl Fn() -> Option<SmsReport> + Send + Sync + 'static,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> impl IntoView {
-    let latest_report = move || -> Option<SmsReport> {
-        season_open_action
-            .value()
-            .get()
-            .and_then(Result::ok)
-            .or_else(|| assignment_action.value().get().and_then(Result::ok))
-            .or_else(|| confirm_nudge_action.value().get().and_then(Result::ok))
-            .or_else(|| receipt_nudge_action.value().get().and_then(Result::ok))
-    };
-
     view! {
         {move || {
-            latest_report().map(|report| {
+            report_signal().map(|report| {
+                let failed_status = if report.failed > 0 { "error" } else { "inactive" };
                 view! {
                     <div class="sms-report-result" data-testid="sms-report">
-                        <p data-testid="sms-sent-confirmation">
-                            {t!(i18n, sms_sent_label)} <strong>{report.sent}</strong>
-                        </p>
-                        {if report.failed > 0 {
-                            view! {
-                                <p class="text-(--color-error)">
-                                    {t!(i18n, sms_failed_label)}
-                                    <strong>{report.failed}</strong>
-                                </p>
-                            }.into_any()
-                        } else {
-                            ().into_any()
-                        }}
+                        <span class="badge" data-status="active" data-testid="sms-sent-confirmation">
+                            {t!(i18n, sms_sent_label)} {report.sent}
+                        </span>
+                        <span class="badge" data-status=failed_status>
+                            {t!(i18n, sms_failed_label)} {report.failed}
+                        </span>
                     </div>
                 }
             })
@@ -933,7 +913,7 @@ fn render_assignment_section(
     let cohorts_for_viz = p.cohorts.clone();
 
     view! {
-        <div class="mt-(--density-space-lg)" data-testid="assignment-section">
+        <section class="admin-section" data-testid="assignment-section">
             <h2>{t!(i18n, assignments_page_title)}</h2>
 
             // Generate button (only in assignment phase)
@@ -984,7 +964,7 @@ fn render_assignment_section(
             } else {
                 ().into_any()
             }}
-        </div>
+        </section>
     }
     .into_any()
 }
@@ -1243,7 +1223,7 @@ fn InviteCodesSection(
     let (filter_query, set_filter_query) = signal(String::new());
 
     view! {
-        <section data-testid="invite-codes-section">
+        <section class="admin-section" data-testid="invite-codes-section">
             // Section heading, peer to "Список учасників" (both under "Учасники").
             // Was `.overline-label` — an overline reads as a label ABOVE a heading,
             // inverting hierarchy against its plain-h2 sibling (S5). Aligned to a
@@ -1251,7 +1231,7 @@ fn InviteCodesSection(
             <h2>{t!(i18n, admin_invite_codes_section_title)}</h2>
 
             // ── Generate subsection ───────────────────────────────────────────
-            <h3>{t!(i18n, admin_invite_codes_generate_subsection_title)}</h3>
+            <h3 class="overline-label">{t!(i18n, admin_invite_codes_generate_subsection_title)}</h3>
 
             <Suspense fallback=|| ()>
                 {move || {
@@ -1337,7 +1317,7 @@ fn InviteCodesSection(
             </Show>
 
             // ── Invite code list subsection ───────────────────────────────────
-            <h3 class="mt-(--density-space-lg)">{t!(i18n, admin_invite_codes_list_title)}</h3>
+            <h3 class="overline-label mt-(--density-space-lg)">{t!(i18n, admin_invite_codes_list_title)}</h3>
 
             <div class="field">
                 <label class="field-label" for="invite-code-filter">
