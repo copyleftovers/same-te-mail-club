@@ -681,6 +681,21 @@
     margin-left: auto;
   }
 
+  /* Mobile: stack every invite-card row full-width (matches data-table card degradation at 639px). */
+  @media (max-width: 639px) {
+    .invite-code-card {
+      min-height: 0;
+    }
+
+    .invite-code-card-meta,
+    .invite-code-card-redeemer,
+    .invite-code-card-action {
+      width: 100%;
+      flex: none;
+      margin-left: 0;
+    }
+  }
+
   .alert {
     padding: var(--density-space-sm) var(--density-space-md);
     border-radius: var(--radius-md);
