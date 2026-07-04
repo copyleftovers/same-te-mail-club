@@ -1,6 +1,12 @@
 use leptos::prelude::*;
 use std::time::Duration;
 
+// dismiss_delay − exit_delay MUST equal the `toast-out` keyframe duration in
+// style/tailwind.css. If you change TOAST_OUT_MS, update the keyframe there too.
+const TOAST_DISMISS_MS: u64 = 4000;
+const TOAST_OUT_MS: u64 = 150;
+const TOAST_EXIT_MS: u64 = TOAST_DISMISS_MS - TOAST_OUT_MS;
+
 /// Toast state provided via context.
 ///
 /// Holds a signal pair for the current toast message.
@@ -32,7 +38,7 @@ pub fn use_toast() -> WriteSignal<Option<String>> {
 ///
 /// Renders a sticky flow-banner at the top of `<main>` (not a fixed overlay).
 /// Visible only while the signal holds a message.
-/// Auto-dismisses after 4 seconds with a slide-out exit animation.
+/// Auto-dismisses after `TOAST_DISMISS_MS` with a slide-out exit animation.
 #[component]
 pub fn Toast() -> impl IntoView {
     let state = expect_context::<ToastState>();
@@ -52,18 +58,19 @@ pub fn Toast() -> impl IntoView {
     Effect::new(move |_| {
         if message.get().is_some() {
             // Cancel leftover timers from a previous message.
-            if let Some(h) = dismiss_handle.get_value() {
+            if let Some(h) = dismiss_handle.try_get_value().flatten() {
                 h.clear();
             }
-            if let Some(h) = exit_handle.get_value() {
+            if let Some(h) = exit_handle.try_get_value().flatten() {
                 h.clear();
             }
             leaving.set(false);
 
-            // After ~3.85s begin the exit animation (~150ms), then clear at ~4s.
-            let exit_h =
-                set_timeout_with_handle(move || leaving.set(true), Duration::from_millis(3850))
-                    .expect("set_timeout exit");
+            let exit_h = set_timeout_with_handle(
+                move || leaving.set(true),
+                Duration::from_millis(TOAST_EXIT_MS),
+            )
+            .expect("set_timeout exit");
             exit_handle.set_value(Some(exit_h));
 
             let dismiss_h = set_timeout_with_handle(
@@ -71,7 +78,7 @@ pub fn Toast() -> impl IntoView {
                     state.write.set(None);
                     leaving.set(false);
                 },
-                Duration::from_millis(4000),
+                Duration::from_millis(TOAST_DISMISS_MS),
             )
             .expect("set_timeout dismiss");
             dismiss_handle.set_value(Some(dismiss_h));
