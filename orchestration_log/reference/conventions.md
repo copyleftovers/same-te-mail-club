@@ -1,6 +1,6 @@
 # Conventions
 
-Last updated: 2026-06-22
+Last updated: 2026-07-04
 
 ## Model Tier Overrides
 
@@ -121,3 +121,83 @@ Caveats learned this session:
 - Verify with 3 consecutive green runs on CI before declaring stability. Dev-mode green is necessary but not sufficient.
 - `waitForLoadState` is banned in all forms after redirects. Use auto-retrying `toHaveURL` / `not.toHaveURL` assertions.
 - Every review chain runs sequentially within a unit (spec → quality). Multiple units' chains can run in parallel.
+
+## Added 2026-07-03 (harsh visual-review method — validated)
+
+**Two-axis visual-discovery swath** (worked excellently: 36 sonnet agents + 1 opus synthesis, ~20 min wall, ~150 raw findings → 24 actionable fix-units):
+- **Axis A — per-page-state holistic** (one sonnet per state × both viewports). Catches within-page jank (hierarchy, rhythm, clip/overflow, state completeness).
+- **Axis B — per-concern cross-page** (pills/buttons, badges, fields, typography, color/surface/dark, spacing/density, logo/grain, whole-product cohesion). **The concern axis owns "N treatments for M functions" defects** — a per-page reviewer accepts local pills; a concern reviewer collecting EVERY instance across all pages can't. This axis found the user's exact complaint.
+- **Deterministic static component-inventory feeds Axis B** — component drift is a clustering problem over computed styles/classes, not pure eyeball. Page agents (Axis A) get NO inventory → independent pixel judgment → corroboration with the inventory stays meaningful (page agents independently reproduced inventory finds = strong signal).
+- **Externalize ONE shared REVIEW-CONTRACT.md** (harsh anti-rubber-stamp contract + fixed parseable output schema + severity scale + rubric-doc pointers + screenshot paths). Dispatches stay thin (axis + target + a hint). simple-made-easy: one spec, N thin dispatches.
+- **Anti-rubber-stamp mechanism that WORKED:** "assume the target is broken; 'looks fine' is a review failure not a pass; zero findings requires element-by-element proof in a Coverage section." Every agent found real MAJORs; agents honestly hedged "needs computed verification" (contrast/touch-px) instead of fabricating. Directly counters the 2026-06-25 rubber-stamp failure.
+- **Spot-check batch 1** (inventory + ~5 diverse states) before the full fan-out — validates the shared contract cheaply (6 agents) before committing the other 31.
+- **Group the synthesized catalog by FIX-UNIT, not by page** — deliverable is a systemic backlog; one systemic fix clears many scattered page findings.
+- **Reuse screenshots when HEAD is doc-only over the last code commit** — pixels are the current render; a rebuild is byte-identical. Verify no code commit since capture (`git log`).
+- Output contract per agent: return ONE line (VERDICT + file path); orchestrator reads the FILES (small verdict/findings md — the sanctioned read exception), never the screenshots/source. Opus synthesis reads all N files (its context, not the orchestrator's).
+
+**Foreground-intent / async-actual + cron backstop:** Agent spawns went async ("running… via mailbox") despite pure-fan-out foreground intent. Per background wave, set a recurring ~7-min cron backstop that polls output files + carries the next steps + self-deletes on completion. Notification = completion signal; files = truth; cron = dormancy insurance (2026-06-25). Tally completions from notifications; verify file counts on disk before the gated next step (synthesis).
+
+**Manifesto subagent-oath hook GAP (observed 2026-07-03):** spawned `general-bound` agents bind to 0 elements — SubagentStart is not injecting `.manifestos.yaml` oaths. Until fixed, carry the binding constraints IN the dispatch/contract (the review contract did — output was fully harsh/terse/first-principles regardless). Do NOT rely on the hook for spawned-agent binding.
+
+## Added 2026-07-04 (HARD lessons — review-discipline breach + recovery)
+
+**Forbidden (traced to this session's breach — user's furious callout):**
+| Pattern | Why | Traced to |
+|---|---|---|
+| **Integrate-on-build-verify / skipping the spec→quality chain** | dev-orchestration invariant: review is inevitable — EVERY unit spec→quality→integrate. Integrated 4 commits unreviewed + one on a spec-FAIL, chasing a deadline. | 2026-07-04: cb4f3db/7ccee77/1c71787 unreviewed; 1bb710f on FAIL |
+| **Rationalizing a review exemption** ("render is the real gate" / "test code needs no review" / "the FAIL is only LE1") | Each is a discretionary bypass of a NON-discretionary gate. Integrate ONLY on both spec PASS + quality PASS as verdict FILES. A FAIL never integrates. Test/capture code gets the SAME chain. | 2026-07-04 |
+| **Fresh-launching instead of reusing context-holders** | Reuse via SendMessage (delta-only); fresh only if reaped or tier-change. | 2026-07-04 (restates 2026-06-25) |
+| **Reading verdict/source files in orchestrator context** | Wastes the expensive resource ("wasting my money"). Reviewers RETURN the verdict line in their reply; cross-wired → delegate a cheap reader agent; NEVER Read the file yourself. | 2026-07-04 |
+
+**Trust = a verifiable mechanism, not a promise.** The review artifacts (verdict files + commit ordering) are the auditable trail; the orchestrator HOLDS the gate itself (not the user babysitting). A leash makes the orchestrator useless.
+
+**Visual-fix loop that WORKED (post-restoration):** capture (complete matrix incl. dark via `emulateMedia`, error-state, focus, long-content) → complete review (concern agents + opus synth → catalog) → per-unit implement(worktree)→spec(reuse)→quality(reuse)→integrate-on-both-green → re-capture (regenerate on FIXED code; doubles as the e2e regression gate) → rendered re-verify (RECYCLE the finding agents; CLEARED/RESIDUAL on fresh pixels) → SURFACE residuals (don't tune blindly). DELEGATE all reads.
+
+**Leptos 0.8 gotcha:** `attr:aria-invalid` (any `attr:`-prefixed attribute) on a NATIVE element emits a literal attribute NAMED `attr:...` — the prefix leaks into the name. Use BARE `aria-invalid` on native elements. This silently broke EVERY error border app-wide.
+
+## Added 2026-07-04 (fix-everything phase lessons)
+
+- **A roundup/list agent that reads a catalog with pre-integration STATUS tags will re-list ALREADY-FIXED items.** Force reconciliation against CURRENT source (grep the actual defect signature), and give every fix implementer a verify-then-fix mandate (fix only what's genuinely broken now; no-op the rest) — so exact list-accuracy is non-critical.
+- **Own design/product decisions with sane defaults; do NOT pepper the user with design questions.** (User: "what's with all the nannying.") Reserve questions for genuine forks with no competent default (e.g. final marketing copy). Surface the chosen default; let them veto.
+- **Mode-invariant `--color-badge-*` tokens for badges.** Semantic aliases like `--color-error`/`--color-success` REASSIGN (lighten) in dark → white-on-fill drops below AA. A dedicated badge-fill token that does NOT reassign keeps text-on-fill contrast identical in both modes. New status-color families: success→green, info/awaiting→muted-blue, attention/open→amber, terminal-neutral→gray, error→dedicated red, pending→amber.
+- **Some implementer agents complete work then idle WITHOUT committing** (observed repeatedly with the CSS implementer). Bake "COMMIT + report the SHA" as an explicit final step; if it stalls, dispatch a throwaway committer agent to build-verify + commit the worktree (do NOT commit it yourself).
+- **Reviewer completion notifications can cross-wire (content not routed, only an idle ping).** The verdict is in the verdict FILE. Delegate a cheap reader agent to return just the `Verdict:` line — NEVER read the file in orchestrator context.
+- **CSS+logic coupled fixes must be one unit.** A CSS-only half (e.g. a toast slide-out keyframe with no JS/Rust to trigger it) is inert dead code — and worse if commented as if wired. Do the keyframe + the trigger logic together.
+
+## Added 2026-07-04 (Wave 2 lessons — session 7c7c3839)
+
+**Fold-cheap-Minor-wins-before-integrate policy.** Rule: if a Minor fix is newly-introduced by the unit AND cheap with an already-present pattern → fold into the unit's commit set (save a review cycle). Skip if: pre-existing in the codebase (different diff scope), cosmetic without a clear pattern to reuse, or a reviewer explicitly declined it. Folds executed this wave: drop-clone + None-field-routing + np-number-error testid (unit D), named timing constants + uniform try_get_value (unit F), i18n existing-address key (unit C).
+
+**Rendered re-verify catches what code/spec review cannot.** This wave caught three defects ONLY in rendered pixels — never in code or spec review:
+1. OTP field-level width cap: error text wrapped to 4 ragged lines (rv-participant → fix 0422a77).
+2. Invite-card mobile balloon: desktop left/right split retained at 375px (rv-admin → fix c3433f5).
+3. Login empty-state heading demotion: `<p>` instead of `<h1>` for a page's only heading (spec-w2-home first review, visible in pixel hierarchy).
+ALWAYS re-verify rendered pixels at native resolution, BOTH viewports (375px + desktop) AND BOTH color modes (light + dark). Dark shots live in `screenshots/dark-desktop` and `screenshots/dark-mobile`. Orchestrator pointing at light-only was corrected mid-session at user challenge.
+
+**`.btn + .btn` gap does not cross `<form>` boundaries.** The adjacent-sibling combinator can't reach a button OUTSIDE the form. Use a token-based top margin (`mt-(--density-space-sm)`) on the standalone button instead.
+
+**Width cap belongs on the input, not the field wrapper.** Setting `max-width` on `.field` or `.field-input`'s parent means the `.field-error` inherits the cap and wraps inside a narrow column. Cap the `<input>` element (or `.field-input`) only; let `.field` and `.field-error` stay full-width.
+
+**Mobile card stacking requires an explicit breakpoint override.** A desktop left/right split (flex-row layout) does NOT degrade to a single column at 375px unless a `@media (max-width:639px)` block explicitly restacks. The same breakpoint and idiom used by `.data-table` (mobile card degradation) must be applied consistently to ANY desktop split-column card. No auto-degradation.
+
+**Premature idle pattern.** An implementer or recap agent reports idle while a detached `just e2e-release` or `cargo leptos build` keeps running as a background process. The idle ping is not a completion signal. Monitor the log file + `pgrep` to confirm the process has exited before treating the output as final.
+
+**SendMessage stall vs stale agent.** A reviewer that doesn't respond to a re-review message is stale (transcript cleaned up or reaped). Fresh-launch a substitute ONLY when the agent doesn't acknowledge the message. If the agent responds but gives a slow verdict, wait — reusing context is cheaper than a full reload.
+
+**verify-then-fix in every implementer brief.** Absorbs stale-defect-list drift: if a defect was already fixed by a prior commit, the implementer skips it cleanly rather than producing a no-op or regressing. The brief should always say "verify the defect is genuinely present before fixing; if already fixed, report it as no-op."
+
+**Forbidden (Wave 2 additions):**
+| Pattern | Why | Traced to |
+|---|---|---|
+| Pointing rendered-re-verify agents at light-only screenshots when the change touches color | Dark mode has distinct token assignments; a color change that passes light may fail dark. `screenshots/dark-desktop` and `screenshots/dark-mobile` always exist after a full capture. | 2026-07-04 Wave 2: orchestrator missed dark shots; user challenged |
+| Capping `.field` width to constrain an input | `.field-error` inherits the cap → error text wraps in a narrow column. Cap `.field-input` or the `<input>` element only. | 2026-07-04: login OTP 4-line error wrap, fix 0422a77 |
+| Desktop card split layout without a mobile breakpoint override | No auto-degradation at 375px; cards balloon/rag. Explicit `@media (max-width:639px)` required. | 2026-07-04: invite-card mobile balloon, fix c3433f5 |
+
+## Added 2026-07-04 (Wave 2 visual-immaculate close)
+
+- **Fold cheap Minor wins BEFORE integrate.** After a unit is spec+quality green, fold a reviewer's Minor finding into the unit pre-integration ONLY if it is (a) newly-introduced by this diff AND (b) cheaply fixable with an existing pattern. Skip pre-existing / cosmetic / reviewer-declined Minors (log them instead). Traced: folded D's redundant clone + np-number testid + Option-guard, F's named-timing-constants, C's inline-Ukrainian→existing key; skipped B's "document the English-infra boundary" (established convention) and G's conservative-contrast comment.
+- **Rendered re-verify catches what code AND spec review cannot.** Two real defects this wave passed both code and spec review and were caught ONLY by reading rendered screenshots: login OTP error text wrapping to 4 lines (width cap on the `.field` wrapper leaked into the error container), and admin invite-cards ballooning on mobile (desktop left/right split retained at 375px). ALWAYS re-verify the rendered pixels at native resolution.
+- **Dark mode is a separate re-verify axis — do NOT forget it.** The screenshot set has dedicated `end2end/screenshots/dark-desktop/` + `dark-mobile/` (28 each). Colour-touching work (badges, placeholder, field-error, surfaces) MUST be judged in dark too. Traced: orchestrator re-verified light-only; the user challenged rigor; a dedicated dark re-verify (rv-dark) was required (came back CLEAN — but the miss was real). Re-verify axes: {desktop, mobile 375px} × {light, dark}.
+- **verify-then-fix in every implementer brief absorbs stale-defect-list drift.** Instruct each implementer to grep/inspect current source and fix ONLY genuine defects (mark already-satisfied + skip). This wave, commit 7795997 had already done app-wide aria-invalid + create-season i18n; verify-then-fix reconciled the stale catalog with zero orchestrator bookkeeping.
+- **Premature idle ≠ completion for detached long commands.** An agent that launches `just e2e-release` (or a release build) can report `idle/available` while the `cargo-leptos` process keeps running DETACHED. Confirm completion by the log file + `pgrep`, never by the agent's idle ping.
+- **Docs-only close commit uses `[skip ci]`.** The session-close commit (orchestration_log/ markdown only) does not need CI; append `[skip ci]` to its one-line message to avoid a redundant full CI run on a docs-only push (the code CI already ran on the preceding code push).

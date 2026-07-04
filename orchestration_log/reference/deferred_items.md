@@ -75,3 +75,106 @@ Still open:
 - Leptos SSR reactive-disposal panic (intermittent).
 - IP-based rate limiting absent.
 - page-09 terminal-season create-form capture gap.
+
+## Added 2026-07-03 (complete visual review)
+
+### VISUAL DEFECT BACKLOG — `recon/2026-07-03/DEFECT-CATALOG.md` (24 fix-units)
+- **Severity (by fix-unit, max-of-members):** 2 BLOCKER + 15 MAJOR + 6 MINOR + 1 NIT. ~150 raw findings → 34 unique. Full detail in the catalog (gitignored recon — relocate if it must persist past recon cleanup).
+- **7 systemic roots (fix first — one systemic fix clears many of the ~55 MAJOR page findings):**
+  - **S1 Badge token system incoherent (BLOCKER):** `revoked`=red = destructive-button red; open-code blue = season-`confirmed` blue; 3 terminal states (used/revoked/deactivated) across 2 colors, no rule. THE user's core "conflicting functions share a treatment."
+  - **S2 "ДЕАКТИВОВАНО" in actions column (BLOCKER):** badge-as-disabled-button; active row = red button vs dead row = gray pill/bare text. The literal "4 pills for 2 functions." Includes an unstyled-reachable-state.
+  - **S3 Primary CTAs styled `secondary` (BLOCKER-grade):** "Далі" (advance) / "Застосувати" (apply) recessive outlines while destructive "Скасувати" is loudest → inverted hierarchy.
+  - **S4 Auth no page identity (MAJOR):** zero `<h1>` on any auth step; hero logo at `h-20` → wordmark ~17px pink-on-orange, invisible → two indistinct marks per screen.
+  - **S5 `<h3>`/heading drift (MAJOR):** bare `<h3>` renders 3 ways (browser-default / `.sms-trigger h3` / card name); lone `.overline-label` `<h2>` inverts hierarchy.
+  - **S6 `.deadline` contract broken (MAJOR):** flat `<p class="deadline">` at all 3 sites; the flex label/value structure + `data-urgency` variants entirely dead (see dead-CSS below).
+  - **S7 Rhythm rule fails at non-`<section>` boundaries (MAJOR):** `.prose-page > section + section` breaks where `<div>`/`<article>` interrupt the sibling chain; also two receipt-form `.btn` render flush (no `.btn + .btn` gap).
+- S8–S14 (CTA-width auth-vs-home, frozen-toast, sm-button collapse+touch-risk, admin no-sectioning/terminal-framing, mobile table no-degrade, subsection-label hierarchy, stepper terminal states) + 10 LOCAL units in the catalog.
+- **Recommendation:** systemic-first via implementer→spec→quality loop.
+
+### Coverage gaps surfaced by the review
+- **Dark mode ENTIRELY uncaptured (biggest):** visual-audit spec shoots light-only, but `prefers-color-scheme: dark` reassigns semantic tokens. B5 flags a likely `.alert` AA-fail in dark (color-error text on near-black, est. ~2.5–3:1). Add dark-mode captures to the visual-audit spec.
+- cycle-viz only ever seen at ~3 nodes, never a full 11–15 cohort (label collision unverifiable — recurring gap).
+- 8 VERIFY-NEEDED items (contrast ratios, touch-target px, font-weight) — screenshots can't confirm. → the standing "automate mechanical visual checks as Playwright assertions" priority would close these deterministically.
+- page-09 terminal create-form; empty-state paths.
+
+### Manifesto subagent-oath hook not firing (process/binding integrity)
+- **Severity:** Medium. **Detail:** spawned `general-bound` agents report "0 constitution elements bound" — the SubagentStart hook is not injecting `.manifestos.yaml` oaths into spawned agents. Output was unaffected this session because the dispatch/contract carried the constraints, but the oath-propagation mechanism (`.manifestos.yaml` → subagents) is broken. **Action:** investigate SubagentStart hook wiring — does it match the `general-bound` agent type / this session's spawn path?
+
+## Added 2026-07-04 (visual-fix campaign)
+
+### Non-blocking residuals (post-fix, from rendered re-verify)
+- **sms-trigger dark border** uses raw brand-gray-20%α, not `--color-border` → weak divider on dark. Trivial: route through `--color-border`; needs a dark re-capture to re-verify.
+- **Participant-table long-name row-height asymmetry** — a very long double-barrel Ukrainian name wraps to 2 lines in the ІМ'Я column → that row ~2x taller. The wrap fix works (no overflow/overprint/clip); what remains is height disparity — a multi-column-table-vs-real-name FORM trade-off. Needs a user decision: truncate+title / uniform min-height / accept.
+- Pre-existing MINOR: OTP error text centers on mobile.
+
+### Lower-priority tail (not started; all in recon/2026-07-04/DEFECT-CATALOG-v2.md)
+- Admin error-corpus i18n (~15 strings across season/assignments/invite_codes/sms; leave infra/500-class English as in login).
+- S8 (CTA-width auth-vs-home), S9 (frozen-toast), S10 (sm-button collapse/touch), S11 (admin no-sectioning/terminal-framing), S13 (subsection labels), S14 (stepper terminal states); 12 LOCAL units; MINOR/NIT.
+- cohort-15 density capture still deferred (invasive to serial narrative; long-content covers per-item overflow); cycle-viz label collision at scale uncaptured.
+
+### Push HELD
+- main @ 7795997, ~10 fix commits unpushed. Awaiting user decision. After push: verify CI (offline-clippy already effectively covered — no query change, but re-confirm).
+
+## Updated 2026-07-04 (fix-everything phase — Wave 1 done, Wave 2 queued)
+
+RESOLVED/verified since the campaign-milestone entry: RV-1, S6-stripe, S10, S12, L12 verified already-adequate; S14 fixed in Wave 1; RV-2 accepted as a structural non-issue (real Ukrainian names in a multi-col table — wrap works, no clip). Wave 1 (CSS) = coherent status-color system + .admin-section + L5 + S14, branch fix/css-wave2 @ ae39300 (spec PASS, quality pending, NOT integrated).
+
+STILL OPEN — Wave 2 (queued, NOT started; session STOPPED here per user):
+- admin/page.rs: L1 (theme input aria-invalid — a11y BLOCKER), S11-markup (wrap in .admin-section), S13 (overline labels + filter <label>), L7 (pre-launch cancel + count), L8 (SMS-report→badge/co-locate/zero-count), L10 (cancel-initiate→secondary), L11 (verify invite-card heights).
+- admin i18n (~15 strings): season.rs/invite_codes.rs/assignments.rs/participants.rs/sms.rs + uk.json → reasonable Ukrainian via td_string! + strip_server_error_prefix.
+- home.rs: S8 (CTA w-full), L4 (address→labeled block), L6 (no-season .empty-state).
+- onboarding.rs: L2 (per-field aria-describedby/ids), L3 (centering collapses form → scope centering, w-full form).
+- login.rs: L9 (OTP max-width ~12ch), S7-mt3 (remove mt-3 at 795/1003).
+- toast.rs: S9 WHOLE (keyframe + auto-dismiss ~4s + suppress on confirmation-destination states) — the CSS-only half was pulled from Wave 1.
+- tiny CSS: RV-3 (.field-error text-align:start), V4 (.field-input ::placeholder color).
+Then: re-capture + rendered re-verify.
+Full detail: recon/2026-07-04/REMAINING.md + DEFECT-CATALOG-v2.md.
+
+## Updated 2026-07-04 (Wave 2 complete — session 7c7c3839)
+
+### RESOLVED this session (from the 2026-07-04 Wave-2-queued list)
+All 7 Wave-2 units integrated (admin markup, admin i18n, home, onboarding, login, toast S9, CSS+docs). Two additional rendered-re-verify-caught fixes (login OTP error-text wrap, invite-card mobile stack). 1 E2E capture (onboarding per-field error). Non-blocking residuals and lower-priority tail from REMAINING.md remain open.
+
+### Onboarding participant validation errors are English (i18n gap, pre-existing)
+- **Severity:** Medium
+- **Detail:** `onboarding.rs` server-fn returns "city is required" / "branch number must be positive" in English. These are participant-visible. COUPLED: `rejected_field_from_error` classifier (D unit) depends on the English substrings; localizing requires re-routing by error code/enum instead of substring match.
+- **Action:** Re-route by a typed error variant; then localize the strings.
+
+### field-error in dark mode — coverage gap (RV-3 partial)
+- **Severity:** Low
+- **Detail:** rv-dark found no `.field-error` in any of the 28×2 dark screenshots (the serial capture flow never renders an error state). `text-align:start` fix was verified in light; dark unverifiable without a targeted dark error-state capture.
+- **Action:** Add a dark-mode error-state capture to visual-audit.spec.ts (or extend the existing error-state captures with dark-mode emulation).
+
+### No-season empty-state capture gap (pre-existing)
+- **Severity:** Low
+- **Detail:** The closest screenshot is `11-home-enrollment-not-open` (season exists but unlaunched). The true "no season at all" home state isn't captured distinctly in visual-audit. User-deferred.
+
+### Mechanical visual assertions still unbuilt (pre-existing, recurring)
+- **Severity:** Medium
+- **Detail:** No clip/overflow/overprint/element-past-viewport/`scrollWidth<=innerWidth` assertions anywhere in visual-audit.spec.ts. Agent eyes remain the only geometric gate. Confirmed again this wave: the invite-card mobile balloon and login error-text wrap were caught only by rendered re-verify, not code/spec review.
+- **Action:** Add Playwright assertions for geometric invariants.
+
+### 7 pre-existing orphan uk.json keys (spec-w2-i18n finding)
+- **Severity:** Low
+- **Detail:** spec-w2-i18n found 7 orphan key candidates predating this wave's diff. Separate from `dashboard_enrolled_label` (removed this wave). Harmless; no user-visible impact.
+- **Action:** Cleanup pass; grep + remove.
+
+### `waitForTimeout(LAYOUT_REFLOW_MS)` in visual-audit `captureElementState`
+- **Severity:** Low
+- **Detail:** Pre-existing. Technically violates the `waitForTimeout` ban but defensible as a paint-timing settle in a capture harness (not a test assertion wait). Document the exception explicitly if/when the file is refactored.
+
+### sms-trigger dark border (non-blocking residual)
+- **Severity:** Low
+- **Detail:** `.sms-trigger` uses raw brand-gray 20% alpha for the divider, not `--color-border`. Weak divider in dark mode. Trivial token route.
+- **Action:** Route through `--color-border`; dark re-capture to verify.
+
+### Participant-table long-name row-height asymmetry (RV-2, accepted)
+- **Severity:** Low (form trade-off, not a defect)
+- **Detail:** A very long double-barrel Ukrainian name (e.g. "Олександра-Вікторія Кравченко-Мельниченко") wraps to 2 lines in the ІМ'Я column, making that row ~2× taller than adjacent rows. Wrap works; no overflow/overprint/clip. Multi-column-table vs real-name FORM trade-off.
+- **Action:** User decision: truncate + title-attr / uniform min-height / accept.
+
+### Carry-forward (still open from prior sessions)
+- Leptos SSR reactive-disposal panic (intermittent tower_http 500s, no test failures).
+- IP-based rate limiting absent.
+- cycle-viz label collision at 11–15 nodes unverifiable (seed has 3).
+- page-09 terminal-season create-form capture gap.

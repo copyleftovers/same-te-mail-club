@@ -91,3 +91,64 @@ Verified premise correction: the component system is INTACT (the "no component s
 
 - **On main (`85f9ccb`):** `visual-audit.spec.ts` now captures per-section admin screenshots (`screenshots/sections/{NN}-{state}__{section}.png`) in addition to full-page; 11 section `data-testid`s added to `src/admin/page.rs`. Screenshot set: 28 desktop + 28 mobile full-page + 102 admin section crops. `captureSection` helper; cancel-confirmation dialog captured.
 - **SHIPPED to main + pushed (origin/main @ `405b955`, **CI green** run 28172280159) — supersedes the "NOT integrated" note below:** invite-codes table → card form (`<ul class="invite-code-list">`/`<li class="invite-code-card">`, all viewports; `.data-table--invite` table-layout:fixed CSS removed); button-group `items-start`; participant-count space; cancelled-stepper `data-status="abandoned"` treatment; compact mobile phase-stepper (`"Крок N з 5: <label>"` ≤640px, full strip ≥640px); even invite-card `min-height`; 2 `locales/uk.json` keys. Files: `src/admin/page.rs`, `src/components/stepper.rs`, `style/tailwind.css`, `locales/uk.json`.
+
+## Changes 2026-07-03 (complete visual review — NO code changes)
+
+- **Review-only session. No source or CSS changed.** HEAD still `5ba82ec` (= origin/main, doc-only over `405b955`). Working tree clean.
+- **Component-system verdict (authoritative — 36-agent review + static inventory):** primitives are SOUND. One `.btn` (every button traces to it via `data-variant`/`data-size`), one `.field`/`.field-input`, one `.badge[data-status]`, single palette (contrast-corrected orange `oklch(0.63 0.22 31)`, no `#FB4417` anywhere), single 65ch `.prose-page` column. Confirmed intact. **The jank is SEMANTIC not structural:** correct components bound to wrong meanings — badge tokens shared across conflicting functions, primary actions styled `secondary`, typography levels (h3, auth h1) applied by accident.
+- **Dead CSS confirmed (inventory):** `.badge[data-status="pending"|"error"]`, `.deadline[data-urgency="soon"|"imminent"]` (+ `.deadline[data-urgency="imminent"] .deadline-value`), `.deadline-label`, `.deadline-value` = 7 rules, zero `src/` usage. `.deadline` itself is used as a flat `<p>` — its multi-element flex label/value structure is never emitted (see deferred S6).
+- Full defect backlog + evidence: `recon/2026-07-03/DEFECT-CATALOG.md` + `pages/*.md` (×28) + `concerns/*.md` (×8) + `inventory/component-instances.md`.
+- **Screenshot set current** as of `405b955`: 28 desktop + 28 mobile + 102 admin section crops (`end2end/screenshots/{desktop,mobile,sections}/`, gitignored). Dark-mode + full-cohort cycle-viz remain uncaptured (deferred).
+
+## Changes 2026-07-04 (visual-fix campaign — main @ 7795997, UNPUSHED)
+
+~10 fix commits (76de205..7795997), all spec+quality reviewed+integrated; e2e green 110/0; 8 blockers CLEARED in rendered pixels.
+
+- **Dark mode NOW RENDERS** (was spec'd in tokens, never rendered → 7 blockers): new `--color-border` semantic alias (light=brand-gray / dark=oklch(0.58)); dark `--color-surface-raised` 0.18→0.22; dark `--color-error`/`--color-success` → 0.68/0.72; `.alert`/`.sms-report-result` → solid `--color-panel-dark` + accent stripe; dark-only `--color-panel-dark`/`--color-step-idle` (with base-:root light fallbacks); cream dark select-arrow; secondary-btn border pinned in dark. design-system.md §Dark Mode/§Palette/§Badges synced (brand-gray hex → #51565B; badge table matches shipped CSS).
+- **Error affordances fixed app-wide:** `attr:aria-invalid`→bare `aria-invalid` at all 13 inputs (grep=0); error copy localized (login 6 + admin create-season 4 keys); admin action-error banner + login sites use `strip_server_error_prefix`.
+- **Other:** S1 revoked-badge→gray + dead pending/error variants removed; S2 deactivated actions-column→muted em-dash (state via STATUS badge only); S3 advance/swap→primary variant (dominant over destructive); S4 auth `<h1>` on 4 steps + logo h-20→h-32; S5 `.prose-page h3` + lone overline-label→plain h2; S6 `.deadline` simplified-to-flat (dead child/urgency rules removed); S7 `.btn-group` primitive + tag-agnostic rhythm (`>` direct-child retained + widened list); overflow (invite-card redeemer name/date split + even heights, participant name-cell wrap, theme word-break + maxlength=100).
+- **Capture tooling (visual-audit.spec.ts):** dark (`emulateMedia`, 28 states ×2 → dark-desktop/dark-mobile), error (3 forms `__error`), focus (`__focus`), long-content. NN screenshot prefixes renumbered by the error/focus insertions (state NAMES stable).
+- **2 residuals + tail open** (see deferred_items). Push HELD.
+
+## Changes 2026-07-04 (fix-everything Wave 1 — on branch, NOT yet on main)
+
+main still @ 7795997. Wave-1 CSS foundation on branch fix/css-wave2 @ ae39300 (/private/tmp/csswave-wt), spec PASS + quality pending, to ff-merge on quality-green:
+- **New mode-invariant `--color-badge-*` token system** (in `@theme`) + every `data-status` remapped: active/confirmed/complete→green(0.50), ready→muted-blue(0.70), unused/pending→amber(0.82), inactive/used/revoked→brand-gray, error→dedicated red(0.55). All AA in BOTH modes (fills don't reassign). Broke the unused/confirmed blue collision; fixed a real `active` AA fail. `design-system.md §Badges` rewritten to this system.
+- `.admin-section` raised-surface card class (S11 — markup wrap pending in Wave 2). `.prose-page dl:not(.info-list)` scope (L5). stepper.rs `is_complete` → all-steps-completed-green + cancelled visible at all widths (S14).
+- Wave 2 (admin markup + i18n + home + onboarding + login + toast.rs S9 + RV-3/V4) QUEUED, not started (session stopped after Wave 1 per user).
+
+## Update 2026-07-04 (Wave 1 now ON main)
+
+Wave-1 CSS foundation INTEGRATED: main @ ae39300 (was 7795997). The mode-invariant `--color-badge-*` status-color system, `.admin-section` raised-surface card class, `.prose-page dl:not(.info-list)` (L5), and stepper terminal-state logic (S14) are now on main + design-system.md §Badges rewritten. UNPUSHED. Wave 2 (admin markup + i18n + home/onboarding/login markup + toast.rs S9 + RV-3/V4) queued, not started (session stopped after Wave 1 per user).
+
+## Changes 2026-07-04 (Wave 2 visual fixes — session 7c7c3839)
+
+main @ **d4a9396** (17 commits ahead of ae39300; UNPUSHED at session close; push authorized pending CI-preflight). Session branch: `visual` (worktree css-systemic-fixes).
+
+**Wave 2 shipped: 7 fix-units + 2 rendered-re-verify-caught fixes + 1 E2E capture** (ae39300→d4a9396). All through independent spec→quality→integrate-on-BOTH-green. 3× E2E green (release, 110/0).
+
+**Per-file changes:**
+- `src/admin/page.rs` — `.admin-section` raised-surface cards (4 peer cards, no nesting); SMS report→`.badge` co-located with each trigger; cancel hierarchy (initiate=secondary, confirm=destructive); pre-launch participant count uses distinct `admin_pre_launch_participant_count` key; overline labels on invite sub-sections + real `<label for="invite-code-filter">`. `aria-invalid` bare (no `attr:` prefix) on all inputs.
+- `src/admin/{season,invite_codes,assignments,sms}.rs` — ~17 user-facing server errors → `td_string!(Locale::uk, ...)`. Infra/500-class left English. All admin errors flow through `action_error` closure → `strip_server_error_prefix`.
+- `src/pages/home.rs` — enroll + confirm-ready CTAs `w-full`; saved recipient address rendered as labeled block (`ВІДДІЛЕННЯ`/`ТЕЛЕФОН` overline rows); no-season state uses `.empty-state` with `<h1>`. Receipt toast trigger removed (suppressed on confirmation-destination states). i18n: existing-address value via `home_recipient_branch` key.
+- `src/pages/onboarding.rs` — per-field aria error routing: `RejectedField` enum + `rejected_field_from_error` classifier; each field has its own `aria-describedby` target; form centering scoped (doesn't collapse column width). `#[allow(clippy::too_many_lines)]` added (view! verbosity, justified). `np-number-error` testid added. Redundant clone dropped; `None` field = neither-field (infra errors).
+- `src/pages/login.rs` — OTP input capped `max-w-[12ch]` on `.field-input` (not `.field`) so error text renders full-width. Back-button top margin via `mt-(--density-space-sm)` token (not bare `mt-3`; `.btn + .btn` can't match across `<form>` boundary).
+- `src/components/toast.rs` — auto-dismiss ~4s (`set_timeout_with_handle` + `StoredValue<Option<TimeoutHandle>>` + `on_cleanup`); named timing constants (dismiss_ms/exit_ms; unsigned subtraction compile-safe); uniform `try_get_value`; `data-state="leaving"` drives slide-out animation.
+- `style/tailwind.css` — `.field-error { text-align: start }`; `.field-input::placeholder` explicit muted color (measured 7.34:1 light / ~5:1 dark); `.invite-code-card { min-height: ... }` for even heights; dead `.toast[data-type="error"]` branch removed; `@media (max-width:639px)` stacks invite-code cards full-width (matching `.data-table` breakpoint); `@keyframes toast-out` + `.toast[data-state="leaving"]` + reduced-motion suppression.
+- `guidance/design-system.md` — disambiguated badge-`pending` (amber, open-invite) vs stepper-connector-`pending` (muted dot between unvisited steps); `.admin-section` forward-prep note; `confirmed`→green reclassification note.
+- `locales/uk.json` — `admin_pre_launch_participant_count` key; `admin_invite_codes_filter_label` key; ~17 admin error i18n keys; `dashboard_enrolled_label` orphan removed; `home_recipient_branch` reused for existing-address.
+- `end2end/tests/visual-audit.spec.ts` — new `captureElementState` for `11-onboarding-branch-selection__error` (per-field validation error; `clickAndWaitForResponse(...,"complete_onboarding")`, non-persisting reject, serial-safe).
+
+**Screenshot infra (unchanged structure, +1 error-state capture):**
+- 33 desktop, 33 mobile, 28 dark-desktop, 28 dark-mobile, 102 admin section crops
+
+**Rendered re-verify verdicts (main @ 094ca1a, then c3433f5):**
+- rv-admin: 7 Wave-2 fixes landed in pixels. ONE MAJOR caught: invite-card mobile balloon → fix c3433f5. Admin CLEAN after fix.
+- rv-participant: OTP error-text 4-line wrap MAJOR caught → fix 0422a77. Auth/onboarding/home otherwise CLEAN.
+- rv-dark: CLEAN (0 defects). Badge, placeholder, `.admin-section`, toast, stepper all verified in dark. Coverage gap: `field-error` in dark (no error-state in 28×2 dark set — RV-3 in dark remains uncaptured).
+- rv-fixes, rv-onboarding-err: both CLEAN.
+
+**Key root causes fixed this wave:**
+- `.btn + .btn` can't match across `<form>` → use token-based margin, not adjacent-sibling combinator
+- Width cap on `.field` (not `.field-input`) lets error text inherit the cap → cap the input element, let the field wrapper stay full-width
+- Desktop left/right card split retained on mobile without explicit breakpoint override → `@media (max-width:639px)` stacking rule required
