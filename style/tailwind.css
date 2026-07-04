@@ -10,6 +10,24 @@
   --color-brand-black: oklch(0.15 0.00 0);
   --color-brand-cream: oklch(0.98 0.01 90);
 
+  /* Badge fill tokens — mode-INVARIANT by design (they do NOT reassign in the
+     dark :root). A badge must keep the same fill in both modes so its chosen
+     text colour stays AA in both; reassigning the fill in dark would break the
+     text pairing. Values tuned so text-on-fill ≥ 4.5:1 (WCAG AA, computed
+     oklch→sRGB→WCAG):
+       success 0.50/white = 5.25:1  (was --color-success 0.58 = 3.84:1, FAILED)
+       amber   0.82/black = 11.15:1 (attention/open — breaks the blue collision)
+       info    0.70/black = 7.46:1  (muted blue; Lrel 0.348 vs brand-blue 0.482 —
+                                     not jarring on the dark surface) */
+  --color-badge-success: oklch(0.50 0.16 160);
+  --color-badge-amber: oklch(0.82 0.16 85);
+  --color-badge-info: oklch(0.70 0.09 240);
+  /* Error BADGE fill — mode-invariant, distinct from the semantic --color-error
+     which reassigns lighter in dark (0.68) for text legibility. As a badge FILL
+     that lighter dark value would drop white-on-fill to 3.28:1 (FAIL); pinned at
+     0.55 it is 5.44:1 white in both modes. */
+  --color-badge-error: oklch(0.55 0.22 25);
+
   --font-display: 'CyGrotesk', 'Arial Black', sans-serif;
   --font-body: 'Mont', 'Inter', system-ui, sans-serif;
 
@@ -381,50 +399,80 @@
     white-space: nowrap; /* structural: badges are single-line pills; wrapping distorts uniform height */
   }
 
-  /* Status→fill rule (design-system §Badges): live/actionable = color,
-     terminal/historical = gray. --color-error is reserved for destructive
-     *action* buttons only — no status badge fills red, so a red pill always
-     means "an action you can take", never "a settled record".
+  /* ── Badge semantic colour system ─────────────────────────────────
+     One coherent mapping across every data-status. Families:
+       success/positive     → green   (active participant, season complete)
+       info/awaiting        → blue    (ready participant — muted so it is not
+                                        jarring on the dark surface)
+       attention/open       → amber   (open invite code, pending action)
+       terminal/historical  → gray    (deactivated, used, revoked, cancelled)
+       failure              → red      (--color-error; also destructive buttons)
 
-     WCAG note (computed, not eyeballed): white-on-brand-gray badge text is
-     7.43:1 — brand-gray is oklch(0.45 0.01 250) = sRGB #51565B (relative
-     luminance 0.091), NOT the mid-#565656 the visual review estimated. It
-     PASSES AA at 12px in both light and dark; the fill does not reassign
-     because raw tokens don't (§Palette), and it does not need to. Switching to
-     dark text would DROP it to 2.65:1 (a real fail) — do not "fix" this. */
+     Fills are mode-INVARIANT (raw --color-brand-* / --color-badge-* tokens that
+     do NOT reassign in dark). Text colour is chosen per fill so every pair is
+     WCAG AA (≥4.5:1) in BOTH modes — verified computed oklch→sRGB→WCAG:
+       green  0.50 / white  = 5.25:1     amber 0.82 / black = 11.15:1
+       info   0.70 / black  = 7.46:1     gray  0.45 / white = 7.43:1
+       error  0.55 / white  = 5.44:1
+     The prior scheme collided (unused + confirmed both brand-blue) and the
+     active/confirmed green (--color-success 0.58) was only 3.84:1 white — FAIL.
+     The default .badge colour is white (see base rule); amber/info/blue override
+     to black. */
 
-  /* active participant — live */
+  /* active participant — success/positive (green) */
   .badge[data-status="active"] {
-    background: var(--color-success);
+    background: var(--color-badge-success);
   }
 
-  /* deactivated participant + cancelled-season terminal badge — terminal */
+  /* season-complete terminal milestone — success/positive (green), matches active.
+     A completed season is a positive outcome, not a neutral/terminal-gray record. */
+  .badge[data-status="confirmed"] {
+    background: var(--color-badge-success);
+  }
+
+  /* ready participant (info/awaiting-response) — muted blue, black text for AA.
+     Frees blue from the open-code collision and gives the info family a home. */
+  .badge[data-status="ready"] {
+    background: var(--color-badge-info);
+    color: var(--color-brand-black);
+  }
+
+  /* unused invite code — attention/open (amber), black text. Was brand-blue,
+     colliding with the season-complete badge; amber (hue 85) is a distinct
+     family from both the accent-orange button (hue 31) and error red. */
+  .badge[data-status="unused"] {
+    background: var(--color-badge-amber);
+    color: var(--color-brand-black);
+  }
+
+  /* pending action — attention (amber), matches the open-code affordance. */
+  .badge[data-status="pending"] {
+    background: var(--color-badge-amber);
+    color: var(--color-brand-black);
+  }
+
+  /* deactivated participant + cancelled-season terminal badge — terminal (gray) */
   .badge[data-status="inactive"] {
     background: var(--color-brand-gray);
   }
 
-  /* season-complete terminal badge — brand-blue (oklch 0.78 — light); black text required for WCAG AA */
-  .badge[data-status="confirmed"] {
-    background: var(--color-brand-blue);
-    color: var(--color-brand-black);
-  }
-
-  /* unused invite code — the one live/actionable code state; blue, distinct from active-participant green */
-  .badge[data-status="unused"] {
-    background: var(--color-brand-blue);
-    color: var(--color-brand-black); /* brand-blue oklch 0.78 is light; black text for WCAG AA */
-  }
-
-  /* used invite code — terminal */
+  /* used invite code — terminal (gray) */
   .badge[data-status="used"] {
     background: var(--color-brand-gray);
   }
 
-  /* revoked invite code — terminal, NOT an error. Gray (matching used/inactive),
-     never --color-error red: a revoked code is a settled record, not a live
-     destructive action. Red here collided with the destructive "Відкликати" button. */
+  /* revoked invite code — terminal (gray), NOT an error. A revoked code is a
+     settled record, not a live destructive action; red is reserved for the
+     destructive "Відкликати" button and the error status. */
   .badge[data-status="revoked"] {
     background: var(--color-brand-gray);
+  }
+
+  /* error/failure — red. Uses the mode-invariant --color-badge-error (NOT the
+     semantic --color-error, which lightens in dark and would fail white-on-fill).
+     Red reads as "failure", consistent with the destructive action button. */
+  .badge[data-status="error"] {
+    background: var(--color-badge-error);
   }
 
   .prose-page {
@@ -487,20 +535,26 @@
     margin-top: var(--density-space-lg);
   }
 
-  .prose-page dl {
+  /* The label/value grid — scoped :not(.info-list) so it does NOT capture the
+     .info-list <dl> (home recipient card), which is authored as a flex column via
+     .info-list/.info-item/.info-label/.info-value. Without the exclusion the grid
+     display + the `.prose-page dt/dd` typography (higher specificity than the
+     .info-* single-class rules) override the intended flex model (L5). The dt/dd
+     rules are likewise scoped to the grid dl so they never touch .info-list. */
+  .prose-page dl:not(.info-list) {
     display: grid;
     grid-template-columns: auto 1fr;
     gap: calc(var(--spacing) * 1.5) calc(var(--spacing) * 3);
     margin-bottom: var(--density-space-md);
   }
 
-  .prose-page dt {
+  .prose-page dl:not(.info-list) dt {
     font-weight: 600;
     font-size: var(--text-sm);
     color: var(--color-text-muted);
   }
 
-  .prose-page dd {
+  .prose-page dl:not(.info-list) dd {
     font-size: var(--text-base);
     /* min-width:0 lets the 1fr value track shrink below its content's min-content
        width; overflow-wrap breaks an unbroken long string (e.g. a URL-style
@@ -825,6 +879,25 @@
     max-width: var(--size-content-max); /* prevents sparse 4-column spread on wide desktop prose column */
   }
 
+  /* ── Admin section card (S11) ─────────────────────────────────────
+     Raised-surface card that gives each admin block (season / assignments /
+     participants / invite-codes) a distinct container instead of one flat cream
+     dump. The admin-markup wave wraps each section in <section class="admin-section">.
+     Full-width (no .card max-width cap); --radius-lg reads as a panel, not a chip.
+     Works light (white on cream) and dark (oklch 0.22 raised on black, +0.07 L —
+     the border carries the edge where the fill delta is subtle). Padding + the
+     sibling margin use the density tokens, so it compacts under [data-layout="admin"]. */
+  .admin-section {
+    background: var(--color-surface-raised);
+    border: 1px solid oklch(from var(--color-border) l c h / 0.15); /* structural: 1px panel border */
+    border-radius: var(--radius-lg);
+    padding: var(--density-space-md);
+  }
+
+  .admin-section + .admin-section {
+    margin-top: var(--density-space-lg);
+  }
+
   /* ── Info list ────────────────────────────────────────────────── */
   .info-list {
     display: flex;
@@ -955,6 +1028,20 @@
     to { opacity: 1; translate: 0 0; }
   }
 
+  /* Auto-dismiss affordance (S9): toast.rs sets data-state="leaving" (~4s after
+     mount, or on transition to an already-composed confirmation) to animate the
+     banner out. The slide-up + fade mirrors toast-in; `forwards` holds the ended
+     state so the element stays hidden until toast.rs unmounts it. The global
+     prefers-reduced-motion rule (@layer base) already nulls this animation. */
+  .toast[data-state="leaving"] {
+    animation: toast-out 200ms ease forwards;
+  }
+
+  @keyframes toast-out {
+    from { opacity: 1; translate: 0 0; }
+    to { opacity: 0; translate: 0 -100%; }
+  }
+
   /* ── Stepper ──────────────────────────────────────────────────── */
   .stepper {
     display: flex;
@@ -1023,8 +1110,12 @@
     transition: background 120ms ease, box-shadow 120ms ease;
   }
 
+  /* Completed step: green disc + white check glyph. Uses --color-badge-success
+     (mode-invariant 0.50) rather than --color-success (which lightens to 0.72 in
+     dark, dropping the white check to 2.31:1); at 0.50 the check is 5.25:1 white
+     in both modes, and the green stays consistent with the success badge. */
   .step[data-status="completed"] .step-marker {
-    background: var(--color-success);
+    background: var(--color-badge-success);
     color: white;
   }
 
@@ -1072,7 +1163,7 @@
   }
 
   .step-connector[data-status="completed"] {
-    background: var(--color-success);
+    background: var(--color-badge-success); /* matches the completed marker disc */
   }
 
   .step-connector[data-status="abandoned"] {
@@ -1331,6 +1422,7 @@
   @media (prefers-color-scheme: dark) {
     .invite-code-card,
     .data-table-wrapper,
+    .admin-section,
     .card {
       border-color: oklch(from var(--color-border) l c h / 0.4);
     }

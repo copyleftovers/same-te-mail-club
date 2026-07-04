@@ -43,6 +43,11 @@ pub fn PhaseStepper(
     ];
 
     let is_cancelled = current_phase == Phase::Cancelled;
+    // Complete is a TERMINAL state, not an in-progress step. When the season is
+    // Complete the final step must read as a done green check, not an orange
+    // "current" step-5 ("still on step 5") — S14. is_complete promotes the
+    // Complete step (and all before it) to "completed".
+    let is_complete = current_phase == Phase::Complete;
 
     // Current step number (1-based) within the forward progression, for the compact form.
     // Position is 0..5, so +1 is 1..=5 — always fits i64 without truncation.
@@ -84,9 +89,13 @@ pub fn PhaseStepper(
                     .into_iter()
                     .enumerate()
                     .flat_map(|(idx, phase)| {
-                        // Cancelled: all phases show as "abandoned" — muted, not success-green
+                        // Cancelled: all phases show as "abandoned" — muted, not success-green.
+                        // Complete (terminal): all phases (incl. Complete itself) show as
+                        // "completed" green checks — the season is done, not "on step 5".
                         let status = if is_cancelled {
                             "abandoned"
+                        } else if is_complete {
+                            "completed"
                         } else {
                             match phase.cmp(&current_phase) {
                                 std::cmp::Ordering::Less => "completed",
@@ -105,7 +114,7 @@ pub fn PhaseStepper(
                         let connector = if idx > 0 {
                             let connector_status = if is_cancelled {
                                 "abandoned"
-                            } else if phases[idx - 1] < current_phase {
+                            } else if is_complete || phases[idx - 1] < current_phase {
                                 "completed"
                             } else {
                                 "pending"

@@ -186,20 +186,31 @@ Structure: `.field` > `.field-label` + `.field-input` + `.field-error`
 
 ### Badges
 
-Pill shape. Variants via `data-status`. Six statuses ship.
+Pill shape. Variants via `data-status`. One coherent semantic colour system, mapped by meaning-family:
 
-Semantic rule (S1): **live/actionable = colour, terminal/historical = gray, failure = red.** No status badge fills `--color-error` red — red is reserved for destructive *action* buttons only, so a red pill always means "an action you can take", never "a settled record". Terminal states (deactivated participant, used/revoked codes, cancelled season) route onto gray; the two live/actionable states (active participant, open code) and the season-complete milestone carry colour.
+| Family | Colour | Statuses |
+|--------|--------|----------|
+| success / positive | green | `active`, `confirmed` |
+| info / awaiting-response | blue (muted) | `ready` |
+| attention / open | amber | `unused`, `pending` |
+| terminal / historical | gray | `inactive`, `used`, `revoked` |
+| failure | red | `error` |
 
-| Status | Background | Text | Meaning |
-|--------|-----------|------|---------|
-| active | `--color-success` | white | Live participant |
-| unused | `--color-brand-blue` | `--color-brand-black` | Open (actionable) invite code |
-| confirmed | `--color-brand-blue` | `--color-brand-black` | Season-complete terminal milestone |
-| inactive | `--color-brand-gray` | white | Deactivated participant / cancelled-season terminal badge |
-| used | `--color-brand-gray` | white | Redeemed invite code (terminal) |
-| revoked | `--color-brand-gray` | white | Revoked invite code (terminal — NOT an error) |
+| Status | Background | Text | AA (both modes) | Meaning |
+|--------|-----------|------|-----------------|---------|
+| active | `--color-badge-success` | white | 5.25:1 | Live participant |
+| confirmed | `--color-badge-success` | white | 5.25:1 | Season-complete milestone (a positive outcome → green, not terminal-gray) |
+| ready | `--color-badge-info` | `--color-brand-black` | 7.46:1 | Participant confirmed ready (info) |
+| unused | `--color-badge-amber` | `--color-brand-black` | 11.15:1 | Open (actionable) invite code |
+| pending | `--color-badge-amber` | `--color-brand-black` | 11.15:1 | Pending action |
+| inactive | `--color-brand-gray` | white | 7.43:1 | Deactivated participant / cancelled-season terminal badge |
+| used | `--color-brand-gray` | white | 7.43:1 | Redeemed invite code (terminal) |
+| revoked | `--color-brand-gray` | white | 7.43:1 | Revoked invite code (terminal — NOT an error) |
+| error | `--color-badge-error` | white | 5.44:1 | Failure |
 
-`--color-brand-blue` (oklch 0.78) is light, so `unused`/`confirmed` use `--color-brand-black` text for WCAG AA. The gray badges use white text (7.43:1 — passes AA; brand-gray renders as sRGB #51565B, relative luminance 0.091, not the mid-#565656 hex suggests). No `pending` or `error` status exists (both removed — `pending` used the accent orange, `error` used the destructive red; neither is a settled-record colour).
+**Fills are mode-invariant.** Badge fill tokens (`--color-badge-*`) and the raw `--color-brand-*` are defined in `@theme` and do **not** reassign in dark — so each badge keeps its fill in both modes and the text pairing stays AA. This is deliberate: the semantic `--color-error` reassigns lighter in dark (0.68) for text legibility, which as a badge fill would drop white-on-fill to 3.28:1 (fail) — hence the dedicated mode-invariant `--color-badge-error` (0.55). All AA ratios above are computed oklch→sRGB→WCAG.
+
+**Colour choices.** `--color-badge-success` is `oklch(0.50 0.16 160)` — darkened from the old `--color-success` (0.58), which gave only 3.84:1 white (fail). `--color-badge-amber` `oklch(0.82 0.16 85)` breaks the old `unused`/`confirmed` blue collision and is a distinct hue family from both the accent-orange button (hue 31) and error red. `--color-badge-info` `oklch(0.70 0.09 240)` is a muted blue (relative luminance 0.348 vs brand-blue's 0.482) so it does not glow jarringly on the dark surface. Gray renders as sRGB #51565B (relative luminance 0.091 — white-on-gray is 7.43:1, not the ~3.5:1 the mid-#565656 hex suggests).
 
 Mont 600, text-xs, uppercase, letter-spacing 0.02em.
 
