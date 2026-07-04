@@ -214,7 +214,7 @@ Pill shape. Variants via `data-status`. One coherent semantic colour system, map
 
 **M3 — `confirmed` is green, not gray.** The `confirmed` status was previously mapped to `--color-brand-gray` (terminal family). It was reclassified to `--color-badge-success` (green) because season-complete is a positive outcome, not a terminal/historical one. The CSS `.badge[data-status="confirmed"]` reflects this.
 
-**M1/M2 — forward-prep statuses.** `ready` and `pending` are defined in CSS and this spec but not yet emitted by any Rust component. They are intentional forward-prep: `ready` is reserved for a "participant confirmed ready" state that may surface in a future participant-facing view; `pending` is consumed today only by the phase stepper connector (`.admin-section` stepper in `stepper.rs`) and reserved for broader use. Similarly, `.admin-section` is the layout class for all admin panel sections — it is fully consumed but documented here so readers know it belongs to the badge system's surrounding layout, not to a future spec.
+**M1/M2 — forward-prep statuses.** `ready` and `pending` are badge statuses defined in CSS and this spec but not yet emitted by any component as a `.badge` — they are intentional forward-prep. (Note: the string `"pending"` at `stepper.rs:120` drives `.step-connector[data-status]` — a separate element with its own CSS rule, not `.badge[data-status="pending"]`.) `.admin-section` is the fully-consumed layout class for admin `<section>` wrappers; it appears here only so readers know it is surrounding layout, not a future badge status.
 
 Mont 600, text-xs, uppercase, letter-spacing 0.02em.
 
