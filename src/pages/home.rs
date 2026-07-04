@@ -605,11 +605,8 @@ pub fn HomePage() -> impl IntoView {
         }
     });
 
-    Effect::new(move |_| {
-        if let Some(Ok(())) = receipt_action.value().get() {
-            set_toast.set(Some("Дякуємо за підтвердження!".into()));
-        }
-    });
+    // Receipt confirmation transitions to ReceiptConfirmed, which renders an
+    // inline thank-you heading — a toast would be redundant, so we omit it.
 
     view! {
         <div class="prose-page">
