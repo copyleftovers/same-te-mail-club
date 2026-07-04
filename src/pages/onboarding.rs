@@ -60,13 +60,35 @@ pub async fn complete_onboarding(city: String, np_number: String) -> Result<(), 
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+/// Which field the server rejected. Derived from the error message text so the
+/// rejected field can get its own `aria-invalid` and error container.
+#[derive(Clone, PartialEq)]
+enum RejectedField {
+    City,
+    NpNumber,
+}
+
+/// Parse the stripped server error to determine which field was rejected.
+///
+/// Server messages are: "city is required" → City;
+/// "invalid branch number" / "branch number must be positive" → `NpNumber`.
+fn rejected_field_from_error(stripped: &str) -> RejectedField {
+    if stripped.contains("city") {
+        RejectedField::City
+    } else {
+        RejectedField::NpNumber
+    }
+}
+
 /// Onboarding form: collect Nova Poshta delivery address.
 /// Shown only on first login; navigates to `/` on success via a full page
 /// reload so SSR re-runs `get_current_user()` with `onboarded=true`.
 #[component]
 pub fn OnboardingPage() -> impl IntoView {
     let i18n = use_i18n();
-    let (error_msg, set_error_msg) = signal(Option::<String>::None);
+    // (message, rejected field) — both None until the first error
+    let (city_error, set_city_error) = signal(Option::<String>::None);
+    let (np_error, set_np_error) = signal(Option::<String>::None);
 
     let onboard_action = ServerAction::<CompleteOnboarding>::new();
     let onboard_pending = onboard_action.pending();
@@ -78,20 +100,29 @@ pub fn OnboardingPage() -> impl IntoView {
             let _ = leptos::prelude::window().location().set_href("/");
         }
         Some(Err(e)) => {
-            set_error_msg.set(Some(format!(
-                "{}{}",
-                t_string!(i18n, onboarding_error_prefix),
-                strip_server_error_prefix(&e)
-            )));
+            let stripped = strip_server_error_prefix(&e).clone();
+            let msg = format!("{}{}", t_string!(i18n, onboarding_error_prefix), stripped);
+            match rejected_field_from_error(&stripped) {
+                RejectedField::City => {
+                    set_city_error.set(Some(msg));
+                    set_np_error.set(None);
+                }
+                RejectedField::NpNumber => {
+                    set_np_error.set(Some(msg));
+                    set_city_error.set(None);
+                }
+            }
         }
         None => {}
     });
 
     view! {
         // pt-[10svh]: viewport-relative top padding matches login layout for visual continuity
-        <div class="prose-page flex flex-col items-center text-center pt-[10svh]">
-            <h1>{t!(i18n, onboarding_page_title)}</h1>
-            <p>{t!(i18n, onboarding_description)}</p>
+        <div class="prose-page flex flex-col pt-[10svh]">
+            <div class="flex flex-col items-center text-center">
+                <h1>{t!(i18n, onboarding_page_title)}</h1>
+                <p>{t!(i18n, onboarding_description)}</p>
+            </div>
 
             <leptos::form::ActionForm action=onboard_action>
                 <div class="flex flex-col gap-(--density-space-md)">
@@ -107,9 +138,18 @@ pub fn OnboardingPage() -> impl IntoView {
                             placeholder="Київ"
                             required
                             data-testid="np-city-input"
-                            aria-invalid=move || error_msg.get().map(|_| "true")
-                            aria-describedby="np-onboarding-error"
+                            aria-invalid=move || city_error.get().map(|_| "true")
+                            aria-describedby="np-city-error"
                         />
+                        <div
+                            id="np-city-error"
+                            aria-live="assertive"
+                            data-testid="action-error"
+                        >
+                            {move || city_error.get().map(|msg| view! {
+                                <p class="field-error" role="alert">{msg}</p>
+                            })}
+                        </div>
                     </div>
                     <div class="field w-full">
                         <label class="field-label" for="np-number">
@@ -124,19 +164,18 @@ pub fn OnboardingPage() -> impl IntoView {
                             placeholder="123"
                             required
                             data-testid="np-number-input"
-                            aria-invalid=move || error_msg.get().map(|_| "true")
-                            aria-describedby="np-onboarding-error"
+                            aria-invalid=move || np_error.get().map(|_| "true")
+                            aria-describedby="np-np-number-error"
                         />
+                        <div
+                            id="np-np-number-error"
+                            aria-live="assertive"
+                        >
+                            {move || np_error.get().map(|msg| view! {
+                                <p class="field-error" role="alert">{msg}</p>
+                            })}
+                        </div>
                     </div>
-                </div>
-                <div
-                    id="np-onboarding-error"
-                    aria-live="assertive"
-                    data-testid="action-error"
-                >
-                    {move || error_msg.get().map(|msg| view! {
-                        <p class="field-error" role="alert">{msg}</p>
-                    })}
                 </div>
                 <button
                     class="btn w-full mt-(--density-space-md)"
