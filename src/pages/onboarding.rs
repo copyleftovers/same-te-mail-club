@@ -11,7 +11,6 @@ use leptos::prelude::*;
 /// Format: `"<field_key>\u{1f}<localized_message>"`
 /// where `field_key` ∈ {"city", "`np_number`"} — stable across locale changes.
 /// Infra/DB errors carry no separator and no field key.
-#[cfg(feature = "ssr")]
 const FIELD_DISCRIMINANT_SEPARATOR: char = '\u{1f}';
 
 /// Save the user's Nova Poshta delivery address and mark them as onboarded.
@@ -97,8 +96,7 @@ enum RejectedField {
 /// is recognised; `(None, full_string)` for infra/session errors with no
 /// separator — those mark no field and display the raw message.
 fn parse_field_error(stripped: &str) -> (Option<RejectedField>, &str) {
-    const SEP: char = '\u{1f}';
-    if let Some((key, msg)) = stripped.split_once(SEP) {
+    if let Some((key, msg)) = stripped.split_once(FIELD_DISCRIMINANT_SEPARATOR) {
         let field = match key {
             "city" => Some(RejectedField::City),
             "np_number" => Some(RejectedField::NpNumber),
