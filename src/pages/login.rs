@@ -640,7 +640,7 @@ pub fn LoginPage() -> impl IntoView {
             <img
                 src="/logo.svg"
                 alt="Саме Те · Поштовий клуб"
-                class="h-20 w-auto mb-8"
+                class="h-32 w-auto mb-8"
             />
 
             <LoginStepRouter
@@ -695,6 +695,9 @@ fn LoginStepRouter(
         <div style:display=move || {
             if otp_step.get() || is_pending || is_otp_error { "none" } else { "" }
         }>
+            <h1>
+                {t!(i18n, auth_phone_step_heading)}
+            </h1>
             <leptos::form::ActionForm action=request_action>
                 <div class="field">
                     <label class="field-label" for="phone-input">
@@ -750,6 +753,9 @@ fn LoginStepRouter(
         <div style:display=move || {
             if (otp_step.get() || is_otp_error) && !is_pending { "" } else { "none" }
         }>
+            <h1>
+                {t!(i18n, auth_otp_step_heading)}
+            </h1>
             // Native POST form — no hydration gate needed (works without WASM).
             // verify_otp_code sets an HttpOnly cookie; ActionForm fetch responses
             // do not reliably propagate Set-Cookie, so native POST is required.
@@ -803,9 +809,9 @@ fn LoginStepRouter(
                 if is_pending && entered_code.get().is_none() { "" } else { "none" }
             }
         >
-            <h2>
+            <h1>
                 {t!(i18n, auth_invite_code_step_heading)}
-            </h2>
+            </h1>
             <InviteCodeForm
                 hydrated=hydrated
                 on_submit=move |code| set_entered_code.set(Some(code))
@@ -929,9 +935,9 @@ where
     let register_pending = register_action.pending();
 
     view! {
-        <h2>
+        <h1>
             {t!(i18n, auth_name_step_heading)}
-        </h2>
+        </h1>
         <p class="text-sm text-(--color-text-muted) mb-4">
             {t!(i18n, auth_name_context)}
         </p>
