@@ -805,7 +805,7 @@ fn LoginStepRouter(
             </form>
             <button
                 type="button"
-                class="btn w-full"
+                class="btn w-full mt-(--density-space-sm)"
                 data-variant="secondary"
                 data-testid="back-to-phone-button"
                 on:click=move |_| request_action.value().set(None)
@@ -1013,7 +1013,7 @@ where
         // Back button — lets user re-enter the code if they made a typo
         <button
             type="button"
-            class="btn w-full"
+            class="btn w-full mt-(--density-space-sm)"
             data-variant="secondary"
             data-testid="back-to-invite-code-button"
             on:click=move |_| on_back()
