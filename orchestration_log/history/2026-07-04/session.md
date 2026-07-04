@@ -133,3 +133,17 @@ Session-close phase, executed after the fix-wave record above. CI run 2871759226
 
 ### Working State
 DONE — Wave 2 shipped to origin/main @ `77d7d05`, CI GREEN. Nothing in progress, no blockers, no running crons/agents. Deferrals live in deferred_items.md.
+
+---
+
+## Checkpoint — 00:30 (follow-up: onboarding i18n + orphan cleanup)
+
+### Narrative
+User directed fixing two logged deferrals immediately after close. Done as ONE reviewed unit (shared uk.json), full spec→quality→integrate loop.
+- **Onboarding i18n decouple** (`c487247`): errors were English BECAUSE D's `rejected_field_from_error` routed by matching English substrings ("city"/"branch"). Decoupled — server emits `"{field_key}\u{1f}{localized_msg}"` (unit separator); client `split_once` routes by the stable key, displays the Ukrainian `td_string!` message. Infra errors (no separator) mark no field. 2 new uk.json keys.
+- **M1 fold** (`f3291e5`): unified the `\u{1f}` separator into one non-gated const (dropped the ssr cfg-gate + client-local dup literal).
+- **8 orphan uk.json keys removed** (the 7 + `onboarding_error_prefix`, orphaned by deleting the old prefix-concat), all grep-confirmed zero-ref.
+Gates: spec PASS (compiler-confirmed both features; strip-order/hydrate/decouple verified), quality Ready-to-merge (M1 folded). Local e2e 110/0. Ukrainian pixel-verify CLEAN ("Номер відділення має бути цілим числом більше нуля.", only the number field marked, city clean). CI run 28719895709 GREEN (Check + E2E). Pushed to origin/main @ f3291e5.
+
+### Working State
+DONE. Both user-flagged deferrals resolved + shipped + CI green. Unchanged open deferrals: no-season empty-state capture; mechanical clip/overflow assertions; capture-helper waitForTimeout; Leptos SSR reactive-disposal panic; IP rate-limiting. Stale prior-campaign local branches (fix/admin-markup, fix/aria-systemic, fix/css-wave2, fix/dark-error-overflow, fix/home-markup, fix/login-errors, fix/quality-hazards) remain — dead (content on main), prune candidates.

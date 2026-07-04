@@ -178,3 +178,7 @@ All 7 Wave-2 units integrated (admin markup, admin i18n, home, onboarding, login
 - IP-based rate limiting absent.
 - cycle-viz label collision at 11–15 nodes unverifiable (seed has 3).
 - page-09 terminal-season create-form capture gap.
+
+## Resolved 2026-07-05 (follow-up)
+- **Onboarding participant errors English** — RESOLVED (c487247+f3291e5): localized via language-independent field routing (server field-key + td_string! message; client routes by key). Ukrainian pixel-verified, CI green.
+- **7 pre-existing orphan uk.json keys** — RESOLVED: removed 8 zero-ref keys (the 7 + onboarding_error_prefix).
