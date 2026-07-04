@@ -70,19 +70,25 @@ enum RejectedField {
 
 /// Parse the stripped server error to determine which field was rejected.
 ///
-/// Server messages are: "city is required" → City;
-/// "invalid branch number" / "branch number must be positive" → `NpNumber`.
-fn rejected_field_from_error(stripped: &str) -> RejectedField {
+/// Returns `None` for infra/session errors that name no field — those clear both
+/// `aria-invalid` signals rather than falsely flagging a field. Validation errors:
+/// "city is required" → `Some(City)`; "branch …" → `Some(NpNumber)`.
+fn rejected_field_from_error(stripped: &str) -> Option<RejectedField> {
     if stripped.contains("city") {
-        RejectedField::City
+        Some(RejectedField::City)
+    } else if stripped.contains("branch") {
+        Some(RejectedField::NpNumber)
     } else {
-        RejectedField::NpNumber
+        None
     }
 }
 
 /// Onboarding form: collect Nova Poshta delivery address.
 /// Shown only on first login; navigates to `/` on success via a full page
 /// reload so SSR re-runs `get_current_user()` with `onboarded=true`.
+// The `view!` macro's HTML attribute verbosity inflates line count beyond what
+// reflects logic complexity; extracting sub-components here would be YAGNI.
+#[allow(clippy::too_many_lines)]
 #[component]
 pub fn OnboardingPage() -> impl IntoView {
     let i18n = use_i18n();
@@ -95,25 +101,32 @@ pub fn OnboardingPage() -> impl IntoView {
 
     let hydrated = use_hydrated();
 
-    Effect::new(move |_| match onboard_action.value().get() {
-        Some(Ok(())) => {
-            let _ = leptos::prelude::window().location().set_href("/");
-        }
-        Some(Err(e)) => {
-            let stripped = strip_server_error_prefix(&e).clone();
-            let msg = format!("{}{}", t_string!(i18n, onboarding_error_prefix), stripped);
-            match rejected_field_from_error(&stripped) {
-                RejectedField::City => {
-                    set_city_error.set(Some(msg));
-                    set_np_error.set(None);
+    Effect::new(move |_| {
+        if let Some(result) = onboard_action.value().get() {
+            match result {
+                Ok(()) => {
+                    let _ = leptos::prelude::window().location().set_href("/");
                 }
-                RejectedField::NpNumber => {
-                    set_np_error.set(Some(msg));
-                    set_city_error.set(None);
+                Err(e) => {
+                    let stripped = strip_server_error_prefix(&e);
+                    let msg = format!("{}{}", t_string!(i18n, onboarding_error_prefix), stripped);
+                    match rejected_field_from_error(&stripped) {
+                        Some(RejectedField::City) => {
+                            set_city_error.set(Some(msg));
+                            set_np_error.set(None);
+                        }
+                        Some(RejectedField::NpNumber) => {
+                            set_np_error.set(Some(msg));
+                            set_city_error.set(None);
+                        }
+                        None => {
+                            set_city_error.set(None);
+                            set_np_error.set(None);
+                        }
+                    }
                 }
             }
         }
-        None => {}
     });
 
     view! {
@@ -170,6 +183,7 @@ pub fn OnboardingPage() -> impl IntoView {
                         <div
                             id="np-np-number-error"
                             aria-live="assertive"
+                            data-testid="np-number-error"
                         >
                             {move || np_error.get().map(|msg| view! {
                                 <p class="field-error" role="alert">{msg}</p>
