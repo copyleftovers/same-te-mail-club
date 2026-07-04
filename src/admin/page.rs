@@ -363,6 +363,7 @@ fn render_create_form(
                             id="theme"
                             type="text"
                             name="theme"
+                            maxlength="100"
                             placeholder=move || t_string!(i18n, season_theme_placeholder)
                             data-testid="theme-input"
                             aria-describedby="action-error"
@@ -1461,17 +1462,36 @@ fn InviteCodesSection(
                                                             }
                                                         }}
                                                     </span>
-                                                    // Redeemer + timestamp (only when used)
+                                                    // Redeemer + timestamp (only when used).
+                                                    // Name and date on separate lines so a long
+                                                    // double-barrel name wraps within its own row
+                                                    // instead of pushing the date to a second line
+                                                    // and jaggedly varying card height (OV L11).
                                                     <span
                                                         class="invite-code-card-redeemer"
                                                         data-testid="invite-code-redeemer-cell"
                                                     >
                                                         {match (code.redeemer_name.clone(), code.redeemed_at.clone()) {
                                                             (Some(name), Some(date_str)) => {
-                                                                format!("{name} ({date_str})")
+                                                                view! {
+                                                                    <span class="invite-code-card-redeemer-name">
+                                                                        {name}
+                                                                    </span>
+                                                                    <small class="invite-code-card-redeemer-date">
+                                                                        {date_str}
+                                                                    </small>
+                                                                }
+                                                                    .into_any()
                                                             }
-                                                            (Some(name), None) => name,
-                                                            _ => String::new(),
+                                                            (Some(name), None) => {
+                                                                view! {
+                                                                    <span class="invite-code-card-redeemer-name">
+                                                                        {name}
+                                                                    </span>
+                                                                }
+                                                                    .into_any()
+                                                            }
+                                                            _ => ().into_any(),
                                                         }}
                                                     </span>
                                                     // Revoke action (only for unused codes)

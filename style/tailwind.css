@@ -34,6 +34,13 @@
   --color-error: oklch(0.55 0.22 25);
   --color-success: oklch(0.58 0.16 160);
 
+  /* Border color — semantic alias so UI-component boundaries can reassign in
+     dark. Light: brand-gray (matches the historical hardcoded value; the border
+     consumers below now route through this instead of --color-brand-gray raw).
+     Dark override lifts it to meet WCAG 2.1 §1.4.11 (≥3:1 non-text) — see the
+     dark :root block. */
+  --color-border: var(--color-brand-gray);
+
   --density-space-sm: calc(var(--spacing) * 3);
   --density-space-md: calc(var(--spacing) * 5);
   --density-space-lg: calc(var(--spacing) * 8);
@@ -74,13 +81,34 @@
   }
 }
 
-/* Dark mode (system only, no toggle) */
+/* Dark mode (system only, no toggle).
+   Contrast targets below computed against oklch→sRGB→WCAG (not eyeballed):
+   - surface-raised 0.22 vs base 0.15 = +0.07 OKLCH-L perceptual step (was +0.03,
+     imperceptible). WCAG contrast is the wrong metric for two near-black surfaces;
+     OKLCH L is perceptually uniform, so the L delta is the correct measure.
+   - --color-border 0.58 = 4.04:1 on raised(0.22), 4.60:1 on base(0.15) — ≥3:1 non-text.
+   - --color-error 0.68 error text on the solid dark alert panel(0.22) = 5.27:1 — AA.
+   - --color-success 0.72 success text on the solid dark report panel(0.22) = 7.48:1 — AA.
+   Raw tokens (brand-*) never change; only semantic aliases do. */
 @media (prefers-color-scheme: dark) {
   :root {
     --color-surface: var(--color-brand-black);
-    --color-surface-raised: oklch(0.18 0.01 250);
+    --color-surface-raised: oklch(0.22 0.01 250);
     --color-text: var(--color-brand-cream);
     --color-text-muted: oklch(0.65 0.01 250);
+    --color-border: oklch(0.58 0.01 250);
+    --color-error: oklch(0.68 0.22 25);
+    --color-success: oklch(0.72 0.16 160);
+
+    /* Solid dark container fill for informational panels (.alert /
+       .sms-report-result) and stepper markers. A colour-alpha wash over
+       near-black tops out at ~1.6:1 vs the page (invisible as a panel), so dark
+       mode uses a solid raised-tinted fill instead — +0.07 L above base reads as
+       a real container. Light mode keeps the alpha wash (see the component rules). */
+    --color-panel-dark: oklch(0.22 0.01 250);
+    /* Stepper pending/locked marker + connector fill: +0.15 L solid step above
+       base so the sequence structure stays visible (alpha 0.2 gray was invisible). */
+    --color-step-idle: oklch(0.30 0.01 250);
   }
 }
 
@@ -235,6 +263,16 @@
     border-color: currentcolor;
   }
 
+  /* Dark mode: a cream (currentcolor) 1.5px border on black reads as a ghosted
+     label, not a control. Pin the border to --color-border (oklch 0.58 = 4.04:1
+     on the page) so the secondary button has a legible, control-like outline
+     while keeping cream text. */
+  @media (prefers-color-scheme: dark) {
+    .btn[data-variant="secondary"] {
+      border-color: var(--color-border);
+    }
+  }
+
   .btn[data-variant="destructive"] {
     --btn-bg: var(--color-error);
     --btn-ring: var(--color-error);
@@ -279,8 +317,9 @@
     line-height: 1.5;
     color: var(--color-text);
     background: var(--color-surface-raised);
-    /* structural: 1.5px solid --color-brand-gray (spec-defined fractional border) */
-    border: 1.5px solid var(--color-brand-gray);
+    /* structural: 1.5px solid --color-border (spec-defined fractional border;
+       --color-border = brand-gray in light, lifts to oklch(0.58) in dark for ≥3:1) */
+    border: 1.5px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 3);
     transition: border-color 120ms ease, box-shadow 120ms ease;
@@ -336,7 +375,14 @@
   /* Status→fill rule (design-system §Badges): live/actionable = color,
      terminal/historical = gray. --color-error is reserved for destructive
      *action* buttons only — no status badge fills red, so a red pill always
-     means "an action you can take", never "a settled record". */
+     means "an action you can take", never "a settled record".
+
+     WCAG note (computed, not eyeballed): white-on-brand-gray badge text is
+     7.43:1 — brand-gray is oklch(0.45 0.01 250) = sRGB #51565B (relative
+     luminance 0.091), NOT the mid-#565656 the visual review estimated. It
+     PASSES AA at 12px in both light and dark; the fill does not reassign
+     because raw tokens don't (§Palette), and it does not need to. Switching to
+     dark text would DROP it to 2.65:1 (a real fail) — do not "fix" this. */
 
   /* active participant — live */
   .badge[data-status="active"] {
@@ -445,6 +491,12 @@
 
   .prose-page dd {
     font-size: var(--text-base);
+    /* min-width:0 lets the 1fr value track shrink below its content's min-content
+       width; overflow-wrap breaks an unbroken long string (e.g. a URL-style
+       season theme) so it wraps within the value cell instead of forcing the
+       grid wider than 65ch and crushing the label column (OV L12). */
+    min-width: 0;
+    overflow-wrap: break-word;
   }
 
   .data-table {
@@ -460,19 +512,32 @@
     text-transform: uppercase;
     letter-spacing: 0.1em; /* inherent: spec-defined overline tracking */
     padding: var(--density-space-sm) var(--density-space-sm);
-    border-bottom: 2px solid var(--color-brand-gray); /* structural: 2px emphasis separator */
+    border-bottom: 2px solid var(--color-border); /* structural: 2px emphasis separator */
     color: var(--color-text-muted);
   }
 
   .data-table td {
     padding: var(--density-space-sm) var(--density-space-sm);
-    border-bottom: 1px solid oklch(from var(--color-brand-gray) l c h / 0.2); /* structural: 1px thin separator */
+    border-bottom: 1px solid oklch(from var(--color-border) l c h / 0.2); /* structural: 1px thin separator */
     vertical-align: top;
   }
 
+  /* Actions column (last): keep the action button on one line, but the name
+     column (first) is bounded below so long double-barrel Ukrainian names wrap
+     inside their own cell instead of expanding the row. */
   .data-table th:last-child,
   .data-table td:last-child {
     white-space: nowrap;
+  }
+
+  /* Name / primary-identifier column: cap its width so a long hyphenated name
+     ("Олександра-Вікторія Кравченко-Мельниченко") wraps within the cell rather
+     than doubling the row height and misaligning sibling cells. overflow-wrap
+     breaks an unbroken string; vertical-align:top (above) keeps wrapped cells
+     aligned with single-line siblings. */
+  .data-table td:first-child {
+    max-width: calc(var(--spacing) * 44);
+    overflow-wrap: anywhere;
   }
 
   /* ── Invite code card list ────────────────────────────────────── */
@@ -492,10 +557,11 @@
     align-items: center;
     gap: calc(var(--spacing) * 2) var(--density-space-sm);
     /* Reserve a consistent baseline so empty-redeemer and single-line cards
-       stack with even rhythm; only genuine 2-line redeemers exceed it. */
-    min-height: calc(var(--spacing) * 14);
+       stack with even rhythm; genuine 2-line redeemers (name row + date row)
+       exceed it predictably — name length no longer wraps the date mid-string. */
+    min-height: calc(var(--spacing) * 16);
     padding: var(--density-space-sm) var(--density-space-md);
-    border: 1px solid oklch(from var(--color-brand-gray) l c h / 0.15); /* structural: 1px card border */
+    border: 1px solid oklch(from var(--color-border) l c h / 0.15); /* structural: 1px card border */
     border-radius: var(--radius-md);
   }
 
@@ -513,11 +579,28 @@
     color: var(--color-text-muted);
   }
 
-  /* Redeemer + timestamp — secondary muted line, grows to fill available space */
+  /* Redeemer block — secondary muted, grows to fill available space. The name
+     and timestamp render on separate lines (name row + <small> date row) so a
+     long redeemer name wraps within the name row instead of pushing the date to
+     a second line and jaggedly varying card height (OV L11). */
   .invite-code-card-redeemer {
     flex: 1;
+    min-width: 0; /* allow the flex item to shrink so overflow-wrap can act */
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 0.5);
     font-size: var(--text-secondary);
     color: var(--color-text-muted);
+  }
+
+  /* Redeemer name — own line, wraps within the block (long double-barrel names) */
+  .invite-code-card-redeemer-name {
+    overflow-wrap: anywhere;
+  }
+
+  /* Redeemer timestamp — separate line below the name, tabular for alignment */
+  .invite-code-card-redeemer-date {
+    font-variant-numeric: tabular-nums;
   }
 
   /* Action — pushed to the right edge */
@@ -544,12 +627,29 @@
     margin-bottom: var(--density-space-md);
   }
 
+  /* Dark mode: a 0.1-alpha colour wash over near-black tops out at ~1.4:1 vs the
+     page — the informational container disappears. Use a SOLID panel fill
+     (--color-panel-dark = oklch 0.22, +0.07 L above base = a real container) with
+     a 3px colour-accent left border to carry the semantic (error red / success
+     green). Text stays on the solid panel: error text (0.68 dark) = 5.27:1,
+     success value cream = 16:1 — both AA. */
+  @media (prefers-color-scheme: dark) {
+    .alert {
+      background: var(--color-panel-dark);
+      border-left: 3px solid var(--color-error); /* structural: 3px accent stripe */
+    }
+    .sms-report-result {
+      background: var(--color-panel-dark);
+      border-left: 3px solid var(--color-success); /* structural: 3px accent stripe */
+    }
+  }
+
   .app-header {
     display: flex;
     align-items: center;
     gap: var(--density-space-sm);
     padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
-    border-bottom: 1px solid oklch(from var(--color-brand-gray) l c h / 0.35); /* structural: 1px header separator */
+    border-bottom: 1px solid oklch(from var(--color-border) l c h / 0.35); /* structural: 1px header separator */
   }
 
   .app-header img {
@@ -581,7 +681,7 @@
 
   .sms-trigger {
     padding: var(--density-space-md);
-    border: 1px solid oklch(from var(--color-brand-gray) l c h / 0.2); /* structural: 1px container border */
+    border: 1px solid oklch(from var(--color-border) l c h / 0.2); /* structural: 1px container border */
     border-radius: var(--radius-md);
     margin-bottom: var(--density-space-sm);
   }
@@ -645,6 +745,15 @@
     padding-right: calc(var(--spacing) * 10);
   }
 
+  /* Dark mode: the gray arrow (%23565656) is ~2.5:1 on the dark input — invisible.
+     Swap to a cream-stroked (%23FAF9F6) arrow = 16.3:1 on raised(0.22). Same
+     documented data-URI exception (custom props can't be interpolated into URIs). */
+  @media (prefers-color-scheme: dark) {
+    select.field-input {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23FAF9F6' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    }
+  }
+
   textarea.field-input {
     min-height: var(--size-textarea);
     resize: vertical;
@@ -699,7 +808,7 @@
   /* ── Card ─────────────────────────────────────────────────────── */
   .card {
     background: var(--color-surface-raised);
-    border: 1px solid oklch(from var(--color-brand-gray) l c h / 0.15); /* structural: 1px card border */
+    border: 1px solid oklch(from var(--color-border) l c h / 0.15); /* structural: 1px card border */
     border-radius: var(--radius-md);
     padding: var(--density-space-md);
     max-width: var(--size-content-max); /* prevents sparse 4-column spread on wide desktop prose column */
@@ -756,7 +865,7 @@
      the deadline visually distinct from surrounding prose. */
   .deadline {
     padding-left: var(--density-space-sm);
-    border-left: 3px solid var(--color-brand-gray); /* structural: 3px accent stripe */
+    border-left: 3px solid var(--color-border); /* structural: 3px accent stripe (lifts in dark via --color-border) */
     font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
@@ -789,7 +898,7 @@
 
   /* ── Skeleton ─────────────────────────────────────────────────── */
   .skeleton-line {
-    background: oklch(from var(--color-brand-gray) l c h / 0.15);
+    background: oklch(from var(--color-border) l c h / 0.15);
     border-radius: var(--radius-sm);
     animation: skeleton-pulse 2s ease-in-out infinite;
   }
@@ -898,7 +1007,7 @@
     border-radius: 50%;
     font-weight: 600;
     font-size: var(--text-xs);
-    background: oklch(from var(--color-brand-gray) l c h / 0.2);
+    background: oklch(from var(--color-border) l c h / 0.2);
     color: var(--color-text-muted);
     transition: background 120ms ease, box-shadow 120ms ease;
   }
@@ -945,7 +1054,7 @@
   .step-connector {
     width: calc(var(--spacing) * 4);
     height: 2px; /* structural: thin connector line */
-    background: oklch(from var(--color-brand-gray) l c h / 0.2);
+    background: oklch(from var(--color-border) l c h / 0.2);
     flex-shrink: 0;
     align-self: flex-start;
     margin-top: calc(var(--spacing) * 5);
@@ -959,11 +1068,24 @@
     opacity: 0.35;
   }
 
+  /* Dark mode: an alpha-gray fill over near-black is invisible (idle marker ≈1.3:1
+     vs the page). Swap the idle marker + connector to a SOLID +0.15-L step so the
+     sequence structure (3 of 5 steps normally idle) stays visible. Only orange
+     (current) and green (completed) already read; idle/locked did not. */
+  @media (prefers-color-scheme: dark) {
+    .step-marker {
+      background: var(--color-step-idle);
+    }
+    .step-connector {
+      background: var(--color-step-idle);
+    }
+  }
+
   /* ── Data table wrapper ───────────────────────────────────────── */
   .data-table-wrapper {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    border: 1px solid oklch(from var(--color-brand-gray) l c h / 0.15); /* structural: 1px wrapper border */
+    border: 1px solid oklch(from var(--color-border) l c h / 0.15); /* structural: 1px wrapper border */
     border-radius: var(--radius-md);
   }
 
@@ -984,9 +1106,15 @@
       align-items: center;
       gap: calc(var(--spacing) * 1);
       padding: var(--density-space-sm) var(--density-space-md);
-      border: 1px solid oklch(from var(--color-brand-gray) l c h / 0.15); /* structural: 1px card border */
+      border: 1px solid oklch(from var(--color-border) l c h / 0.15); /* structural: 1px card border */
       border-radius: var(--radius-md);
       margin-bottom: var(--density-space-sm);
+    }
+
+    /* Mobile card stack: the primary-identifier cell fills the card, so drop the
+       desktop name-column max-width cap (it would clip the full-width card row). */
+    .data-table td:first-child {
+      max-width: none;
     }
 
     .data-table td {
@@ -1160,7 +1288,7 @@
 
   @media (hover: hover) {
     .mobile-menu a:hover {
-      background: oklch(from var(--color-brand-gray) l c h / 0.1);
+      background: oklch(from var(--color-border) l c h / 0.1);
     }
   }
 
@@ -1180,6 +1308,33 @@
     width: 100%;
     max-width: var(--size-cycle-viz);
     aspect-ratio: 1;
+  }
+
+  /* ── Dark-mode container-border alpha lift ────────────────────── */
+  /* The decorative container borders route through --color-border (lifts to
+     oklch 0.58 in dark), but at their light-calibrated 0.15–0.2 alpha they still
+     read as near-zero contrast on near-black. Raise the alpha in dark so grouping
+     (card rows, sms-trigger, table separators) is a visible structural signal.
+     0.4 alpha of oklch(0.58) over base(0.15) ≈ a perceptible hairline; solid
+     borders (field-input, th 2px) already meet ≥3:1 via --color-border itself. */
+  @media (prefers-color-scheme: dark) {
+    .invite-code-card,
+    .data-table-wrapper,
+    .card {
+      border-color: oklch(from var(--color-border) l c h / 0.4);
+    }
+
+    .sms-trigger {
+      border-color: oklch(from var(--color-border) l c h / 0.4);
+    }
+
+    .data-table td {
+      border-bottom-color: oklch(from var(--color-border) l c h / 0.35);
+    }
+
+    .data-table tr {
+      border-color: oklch(from var(--color-border) l c h / 0.4);
+    }
   }
 
   /* ── Accessibility utilities ──────────────────────────────────── */

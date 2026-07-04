@@ -16,7 +16,7 @@ Six brand tokens. All values in oklch for perceptual uniformity; hex provided fo
 |-------|-------|-----|--------|
 | `--color-brand-orange` | `oklch(0.63 0.22 31)` | `#D93A12` | Brand orange, **contrast-corrected** from landing page `#FB4417` (which fails WCAG AA on white at 3.53:1). This value yields ~4.6:1 on white. |
 | `--color-brand-pink` | `oklch(0.88 0.04 15)` | `#EED3D0` | Warm accent for dark surfaces |
-| `--color-brand-gray` | `oklch(0.45 0.01 250)` | `#565656` | Body text on light surfaces |
+| `--color-brand-gray` | `oklch(0.45 0.01 250)` | `#51565B` | Body text on light surfaces; also the default `--color-border`. (Renders darker than the `#565656` approximation — relative luminance 0.091 — so white-on-gray badge text is 7.43:1, passing AA.) |
 | `--color-brand-blue` | `oklch(0.78 0.11 240)` | `#8DC1FF` | Tags, focus rings, secondary accent on dark |
 | `--color-brand-black` | `oklch(0.15 0.00 0)` | `#161616` | Dark surfaces, heavy text |
 | `--color-brand-cream` | `oklch(0.98 0.01 90)` | `#FAF9F6` | Page background, light surfaces |
@@ -40,7 +40,10 @@ These are CSS custom properties on `:root`, not `@theme` tokens. They do not gen
 --color-focus             → --color-brand-blue
 --color-error             → oklch(0.55 0.22 25)
 --color-success           → oklch(0.58 0.16 160)
+--color-border            → --color-brand-gray
 ```
+
+`--color-border` is the semantic alias for UI-component boundaries (form-input borders, card/table/container borders, deadline stripe). It exists so borders can reassign in dark mode to meet WCAG 2.1 §1.4.11 (≥3:1 non-text) — `--color-brand-gray` alone is a raw token and would not reassign. All border consumers route through `--color-border`; the alpha-tinted decorative variants use `oklch(from var(--color-border) l c h / α)`.
 
 ### Dark Mode
 
@@ -48,12 +51,34 @@ These are CSS custom properties on `:root`, not `@theme` tokens. They do not gen
 
 ```
 --color-surface       → --color-brand-black
---color-surface-raised→ oklch(0.18 0.01 250)
+--color-surface-raised→ oklch(0.22 0.01 250)
 --color-text          → --color-brand-cream
 --color-text-muted    → oklch(0.65 0.01 250)
+--color-border        → oklch(0.58 0.01 250)
+--color-error         → oklch(0.68 0.22 25)
+--color-success       → oklch(0.72 0.16 160)
+```
+
+Plus two dark-only helper tokens (defined only inside the dark `:root`, no light-mode counterpart):
+
+```
+--color-panel-dark    → oklch(0.22 0.01 250)   /* solid fill for .alert / .sms-report-result */
+--color-step-idle     → oklch(0.30 0.01 250)   /* solid stepper idle marker + connector */
 ```
 
 Raw tokens do not change. Semantic tokens do.
+
+**Why these values (computed WCAG, not eyeballed):**
+
+- **`--color-surface-raised` 0.18 → 0.22.** The prior +0.03 OKLCH-L step above the base (0.15) was perceptually invisible — cards, toasts, and input backgrounds collapsed into the page. 0.22 is a +0.07 L step (2.3× larger). WCAG *contrast ratio* is the wrong metric for two near-black surfaces (both compute to ~1.1:1); OKLCH L is perceptually uniform, so the L delta is the correct measure of elevation.
+- **`--color-border` 0.58.** `--color-brand-gray` (0.45) on the raised surface is only 2.33:1 — below the 3:1 non-text minimum. 0.58 is 4.04:1 on raised(0.22) and 4.60:1 on base(0.15).
+- **`--color-error` 0.68 / `--color-success` 0.72.** The light values (0.55 / 0.58) as text on the dark alert/report panel are ~3.6:1 / borderline — below AA. Lifted, error text on the solid panel is 5.27:1 and success text is 7.48:1.
+- **Solid panels, not alpha washes.** `.alert` / `.sms-report-result` use a 0.1-alpha colour wash in light mode; over near-black that tops out at ~1.4:1 vs the page (invisible container). In dark they switch to a solid `--color-panel-dark` fill + a 3px colour-accent left border (error red / success green) so the informational container is a real, visible surface.
+- **Stepper idle marker/connector.** A 0.2-alpha gray fill over near-black is ~1.3:1 (invisible). Dark swaps to a solid `--color-step-idle` (0.30, +0.15 L step) so idle/locked steps stay visible and the 5-step sequence structure reads.
+- **Select arrow.** The data-URI arrow is hardcoded `#565656` (~2.5:1 on the dark input). A dark-mode override swaps it for a cream (`#FAF9F6`) arrow = 16.3:1. (Custom properties can't be interpolated into data URIs — documented exception.)
+- **Secondary button border.** `currentcolor` (cream) on black reads as a ghosted label; dark pins the border to `--color-border` (4.04:1) so it reads as a control.
+
+**Gray-badge note:** white-on-`--color-brand-gray` badge text is **7.43:1** (brand-gray = sRGB #51565B, relative luminance 0.091 — not the mid-#565656 hex suggests). It passes AA at 12px in both modes and is left unchanged; dark text on it would be 2.65:1 (a real fail).
 
 ---
 
