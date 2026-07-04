@@ -675,10 +675,10 @@ fn render_enrollment_open(
         <leptos::form::ActionForm action=enroll_action>
             {match existing_address {
                 Some((city, branch_number)) => view! {
-                    <p data-testid="existing-address">
-                        {t!(i18n, home_branch_label)} " "
-                        {format!("{city}, #{branch_number}")}
-                    </p>
+                    <div class="field" data-testid="existing-address">
+                        <span class="field-label">{t!(i18n, home_saved_address_label)}</span>
+                        <p class="field-input">{format!("{city}, відділення #{branch_number}")}</p>
+                    </div>
                     <input type="hidden" name="use_existing_address" value="true" />
                     // city and np_number are required by form deserialization but
                     // ignored by the server when use_existing_address is true.
@@ -723,7 +723,7 @@ fn render_enrollment_open(
                 }.into_any(),
             }}
             <button
-                class="btn"
+                class="btn w-full"
                 type="submit"
                 data-testid="enroll-button"
                 disabled=move || pending.get() || !hydrated.get()
@@ -761,7 +761,7 @@ fn render_preparing(
             Some(view! {
                 <leptos::form::ActionForm action=confirm_action>
                     <button
-                        class="btn"
+                        class="btn w-full"
                         type="submit"
                         data-testid="confirm-ready-button"
                         disabled=move || confirm_pending.get() || !hydrated.get()
@@ -905,8 +905,10 @@ fn render_home_state(
 ) -> AnyView {
     match state {
         HomeState::NoSeason => view! {
-            <h1>{t!(i18n, dashboard_no_season)}</h1>
-            <p>{t!(i18n, home_no_season)}</p>
+            <div class="empty-state">
+                <p class="empty-state-headline">{t!(i18n, dashboard_no_season)}</p>
+                <p class="empty-state-body">{t!(i18n, home_no_season)}</p>
+            </div>
         }
         .into_any(),
 
