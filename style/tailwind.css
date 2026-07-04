@@ -333,40 +333,43 @@
     white-space: nowrap; /* structural: badges are single-line pills; wrapping distorts uniform height */
   }
 
+  /* Status→fill rule (design-system §Badges): live/actionable = color,
+     terminal/historical = gray. --color-error is reserved for destructive
+     *action* buttons only — no status badge fills red, so a red pill always
+     means "an action you can take", never "a settled record". */
+
+  /* active participant — live */
   .badge[data-status="active"] {
     background: var(--color-success);
   }
 
-  .badge[data-status="pending"] {
-    background: var(--color-accent);
-  }
-
-  .badge[data-status="error"] {
-    background: var(--color-error);
-  }
-
+  /* deactivated participant + cancelled-season terminal badge — terminal */
   .badge[data-status="inactive"] {
     background: var(--color-brand-gray);
   }
 
-  /* confirmed uses brand-blue (oklch 0.78 — light); black text required for WCAG AA */
+  /* season-complete terminal badge — brand-blue (oklch 0.78 — light); black text required for WCAG AA */
   .badge[data-status="confirmed"] {
     background: var(--color-brand-blue);
     color: var(--color-brand-black);
   }
 
-  /* unused invite code: blue (confirmed-style) — distinct from active-participant green */
+  /* unused invite code — the one live/actionable code state; blue, distinct from active-participant green */
   .badge[data-status="unused"] {
     background: var(--color-brand-blue);
     color: var(--color-brand-black); /* brand-blue oklch 0.78 is light; black text for WCAG AA */
   }
 
+  /* used invite code — terminal */
   .badge[data-status="used"] {
     background: var(--color-brand-gray);
   }
 
+  /* revoked invite code — terminal, NOT an error. Gray (matching used/inactive),
+     never --color-error red: a revoked code is a settled record, not a live
+     destructive action. Red here collided with the destructive "Відкликати" button. */
   .badge[data-status="revoked"] {
-    background: var(--color-error);
+    background: var(--color-brand-gray);
   }
 
   .prose-page {
@@ -396,11 +399,34 @@
     margin-bottom: var(--density-space-sm);
   }
 
+  /* Sub-section heading — one defined step below h2 (section) and above body.
+     Mont 600 at 1rem so bare <h3> (assignment "Обмін"/"Цикли", participant list,
+     card recipient name) is spec-styled rather than browser-default serif.
+     The scoped `.sms-trigger h3` rule below (equal specificity, later in source)
+     still wins inside SMS triggers, preserving its tighter label treatment. */
+  .prose-page h3 {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 1rem; /* between --text-body (1.05rem) body and --text-section (1.1–1.3rem) h2 */
+    line-height: 1.3;
+    margin-bottom: var(--density-space-sm);
+  }
+
   .prose-page p {
     margin-bottom: var(--density-space-sm);
   }
 
-  .prose-page > section + section {
+  /* Vertical rhythm between adjacent logical sections. Fires regardless of the
+     wrapper's TAG (section / article / .card / cycle-viz block) because markup
+     uses a mix of these for logical sections — the old `> section + section`
+     silently no-op'd between an <article class="card"> and a following <section>
+     (e.g. the home receipt block) and between admin <div>/<article> blocks.
+     The `>` direct-child requirement is dropped so the rule still fires when
+     content is nested behind a Suspense/fragment. `.sms-trigger` is intentionally
+     excluded: those stack as a tight list with their own margin-bottom rhythm. */
+  .prose-page
+    :where(section, article, .card, .cycle-viz-container)
+    + :where(section, article, .card, .cycle-viz-container) {
     margin-top: var(--density-space-lg);
   }
 
@@ -648,6 +674,28 @@
     justify-content: center;
   }
 
+  /* Peer-action button row — the form-first container for adjacent buttons
+     (e.g. the home "Так/Ні отримав(ла)" receipt pair). Wrap two buttons in
+     <div class="btn-group"> to lay them out with a consistent gap. */
+  .btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--density-space-sm);
+  }
+
+  /* Flow fallback: adjacent buttons left as stacked siblings (no .btn-group
+     wrapper) were flush — the old CSS had a .field+.btn rule but no .btn+.btn.
+     This guarantees breathing room between consecutive buttons anywhere.
+     Nulled inside .btn-group so the flex `gap` is the sole spacing there
+     (a margin-top would otherwise add to the gap). */
+  .btn + .btn {
+    margin-top: var(--density-space-sm);
+  }
+
+  .btn-group .btn + .btn {
+    margin-top: 0;
+  }
+
   /* ── Card ─────────────────────────────────────────────────────── */
   .card {
     background: var(--color-surface-raised);
@@ -701,39 +749,16 @@
   }
 
   /* ── Deadline ─────────────────────────────────────────────────── */
+  /* Styles the flat `<p class="deadline">{label} {date}</p>` used at all sites.
+     The former flex label/value structure and the data-urgency variant hook were
+     dead (no source ever rendered .deadline-label/.deadline-value children or set
+     data-urgency) — removed per YAGNI. A left accent stripe + tabular-nums keeps
+     the deadline visually distinct from surrounding prose. */
   .deadline {
-    --_accent: var(--deadline-accent, var(--color-brand-gray));
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--spacing) * 1);
     padding-left: var(--density-space-sm);
-    border-left: 3px solid var(--_accent); /* structural: 3px accent stripe */
-  }
-
-  .deadline-label {
-    font-size: var(--text-xs);
+    border-left: 3px solid var(--color-brand-gray); /* structural: 3px accent stripe */
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em; /* inherent: spec-defined label tracking */
-    color: var(--color-text-muted);
-  }
-
-  .deadline-value {
-    font-size: var(--text-body);
-    font-weight: 600;
-    color: var(--color-text);
-  }
-
-  .deadline[data-urgency="soon"] {
-    --deadline-accent: var(--color-accent);
-  }
-
-  .deadline[data-urgency="imminent"] {
-    --deadline-accent: var(--color-error);
-  }
-
-  .deadline[data-urgency="imminent"] .deadline-value {
-    color: var(--color-error);
+    font-variant-numeric: tabular-nums;
   }
 
   /* ── Empty state ──────────────────────────────────────────────── */
