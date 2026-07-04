@@ -250,8 +250,11 @@ pub fn AdminPage() -> impl IntoView {
                 }}
             </Suspense>
 
-            // ── Participants section ───────────────────────────────────────────
-            <section class="admin-section" data-testid="participants-outer-section">
+            // ── Participants group — plain wrapper, no card treatment ────────────
+            // invite-codes and participant-list are peer .admin-section cards;
+            // wrapping them in a third card would produce nested white-on-white
+            // panels (surface-raised inside surface-raised, no perceptual depth).
+            <section data-testid="participants-outer-section">
                 <h2 class="mb-(--density-space-md)">{t!(i18n, participants_page_title)}</h2>
                 <InviteCodesSection
                     generate_invite_action=generate_invite_action
@@ -260,7 +263,7 @@ pub fn AdminPage() -> impl IntoView {
                     distributor_options=distributor_options
                     hydrated=hydrated
                 />
-                <section class="admin-section">
+                <section class="admin-section" data-testid="participant-list-section">
                     <h2>{t!(i18n, participants_list_title)}</h2>
                     <ParticipantListSection
                         participants=participants
