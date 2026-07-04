@@ -77,6 +77,40 @@ const MOBILE_VIEWPORT = { width: 375, height: 812 } as const;
 const DESKTOP_VIEWPORT = { width: 1280, height: 800 } as const;
 const LAYOUT_REFLOW_MS = 150;
 
+// ── Element-state helpers ──────────────────────────────────────────────────────
+
+/**
+ * Capture a single desktop + mobile pair for a named element state (error, focus).
+ *
+ * Uses the same SEQ counter as captureState so file indices stay globally ordered.
+ * Does NOT emit dark captures — element-state shots are light only; the reviewer
+ * can correlate against the dark full-page shots taken in the surrounding states.
+ */
+async function captureElementState(
+  page: Page,
+  name: string,
+  suffix: string,
+): Promise<void> {
+  const paddedIndex = String(SEQ.n).padStart(2, "0");
+  SEQ.n += 1;
+
+  await page.emulateMedia({ colorScheme: "light" });
+
+  await page.setViewportSize(DESKTOP_VIEWPORT);
+  await page.waitForTimeout(LAYOUT_REFLOW_MS);
+  await page.screenshot({
+    path: `screenshots/desktop/${paddedIndex}-${name}__${suffix}.png`,
+    fullPage: true,
+  });
+
+  await page.setViewportSize(MOBILE_VIEWPORT);
+  await page.waitForTimeout(LAYOUT_REFLOW_MS);
+  await page.screenshot({
+    path: `screenshots/mobile/${paddedIndex}-${name}__${suffix}.png`,
+    fullPage: true,
+  });
+}
+
 async function captureState(page: Page, name: string): Promise<void> {
   const paddedIndex = String(SEQ.n).padStart(2, "0");
   SEQ.n += 1;
@@ -156,6 +190,11 @@ test.describe.serial("Visual Audit", () => {
   test("capture login — phone input", async ({ page }) => {
     await page.goto("/login");
     await expect(page.getByTestId("send-otp-button")).toBeEnabled();
+    // ── Focus state: focus the phone input to capture :focus-visible ring ──
+    await page.getByTestId("phone-input").focus();
+    await captureElementState(page, "login-phone-input", "focus");
+    // Blur so the ring is absent from the subsequent full-page captures.
+    await page.getByTestId("phone-input").blur();
     await captureState(page, "login-phone-input");
   });
 
@@ -170,6 +209,16 @@ test.describe.serial("Visual Audit", () => {
     );
     await expect(page.getByTestId("otp-input")).toBeVisible();
     await captureState(page, "login-otp-input");
+    // ── Error state: wrong OTP reveals otp-error ──
+    // The native POST form processes the bad code server-side and 302-redirects
+    // to /login?otp_error=1. The browser follows the redirect and re-renders the
+    // OTP step with is_otp_error=true. Wait for the URL change then assert the
+    // error text is present — both are auto-retrying assertions, no waitForTimeout.
+    await page.getByTestId("otp-input").fill("999999");
+    await page.getByTestId("verify-otp-button").click();
+    await expect(page).toHaveURL(/otp_error/);
+    await expect(page.getByTestId("otp-error")).not.toBeEmpty();
+    await captureElementState(page, "login-otp-input", "error");
   });
 
   // ── Admin: generate invite codes ─────────────────────────────────────────────
@@ -214,6 +263,15 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.reachInviteCodeStep(AUDIT_PHONES.NEW);
     await captureState(page, "login-invite-code-input");
+    // ── Error state: submit an empty invite code ──
+    // The server fn returns "Invite code is required" immediately; ActionForm
+    // surfaces it in invite-code-error. No DB mutation — code is not consumed.
+    await app.clickAndWaitForResponse(
+      page.getByTestId("submit-invite-code-button"),
+      "validate_invite_code",
+    );
+    await expect(page.getByTestId("invite-code-error")).not.toBeEmpty();
+    await captureElementState(page, "login-invite-code-input", "error");
   });
 
   test("capture login — name input step", async ({ page }) => {
@@ -296,6 +354,17 @@ test.describe.serial("Visual Audit", () => {
     await captureSection(page, sIdx, "admin-no-season-create-form-available", "participants-outer-section");
     await captureSection(page, sIdx, "admin-no-season-create-form-available", "invite-codes-section");
     await captureSection(page, sIdx, "admin-no-season-create-form-available", "participant-list");
+    // ── Error state: submit create-season with past deadlines ──
+    // Both inputs are required=true so the browser blocks empty submission.
+    // Instead fill with a past date — bypasses browser validation, reaches the
+    // server fn, which rejects with "signup deadline must be in the future"
+    // and surfaces the error in action-error. No season is created.
+    const pastDate = "2020-01-01T00:00";
+    await page.getByTestId("signup-deadline-input").fill(pastDate);
+    await page.getByTestId("confirm-deadline-input").fill(pastDate);
+    await page.getByTestId("create-season-button").click();
+    await expect(page.getByTestId("action-error")).not.toBeEmpty();
+    await captureElementState(page, "admin-create-season-form", "error");
   });
 
   // Long SEASON_THEME is passed here — exercises theme display in season
