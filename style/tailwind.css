@@ -41,6 +41,15 @@
      dark :root block. */
   --color-border: var(--color-brand-gray);
 
+  /* Dark-mode helper tokens — reassigned to lifted solids in the dark :root
+     block (that is the only place they are consumed today). These base
+     definitions are safe fallbacks: if either is ever referenced outside the
+     dark context they resolve to a sensible light value instead of the empty
+     initial value. --color-panel-dark → the raised surface (solid informational
+     panel fill); --color-step-idle → the light-mode idle-marker tint. */
+  --color-panel-dark: var(--color-surface-raised);
+  --color-step-idle: oklch(from var(--color-brand-gray) l c h / 0.2);
+
   --density-space-sm: calc(var(--spacing) * 3);
   --density-space-md: calc(var(--spacing) * 5);
   --density-space-lg: calc(var(--spacing) * 8);
@@ -462,16 +471,18 @@
     margin-bottom: var(--density-space-sm);
   }
 
-  /* Vertical rhythm between adjacent logical sections. Fires regardless of the
-     wrapper's TAG (section / article / .card / cycle-viz block) because markup
+  /* Vertical rhythm between adjacent logical sections. The element/class list is
+     widened beyond `section` (to article / .card / cycle-viz block) because markup
      uses a mix of these for logical sections — the old `> section + section`
      silently no-op'd between an <article class="card"> and a following <section>
      (e.g. the home receipt block) and between admin <div>/<article> blocks.
-     The `>` direct-child requirement is dropped so the rule still fires when
-     content is nested behind a Suspense/fragment. `.sms-trigger` is intentionally
-     excluded: those stack as a tight list with their own margin-bottom rhythm. */
+     The `>` direct-child combinator is retained so the rule is depth-bounded: it
+     fires only between direct children of `.prose-page`, never between a nested
+     <section> inside <section> and a later sibling (which an unbounded descendant
+     selector would wrongly match). `.sms-trigger` is intentionally excluded:
+     those stack as a tight list with their own margin-bottom rhythm. */
   .prose-page
-    :where(section, article, .card, .cycle-viz-container)
+    > :where(section, article, .card, .cycle-viz-container)
     + :where(section, article, .card, .cycle-viz-container) {
     margin-top: var(--density-space-lg);
   }

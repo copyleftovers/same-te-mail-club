@@ -186,15 +186,20 @@ Structure: `.field` > `.field-label` + `.field-input` + `.field-error`
 
 ### Badges
 
-Pill shape. Variants via `data-status`:
+Pill shape. Variants via `data-status`. Six statuses ship.
 
-| Status | Background |
-|--------|-----------|
-| active | `--color-success` |
-| pending | `--color-accent` |
-| error | `--color-error` |
-| inactive | `--color-brand-gray` |
-| confirmed | `--color-brand-blue` |
+Semantic rule (S1): **live/actionable = colour, terminal/historical = gray, failure = red.** No status badge fills `--color-error` red — red is reserved for destructive *action* buttons only, so a red pill always means "an action you can take", never "a settled record". Terminal states (deactivated participant, used/revoked codes, cancelled season) route onto gray; the two live/actionable states (active participant, open code) and the season-complete milestone carry colour.
+
+| Status | Background | Text | Meaning |
+|--------|-----------|------|---------|
+| active | `--color-success` | white | Live participant |
+| unused | `--color-brand-blue` | `--color-brand-black` | Open (actionable) invite code |
+| confirmed | `--color-brand-blue` | `--color-brand-black` | Season-complete terminal milestone |
+| inactive | `--color-brand-gray` | white | Deactivated participant / cancelled-season terminal badge |
+| used | `--color-brand-gray` | white | Redeemed invite code (terminal) |
+| revoked | `--color-brand-gray` | white | Revoked invite code (terminal — NOT an error) |
+
+`--color-brand-blue` (oklch 0.78) is light, so `unused`/`confirmed` use `--color-brand-black` text for WCAG AA. The gray badges use white text (7.43:1 — passes AA; brand-gray renders as sRGB #51565B, relative luminance 0.091, not the mid-#565656 hex suggests). No `pending` or `error` status exists (both removed — `pending` used the accent orange, `error` used the destructive red; neither is a settled-record colour).
 
 Mont 600, text-xs, uppercase, letter-spacing 0.02em.
 
