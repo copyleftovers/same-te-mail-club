@@ -374,9 +374,17 @@
     cursor: not-allowed;
   }
 
+  /* V4: explicit placeholder color — browser default (~0.54 alpha) is too faint on
+     --color-surface-raised (white); --color-text-muted gives ≥3:1 on white. */
+  .field-input::placeholder {
+    color: var(--color-text-muted);
+    opacity: 1; /* override Firefox's extra 0.54 reduction on top of a low-alpha color */
+  }
+
   .field-error {
     font-size: var(--text-sm);
     color: var(--color-error);
+    text-align: start; /* RV-3: left-align error text regardless of parent centering (e.g. OTP field) */
   }
 
   .field-input[type="tel"],
@@ -1010,10 +1018,6 @@
     padding: var(--density-space-md);
     box-shadow: 0 4px 12px oklch(from var(--color-brand-black) l c h / 0.15); /* structural: elevation shadow */
     animation: toast-in 200ms ease;
-  }
-
-  .toast[data-type="error"] {
-    --toast-border: var(--color-error);
   }
 
   .toast-message {

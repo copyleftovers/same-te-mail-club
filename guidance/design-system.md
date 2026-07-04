@@ -212,6 +212,10 @@ Pill shape. Variants via `data-status`. One coherent semantic colour system, map
 
 **Colour choices.** `--color-badge-success` is `oklch(0.50 0.16 160)` — darkened from the old `--color-success` (0.58), which gave only 3.84:1 white (fail). `--color-badge-amber` `oklch(0.82 0.16 85)` breaks the old `unused`/`confirmed` blue collision and is a distinct hue family from both the accent-orange button (hue 31) and error red. `--color-badge-info` `oklch(0.70 0.09 240)` is a muted blue (relative luminance 0.348 vs brand-blue's 0.482) so it does not glow jarringly on the dark surface. Gray renders as sRGB #51565B (relative luminance 0.091 — white-on-gray is 7.43:1, not the ~3.5:1 the mid-#565656 hex suggests).
 
+**M3 — `confirmed` is green, not gray.** The `confirmed` status was previously mapped to `--color-brand-gray` (terminal family). It was reclassified to `--color-badge-success` (green) because season-complete is a positive outcome, not a terminal/historical one. The CSS `.badge[data-status="confirmed"]` reflects this.
+
+**M1/M2 — forward-prep statuses.** `ready` and `pending` are defined in CSS and this spec but not yet emitted by any Rust component. They are intentional forward-prep: `ready` is reserved for a "participant confirmed ready" state that may surface in a future participant-facing view; `pending` is consumed today only by the phase stepper connector (`.admin-section` stepper in `stepper.rs`) and reserved for broader use. Similarly, `.admin-section` is the layout class for all admin panel sections — it is fully consumed but documented here so readers know it belongs to the badge system's surrounding layout, not to a future spec.
+
 Mont 600, text-xs, uppercase, letter-spacing 0.02em.
 
 ### Content Container
