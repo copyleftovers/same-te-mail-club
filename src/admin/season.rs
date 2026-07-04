@@ -27,6 +27,7 @@ pub async fn create_season(
     theme: Option<String>,
 ) -> Result<(), ServerFnError> {
     use crate::auth;
+    use crate::i18n::i18n::{Locale, td_string};
     use time::OffsetDateTime;
     use time::format_description::well_known::Rfc3339;
 
@@ -49,15 +50,22 @@ pub async fn create_season(
 
     let now = OffsetDateTime::now_utc();
     if signup_dt <= now {
-        return Err(ServerFnError::new("signup deadline must be in the future"));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            season_error_signup_deadline_past
+        )));
     }
     if confirm_dt <= now {
-        return Err(ServerFnError::new("confirm deadline must be in the future"));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            season_error_confirm_deadline_past
+        )));
     }
     if signup_dt >= confirm_dt {
-        return Err(ServerFnError::new(
-            "signup deadline must be before confirm deadline",
-        ));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            season_error_signup_after_confirm
+        )));
     }
 
     let trimmed_theme = theme.and_then(|t| {
@@ -80,7 +88,7 @@ pub async fn create_season(
         if let Some(db_err) = e.as_database_error()
             && db_err.code().as_deref() == Some("23505")
         {
-            return ServerFnError::new("an active season already exists");
+            return ServerFnError::new(td_string!(Locale::uk, season_error_active_exists));
         }
         ServerFnError::new(format!("database error: {e}"))
     })?;

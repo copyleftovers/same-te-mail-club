@@ -107,7 +107,7 @@ pub fn OnboardingPage() -> impl IntoView {
                             placeholder="Київ"
                             required
                             data-testid="np-city-input"
-                            attr:aria-invalid=move || error_msg.get().map(|_| "true")
+                            aria-invalid=move || error_msg.get().map(|_| "true")
                             aria-describedby="np-onboarding-error"
                         />
                     </div>
@@ -124,7 +124,7 @@ pub fn OnboardingPage() -> impl IntoView {
                             placeholder="123"
                             required
                             data-testid="np-number-input"
-                            attr:aria-invalid=move || error_msg.get().map(|_| "true")
+                            aria-invalid=move || error_msg.get().map(|_| "true")
                             aria-describedby="np-onboarding-error"
                         />
                     </div>

@@ -17,6 +17,7 @@ use crate::components::stepper::PhaseStepper;
 use crate::components::toast::use_toast;
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
+use crate::pages::login::strip_server_error_prefix;
 use crate::types::InviteCodeStatus;
 use leptos::prelude::*;
 
@@ -207,7 +208,7 @@ pub fn AdminPage() -> impl IntoView {
     view! {
         <div class="prose-page" data-testid="dashboard-content">
             <div id="action-error" role="alert" aria-live="assertive" data-testid="action-error">
-                {move || action_error().map(|e| view! { <p class="alert">{e.to_string()}</p> })}
+                {move || action_error().map(|e| view! { <p class="alert">{strip_server_error_prefix(&e)}</p> })}
             </div>
 
             // ── Season section ─────────────────────────────────────────────────
@@ -336,7 +337,7 @@ fn render_create_form(
                             required=true
                             data-testid="signup-deadline-input"
                             aria-describedby="action-error"
-                            attr:aria-invalid=move || create_action.value().get().and_then(Result::err).map(|_| "true")
+                            aria-invalid=move || create_action.value().get().and_then(Result::err).map(|_| "true")
                         />
                     </div>
                     <div class="field">
@@ -351,7 +352,7 @@ fn render_create_form(
                             required=true
                             data-testid="confirm-deadline-input"
                             aria-describedby="action-error"
-                            attr:aria-invalid=move || create_action.value().get().and_then(Result::err).map(|_| "true")
+                            aria-invalid=move || create_action.value().get().and_then(Result::err).map(|_| "true")
                         />
                     </div>
                     <div class="field">
@@ -1171,7 +1172,7 @@ fn SwapFormSection(
                         name="sender_a"
                         data-testid="sender-a-input"
                         required=true
-                        attr:aria-invalid=move || swap_action.value().get().and_then(Result::err).map(|_| "true")
+                        aria-invalid=move || swap_action.value().get().and_then(Result::err).map(|_| "true")
                         aria-describedby="action-error"
                     >
                         <option value="">{t!(i18n, assignments_select_sender)}</option>
@@ -1195,7 +1196,7 @@ fn SwapFormSection(
                         name="sender_b"
                         data-testid="sender-b-input"
                         required=true
-                        attr:aria-invalid=move || swap_action.value().get().and_then(Result::err).map(|_| "true")
+                        aria-invalid=move || swap_action.value().get().and_then(Result::err).map(|_| "true")
                         aria-describedby="action-error"
                     >
                         <option value="">{t!(i18n, assignments_select_sender)}</option>

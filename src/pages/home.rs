@@ -702,7 +702,7 @@ fn render_enrollment_open(
                                 name="city"
                                 placeholder="Київ"
                                 data-testid="np-city-input"
-                                attr:aria-invalid=move || enroll_action.value().get().and_then(Result::err).map(|_| "true")
+                                aria-invalid=move || enroll_action.value().get().and_then(Result::err).map(|_| "true")
                                 aria-describedby="action-error"
                             />
                         </div>
@@ -718,7 +718,7 @@ fn render_enrollment_open(
                                 name="np_number"
                                 placeholder="123"
                                 data-testid="np-number-input"
-                                attr:aria-invalid=move || enroll_action.value().get().and_then(Result::err).map(|_| "true")
+                                aria-invalid=move || enroll_action.value().get().and_then(Result::err).map(|_| "true")
                                 aria-describedby="action-error"
                             />
                         </div>
@@ -803,7 +803,7 @@ fn render_receipt_form(
                         name="note"
                         placeholder=move || t_string!(i18n, home_receipt_note_placeholder)
                         data-testid="receipt-note-input"
-                        attr:aria-invalid=move || {
+                        aria-invalid=move || {
                             receipt_action.value().get().and_then(Result::err).map(|_| "true")
                         }
                         aria-describedby="action-error"
