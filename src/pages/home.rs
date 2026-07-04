@@ -906,7 +906,7 @@ fn render_home_state(
     match state {
         HomeState::NoSeason => view! {
             <div class="empty-state">
-                <p class="empty-state-headline">{t!(i18n, dashboard_no_season)}</p>
+                <h1 class="empty-state-headline">{t!(i18n, dashboard_no_season)}</h1>
                 <p class="empty-state-body">{t!(i18n, home_no_season)}</p>
             </div>
         }
