@@ -774,12 +774,12 @@ fn LoginStepRouter(
             // do not reliably propagate Set-Cookie, so native POST is required.
             <form method="post" action=VerifyOtpCode::url()>
                 <input type="hidden" name="phone" prop:value=submitted_phone />
-                <div class="field mx-auto max-w-[12ch]">
+                <div class="field">
                     <label class="field-label" for="code-input">
                         {t!(i18n, login_otp_label)}
                     </label>
                     <input
-                        class="field-input"
+                        class="field-input mx-auto block max-w-[12ch]"
                         id="code-input"
                         type="text"
                         name="code"
