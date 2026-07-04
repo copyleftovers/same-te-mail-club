@@ -4,7 +4,8 @@
 **Session ID:** 7c7c3839-b93e-414b-8a44-274f0bf8dc5a
 **Branch:** visual (worktree `/Users/ryzhakar/pp/same-te-mail-club/.claude/worktrees/css-systemic-fixes`)
 **Duration:** ~20:20–22:25 (commit timestamps ae39300→d4a9396)
-**Code changes:** 13 files, +373/−157 across 17 commits (ae39300..d4a9396)
+**Cost:** not captured (orchestrator cannot invoke `/cost` programmatically; run `/cost` for the figure)
+**Code changes:** 13 files, +373/−157 across 17 commits (ae39300..d4a9396) for Wave 2; +2 commits (c487247, f3291e5) for the onboarding-i18n follow-up
 **Outcome:** Wave 2 visual-immaculate fixes COMPLETE — 7 fix-units + 2 rendered-re-verify-caught fixes + 1 E2E capture, each through independent spec→quality→integrate-on-BOTH-green. main @ d4a9396, PUSHED to origin/main (5ba82ec..d4a9396, 29 commits). CI-preflight GREEN locally (fmt + clippy SSR + clippy hydrate + tests 9/0); CI run 28717592269 triggered on the push.
 
 ---
