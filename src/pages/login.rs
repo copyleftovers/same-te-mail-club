@@ -106,9 +106,10 @@ pub async fn request_otp(phone: String) -> Result<RequestOtpOutcome, ServerFnErr
         .execute(&pool)
         .await;
 
-        return Err(ServerFnError::new(
-            "Failed to send verification code. Please try again.",
-        ));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            login_send_code_failed
+        )));
     }
 
     Ok(outcome)
@@ -317,6 +318,7 @@ async fn verify_otp_for_phone(pool: &sqlx::PgPool, phone: &str, code: &str) -> R
 /// - the matching code is not in `'unused'` status
 #[server(ValidateInviteCode)]
 pub async fn validate_invite_code(code: String) -> Result<String, ServerFnError> {
+    use crate::i18n::i18n::{Locale, td_string};
     use crate::types::InviteCodeStatus;
 
     let pool = leptos::context::use_context::<sqlx::PgPool>()
@@ -326,12 +328,18 @@ pub async fn validate_invite_code(code: String) -> Result<String, ServerFnError>
     let parts = leptos::context::use_context::<http::request::Parts>()
         .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
     if extract_pending_phone_cookie(&parts).is_none() {
-        return Err(ServerFnError::new("Phone not verified — please start over"));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            auth_phone_not_verified
+        )));
     }
 
     let code = code.trim().to_owned();
     if code.is_empty() {
-        return Err(ServerFnError::new("Invite code is required"));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            auth_invite_code_required
+        )));
     }
 
     let status: Option<InviteCodeStatus> = sqlx::query_scalar!(
@@ -343,13 +351,18 @@ pub async fn validate_invite_code(code: String) -> Result<String, ServerFnError>
     .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
     match status {
-        None => Err(ServerFnError::new("Invalid invite code")),
-        Some(InviteCodeStatus::Used) => {
-            Err(ServerFnError::new("This invite code has already been used"))
-        }
-        Some(InviteCodeStatus::Revoked) => {
-            Err(ServerFnError::new("This invite code has been revoked"))
-        }
+        None => Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            auth_invite_code_invalid
+        ))),
+        Some(InviteCodeStatus::Used) => Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            auth_invite_code_used
+        ))),
+        Some(InviteCodeStatus::Revoked) => Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            auth_invite_code_revoked
+        ))),
         Some(InviteCodeStatus::Unused) => Ok(code),
     }
 }
@@ -711,7 +724,7 @@ fn LoginStepRouter(
                         placeholder="+380XXXXXXXXX"
                         data-testid="phone-input"
                         aria-describedby="phone-error"
-                        attr:aria-invalid=move || {
+                        aria-invalid=move || {
                             request_action
                                 .value()
                                 .get()
@@ -775,7 +788,7 @@ fn LoginStepRouter(
                         data-testid="otp-input"
                         data-otp
                         aria-describedby="otp-error"
-                        attr:aria-invalid=move || is_otp_error.then_some("true")
+                        aria-invalid=move || is_otp_error.then_some("true")
                     />
                     <p
                         id="otp-error"
@@ -885,7 +898,7 @@ where
                     placeholder=move || t_string!(i18n, auth_invite_code_placeholder)
                     data-testid="invite-code-input"
                     aria-describedby="invite-code-error"
-                    attr:aria-invalid=move || error_msg().is_some().then_some("true")
+                    aria-invalid=move || error_msg().is_some().then_some("true")
                 />
                 // Error display for invite code step — server-returned message
                 <p
@@ -963,7 +976,7 @@ where
                     placeholder=move || t_string!(i18n, participants_name_placeholder)
                     data-testid="legal-name-input"
                     aria-describedby="legal-name-error"
-                    attr:aria-invalid=move || {
+                    aria-invalid=move || {
                         register_action
                             .value()
                             .get()
