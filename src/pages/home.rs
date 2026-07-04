@@ -674,17 +674,25 @@ fn render_enrollment_open(
 
         <leptos::form::ActionForm action=enroll_action>
             {match existing_address {
-                Some((city, branch_number)) => view! {
+                Some((city, branch_number)) => {
+                    let branch_text = t!(
+                        i18n,
+                        home_recipient_branch,
+                        branch_number = branch_number,
+                        city = city.clone()
+                    );
+                    view! {
                     <div class="field" data-testid="existing-address">
                         <span class="field-label">{t!(i18n, home_saved_address_label)}</span>
-                        <p class="field-input">{format!("{city}, відділення #{branch_number}")}</p>
+                        <p class="field-input">{branch_text}</p>
                     </div>
                     <input type="hidden" name="use_existing_address" value="true" />
                     // city and np_number are required by form deserialization but
                     // ignored by the server when use_existing_address is true.
                     <input type="hidden" name="city" value="" />
                     <input type="hidden" name="np_number" value="" />
-                }.into_any(),
+                    }.into_any()
+                },
                 None => view! {
                     <input type="hidden" name="use_existing_address" value="false" />
                     <div class="flex flex-col gap-(--density-space-md) sm:flex-row sm:gap-(--density-space-sm)">
