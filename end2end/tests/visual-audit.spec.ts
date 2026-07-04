@@ -16,6 +16,8 @@ import * as fs from "fs";
  * Screenshot paths resolve relative to end2end/ (the Playwright working directory):
  *   screenshots/mobile/NN-page-state.png
  *   screenshots/desktop/NN-page-state.png
+ *   screenshots/dark-desktop/NN-page-state.png
+ *   screenshots/dark-mobile/NN-page-state.png
  *
  * Env (same as main suite):
  *   SAMETE_TEST_MODE=true   — fixed OTP "000000", deadline gates bypassed
@@ -40,6 +42,12 @@ const AUDIT_NAMES = {
   C: "Аудит Учасник В",
 };
 
+// Long-content name and address for participant A — exercises text-overflow
+// in cards, badges, .deadline, headings, and table cells.
+const LONG_NAME_A = "Олександра-Вікторія Кравченко-Мельниченко";
+const LONG_CITY_A = "Кривий Ріг Дніпропетровська область";
+const LONG_BRANCH_A = "128";
+
 // ── Deadline helpers ───────────────────────────────────────────────────────────
 
 function futureDatetime(daysFromNow: number): string {
@@ -49,7 +57,9 @@ function futureDatetime(daysFromNow: number): string {
 
 const SIGNUP_DEADLINE = futureDatetime(7);
 const CONFIRM_DEADLINE = futureDatetime(21);
-const SEASON_THEME = "Аудит — Перший сезон";
+// Long theme string — exercises theme display in season summary and admin headings.
+const SEASON_THEME =
+  "Аудит — Перший сезон: Книги про мандри та подорожі навколо світу";
 
 // ── Invite codes captured during the run ──────────────────────────────────────
 
@@ -71,6 +81,9 @@ async function captureState(page: Page, name: string): Promise<void> {
   const paddedIndex = String(SEQ.n).padStart(2, "0");
   SEQ.n += 1;
 
+  // ── Light captures (existing) ──
+  await page.emulateMedia({ colorScheme: "light" });
+
   await page.setViewportSize(MOBILE_VIEWPORT);
   await page.waitForTimeout(LAYOUT_REFLOW_MS);
   await page.screenshot({
@@ -84,6 +97,27 @@ async function captureState(page: Page, name: string): Promise<void> {
     path: `screenshots/desktop/${paddedIndex}-${name}.png`,
     fullPage: true,
   });
+
+  // ── Dark captures (new) ──
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.waitForTimeout(LAYOUT_REFLOW_MS);
+
+  await page.setViewportSize(DESKTOP_VIEWPORT);
+  await page.waitForTimeout(LAYOUT_REFLOW_MS);
+  await page.screenshot({
+    path: `screenshots/dark-desktop/${paddedIndex}-${name}.png`,
+    fullPage: true,
+  });
+
+  await page.setViewportSize(MOBILE_VIEWPORT);
+  await page.waitForTimeout(LAYOUT_REFLOW_MS);
+  await page.screenshot({
+    path: `screenshots/dark-mobile/${paddedIndex}-${name}.png`,
+    fullPage: true,
+  });
+
+  // Reset to light so subsequent interactions use the default color scheme.
+  await page.emulateMedia({ colorScheme: "light" });
 }
 
 // ── Section screenshot helper ──────────────────────────────────────────────────
@@ -109,6 +143,8 @@ test.beforeAll(() => {
   fs.mkdirSync("screenshots/mobile", { recursive: true });
   fs.mkdirSync("screenshots/desktop", { recursive: true });
   fs.mkdirSync("screenshots/sections", { recursive: true });
+  fs.mkdirSync("screenshots/dark-desktop", { recursive: true });
+  fs.mkdirSync("screenshots/dark-mobile", { recursive: true });
 });
 
 // ── Visual Audit ──────────────────────────────────────────────────────────────
@@ -194,14 +230,18 @@ test.describe.serial("Visual Audit", () => {
 
   // ── Onboarding ────────────────────────────────────────────────────────────────
 
+  // Participant A uses the long name + long city to exercise text-overflow
+  // in cards, badges, and participant-list table cells throughout the rest of
+  // the audit flow.
   test("capture onboarding — branch selection", async ({ page }) => {
     const app = new MailClubPage(page);
-    await app.selfRegister(AUDIT_PHONES.A, AUDIT_CODES.A, AUDIT_NAMES.A);
+    await app.selfRegister(AUDIT_PHONES.A, AUDIT_CODES.A, LONG_NAME_A);
     await expect(page).toHaveURL(/\/onboarding/);
     await expect(page.getByTestId("save-onboarding-button")).toBeEnabled();
     await captureState(page, "onboarding-branch-selection");
-    // Complete onboarding so DB state is ready for next tests.
-    await app.completeOnboarding("Київ", "1");
+    // Complete onboarding with long city so the address carries through the rest
+    // of the flow (enrollment forms, participant list, assignment display).
+    await app.completeOnboarding(LONG_CITY_A, LONG_BRANCH_A);
   });
 
   // ── Setup: register and onboard B and C ─────────────────────────────────────
@@ -258,6 +298,9 @@ test.describe.serial("Visual Audit", () => {
     await captureSection(page, sIdx, "admin-no-season-create-form-available", "participant-list");
   });
 
+  // Long SEASON_THEME is passed here — exercises theme display in season
+  // summary, admin section headings, and the phase-stepper label throughout
+  // the rest of the audit flow.
   test("capture admin — unlaunched season (launch button visible)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
@@ -325,11 +368,13 @@ test.describe.serial("Visual Audit", () => {
 
   // ── Home: enrolled state ──────────────────────────────────────────────────────
 
+  // Participant A enrolls using the long city — exercises address display
+  // in the enrolled state and the assignment view later.
   test("capture home — enrolled (after enroll)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(AUDIT_PHONES.A);
     await app.goHome();
-    await app.enrollInSeason("Київ", "1");
+    await app.enrollInSeason(LONG_CITY_A, LONG_BRANCH_A);
     await app.expectEnrolled();
     await captureState(page, "home-enrolled");
   });
@@ -517,6 +562,8 @@ test.describe.serial("Visual Audit", () => {
 
   // ── Home: participant sees assignment (includes receipt form in same DOM) ─────
 
+  // Participant A has the long name — their recipient-name card exercises
+  // text-overflow in the assignment display.
   test("capture home — assignment visible to participant", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(AUDIT_PHONES.A);
