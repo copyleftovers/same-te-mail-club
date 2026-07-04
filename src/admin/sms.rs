@@ -73,7 +73,7 @@ pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("no active launched season"))?;
+    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, season_error_no_launched_season)))?;
 
     let targets = sqlx::query_as!(
         SeasonOpenTarget,
@@ -153,7 +153,12 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("no active assignment/delivery season"))?;
+    .ok_or_else(|| {
+        ServerFnError::new(td_string!(
+            Locale::uk,
+            sms_error_no_assignment_delivery_season
+        ))
+    })?;
 
     // Senders who haven't been notified yet
     let targets = sqlx::query_as!(
@@ -234,7 +239,7 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("no active preparation season"))?;
+    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, sms_error_no_preparation_season)))?;
 
     let confirm_deadline = sqlx::query_scalar!(
         r#"SELECT confirm_deadline FROM seasons WHERE id = $1"#,
@@ -327,7 +332,7 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("no active delivery season"))?;
+    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, sms_error_no_delivery_season)))?;
 
     let targets = sqlx::query_as!(
         AssignmentTarget,

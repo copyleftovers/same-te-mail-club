@@ -106,6 +106,7 @@ pub async fn create_season(
 #[server]
 pub async fn launch_season() -> Result<(), ServerFnError> {
     use crate::auth;
+    use crate::i18n::i18n::{Locale, td_string};
 
     let (pool, _user) = auth::require_admin().await?;
 
@@ -123,7 +124,10 @@ pub async fn launch_season() -> Result<(), ServerFnError> {
     .rows_affected();
 
     if rows_affected == 0 {
-        return Err(ServerFnError::new("no unlaunched active season found"));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            season_error_no_unlaunched_season
+        )));
     }
 
     Ok(())
@@ -139,7 +143,12 @@ pub async fn launch_season() -> Result<(), ServerFnError> {
 /// Returns `Err` if caller is not admin, no active launched season, or transition is invalid.
 #[server]
 pub async fn advance_season() -> Result<(), ServerFnError> {
-    use crate::{auth, error::AppError, types::Phase};
+    use crate::{
+        auth,
+        error::AppError,
+        i18n::i18n::{Locale, td_string},
+        types::Phase,
+    };
 
     let (pool, _user) = auth::require_admin().await?;
 
@@ -155,7 +164,7 @@ pub async fn advance_season() -> Result<(), ServerFnError> {
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("no active launched season found"))?;
+    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, season_error_no_launched_season)))?;
 
     let next_phase = season
         .phase
@@ -181,7 +190,12 @@ pub async fn advance_season() -> Result<(), ServerFnError> {
 /// Returns `Err` if caller is not admin, no active season, or season is terminal.
 #[server]
 pub async fn cancel_season() -> Result<(), ServerFnError> {
-    use crate::{auth, error::AppError, types::Phase};
+    use crate::{
+        auth,
+        error::AppError,
+        i18n::i18n::{Locale, td_string},
+        types::Phase,
+    };
 
     let (pool, _user) = auth::require_admin().await?;
 
@@ -196,7 +210,7 @@ pub async fn cancel_season() -> Result<(), ServerFnError> {
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("no active season found"))?;
+    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, season_error_no_active_season)))?;
 
     season
         .phase

@@ -185,6 +185,7 @@ async fn store_and_build_preview(
 /// forms a valid single cycle.
 #[cfg(feature = "ssr")]
 fn validate_swap_topology(assignments: &[AssignmentRow]) -> Result<(), ServerFnError> {
+    use crate::i18n::i18n::{Locale, td_string};
     let cycle_participants: Vec<uuid::Uuid> = assignments.iter().map(|a| a.sender_id).collect();
     let mut ordered = Vec::new();
     let next_map: std::collections::HashMap<uuid::Uuid, uuid::Uuid> = assignments
@@ -199,12 +200,18 @@ fn validate_swap_topology(assignments: &[AssignmentRow]) -> Result<(), ServerFnE
             if let Some(&next) = next_map.get(&current) {
                 current = next;
             } else {
-                return Err(ServerFnError::new("broken cycle after swap"));
+                return Err(ServerFnError::new(td_string!(
+                    Locale::uk,
+                    assignments_error_broken_cycle
+                )));
             }
         }
         // Verify it's a complete cycle: last element's next should be first.
         if next_map.get(&current) != Some(&first) && current != first {
-            return Err(ServerFnError::new("swap breaks cycle topology"));
+            return Err(ServerFnError::new(td_string!(
+                Locale::uk,
+                assignments_error_swap_breaks_cycle
+            )));
         }
     }
 
@@ -215,8 +222,9 @@ fn validate_swap_topology(assignments: &[AssignmentRow]) -> Result<(), ServerFnE
         }],
     };
 
-    crate::assignment::validate_cycles(&validation_result)
-        .map_err(|e| ServerFnError::new(format!("swap breaks cycle topology: {e}")))?;
+    crate::assignment::validate_cycles(&validation_result).map_err(|_| {
+        ServerFnError::new(td_string!(Locale::uk, assignments_error_swap_breaks_cycle))
+    })?;
 
     Ok(())
 }
@@ -237,6 +245,7 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     use crate::{
         assignment::{self, AssignmentInput},
         auth,
+        i18n::i18n::{Locale, td_string},
         types::Phase,
     };
 
@@ -255,12 +264,13 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("no active launched season found"))?;
+    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, season_error_no_launched_season)))?;
 
     if season.phase != Phase::Assignment {
-        return Err(ServerFnError::new(
-            "season must be in assignment phase to generate assignments",
-        ));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            assignments_error_wrong_phase
+        )));
     }
 
     // Delete existing assignments for this season (idempotent — re-generate).
@@ -284,9 +294,10 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     .map_err(db_err)?;
 
     if confirmed.len() < 3 {
-        return Err(ServerFnError::new(
-            "need at least 3 confirmed participants to generate assignments",
-        ));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            assignments_error_too_few_participants
+        )));
     }
 
     let participant_ids: Vec<uuid::Uuid> = confirmed.iter().map(|r| r.user_id).collect();
@@ -322,7 +333,10 @@ pub async fn swap_assignment(
     sender_a: String,
     sender_b: String,
 ) -> Result<(), ServerFnError> {
-    use crate::auth;
+    use crate::{
+        auth,
+        i18n::i18n::{Locale, td_string},
+    };
 
     let (pool, _user) = auth::require_admin().await?;
 
@@ -345,7 +359,9 @@ pub async fn swap_assignment(
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("assignment for sender_a not found"))?;
+    .ok_or_else(|| {
+        ServerFnError::new(td_string!(Locale::uk, assignments_error_sender_a_not_found))
+    })?;
 
     let rec_b = sqlx::query_scalar!(
         r#"SELECT recipient_id FROM assignments WHERE season_id = $1 AND sender_id = $2"#,
@@ -355,7 +371,9 @@ pub async fn swap_assignment(
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("assignment for sender_b not found"))?;
+    .ok_or_else(|| {
+        ServerFnError::new(td_string!(Locale::uk, assignments_error_sender_b_not_found))
+    })?;
 
     // Perform swap.
     sqlx::query!(

@@ -81,7 +81,11 @@ struct DistributorQueryRow {
 /// - database write fails
 #[server(GenerateInviteCode)]
 pub async fn generate_invite_code(distributor_id: uuid::Uuid) -> Result<String, ServerFnError> {
-    use crate::{auth, invite_codes};
+    use crate::{
+        auth,
+        i18n::i18n::{Locale, td_string},
+        invite_codes,
+    };
 
     let (pool, _admin) = auth::require_admin().await?;
 
@@ -100,7 +104,10 @@ pub async fn generate_invite_code(distributor_id: uuid::Uuid) -> Result<String, 
     .map_err(db_err)?;
 
     if !exists {
-        return Err(ServerFnError::new("distributor must be an active user"));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            invite_error_distributor_not_active
+        )));
     }
 
     let code = invite_codes::generate_unique_code(&pool)
@@ -184,7 +191,10 @@ pub async fn list_invite_codes() -> Result<Vec<InviteCodeRow>, ServerFnError> {
 /// - the database update fails
 #[server(RevokeInviteCode)]
 pub async fn revoke_invite_code(id: uuid::Uuid) -> Result<(), ServerFnError> {
-    use crate::auth;
+    use crate::{
+        auth,
+        i18n::i18n::{Locale, td_string},
+    };
 
     let (pool, _admin) = auth::require_admin().await?;
 
@@ -207,15 +217,22 @@ pub async fn revoke_invite_code(id: uuid::Uuid) -> Result<(), ServerFnError> {
 
     match status {
         None => {
-            return Err(ServerFnError::new("invite code not found"));
+            return Err(ServerFnError::new(td_string!(
+                Locale::uk,
+                invite_error_code_not_found
+            )));
         }
         Some(InviteCodeStatus::Used) => {
-            return Err(ServerFnError::new(
-                "cannot revoke a code that has already been used",
-            ));
+            return Err(ServerFnError::new(td_string!(
+                Locale::uk,
+                invite_error_code_already_used
+            )));
         }
         Some(InviteCodeStatus::Revoked) => {
-            return Err(ServerFnError::new("code is already revoked"));
+            return Err(ServerFnError::new(td_string!(
+                Locale::uk,
+                invite_error_code_already_revoked
+            )));
         }
         Some(InviteCodeStatus::Unused) => {}
     }
