@@ -564,9 +564,12 @@ fn render_active_season(
                     view! {
                         <div class="flex flex-col gap-1">
                             <leptos::form::ActionForm action=advance_action>
+                                // Primary (default) variant: advancing the phase is
+                                // the affirmative main action of the launched season —
+                                // it must be the loudest button, above the destructive
+                                // "Скасувати" (S3). Was recessive `secondary`.
                                 <button
                                     class="btn"
-                                    data-variant="secondary"
                                     type="submit"
                                     data-testid="advance-button"
                                     disabled=move || {
@@ -608,7 +611,9 @@ fn render_active_season(
                                 view! {
                                     <div data-testid="cancel-confirmation">
                                         <p>{t!(i18n, season_cancel_confirm_prompt)}</p>
-                                        <div class="flex flex-wrap gap-(--density-space-sm) mt-(--density-space-sm)">
+                                        // Adjacent Так/Ні buttons use the .btn-group primitive
+                                        // (flex + wrap + gap) rather than ad-hoc flex utilities (S7).
+                                        <div class="btn-group mt-(--density-space-sm)">
                                             <leptos::form::ActionForm action=cancel_action>
                                                 <button
                                                     class="btn"
@@ -1204,9 +1209,11 @@ fn SwapFormSection(
                             .collect_view()}
                     </select>
                 </div>
+                // Primary (default) variant: applying a swap is an affirmative
+                // commit and the sole CTA of this form — it must read as the
+                // main action, not a recessive secondary (S3).
                 <button
                     class="btn"
-                    data-variant="secondary"
                     type="submit"
                     data-testid="swap-button"
                     disabled=move || swap_pending.get() || !hydrated.get()
@@ -1236,7 +1243,11 @@ fn InviteCodesSection(
 
     view! {
         <section data-testid="invite-codes-section">
-            <h2 class="overline-label">{t!(i18n, admin_invite_codes_section_title)}</h2>
+            // Section heading, peer to "Список учасників" (both under "Учасники").
+            // Was `.overline-label` — an overline reads as a label ABOVE a heading,
+            // inverting hierarchy against its plain-h2 sibling (S5). Aligned to a
+            // plain section h2 so the two sub-sections share one heading level.
+            <h2>{t!(i18n, admin_invite_codes_section_title)}</h2>
 
             // ── Generate subsection ───────────────────────────────────────────
             <h3>{t!(i18n, admin_invite_codes_generate_subsection_title)}</h3>
@@ -1665,13 +1676,19 @@ fn ParticipantListSection(
                                                                                 }
                                                                                 .into_any()
                                                                             } else {
+                                                                                // Deactivated rows carry no action. The STATUS
+                                                                                // column already shows the inactive badge, so a
+                                                                                // second gray pill here would double-convey and
+                                                                                // read as a disabled-button false affordance
+                                                                                // (S2). A muted em-dash marks the cell as
+                                                                                // intentionally empty. testid preserved for E2E.
                                                                                 view! {
                                                                                     <span
-                                                                                        class="badge"
-                                                                                        data-status="inactive"
+                                                                                        class="text-(--color-text-muted)"
+                                                                                        aria-hidden="true"
                                                                                         data-testid="inactive-status"
                                                                                     >
-                                                                                        {t!(i18n, participants_deactivated_label)}
+                                                                                        "—"
                                                                                     </span>
                                                                                 }
                                                                                 .into_any()
