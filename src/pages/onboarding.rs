@@ -1,9 +1,18 @@
 use crate::hooks::use_hydrated;
-use crate::i18n::i18n::{t, t_string, use_i18n};
+use crate::i18n::i18n::{t, use_i18n};
 use crate::pages::login::strip_server_error_prefix;
 use leptos::prelude::*;
 
 // ── Server function ───────────────────────────────────────────────────────────
+
+/// ASCII Unit Separator used to encode a stable field discriminant alongside
+/// the localized user-facing message in a single `ServerFnError` string.
+///
+/// Format: `"<field_key>\u{1f}<localized_message>"`
+/// where `field_key` ∈ {"city", "`np_number`"} — stable across locale changes.
+/// Infra/DB errors carry no separator and no field key.
+#[cfg(feature = "ssr")]
+const FIELD_DISCRIMINANT_SEPARATOR: char = '\u{1f}';
 
 /// Save the user's Nova Poshta delivery address and mark them as onboarded.
 ///
@@ -12,22 +21,36 @@ use leptos::prelude::*;
 /// # Errors
 ///
 /// Returns `Err` if the session is invalid, input is empty, or DB fails.
+/// Validation errors are encoded as `"field_key\u{1f}localized_message"` so
+/// the client can route to the correct field without inspecting locale-specific prose.
 #[server]
 pub async fn complete_onboarding(city: String, np_number: String) -> Result<(), ServerFnError> {
     use crate::auth;
+    use crate::i18n::i18n::{Locale, td_string};
 
     let (pool, user) = auth::require_auth().await?;
 
     let city = city.trim().to_owned();
     if city.is_empty() {
-        return Err(ServerFnError::new("city is required"));
+        return Err(ServerFnError::new(format!(
+            "city{SEP}{msg}",
+            SEP = FIELD_DISCRIMINANT_SEPARATOR,
+            msg = td_string!(Locale::uk, onboarding_error_city_required),
+        )));
     }
-    let number: i32 = np_number
-        .trim()
-        .parse()
-        .map_err(|_| ServerFnError::new("invalid branch number"))?;
+    let number: i32 = np_number.trim().parse().map_err(|_| {
+        ServerFnError::new(format!(
+            "np_number{SEP}{msg}",
+            SEP = FIELD_DISCRIMINANT_SEPARATOR,
+            msg = td_string!(Locale::uk, onboarding_error_np_number_invalid),
+        ))
+    })?;
     if number < 1 {
-        return Err(ServerFnError::new("branch number must be positive"));
+        return Err(ServerFnError::new(format!(
+            "np_number{SEP}{msg}",
+            SEP = FIELD_DISCRIMINANT_SEPARATOR,
+            msg = td_string!(Locale::uk, onboarding_error_np_number_invalid),
+        )));
     }
 
     // Upsert delivery address
@@ -60,26 +83,30 @@ pub async fn complete_onboarding(city: String, np_number: String) -> Result<(), 
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-/// Which field the server rejected. Derived from the error message text so the
-/// rejected field can get its own `aria-invalid` and error container.
+/// Which field the server rejected.
 #[derive(Clone, PartialEq)]
 enum RejectedField {
     City,
     NpNumber,
 }
 
-/// Parse the stripped server error to determine which field was rejected.
+/// Split a stripped server error into `(field, display_message)`.
 ///
-/// Returns `None` for infra/session errors that name no field — those clear both
-/// `aria-invalid` signals rather than falsely flagging a field. Validation errors:
-/// "city is required" → `Some(City)`; "branch …" → `Some(NpNumber)`.
-fn rejected_field_from_error(stripped: &str) -> Option<RejectedField> {
-    if stripped.contains("city") {
-        Some(RejectedField::City)
-    } else if stripped.contains("branch") {
-        Some(RejectedField::NpNumber)
+/// The server encodes validation errors as `"field_key\u{1f}message"`.
+/// Returns `(Some(field), message)` when the separator is present and the key
+/// is recognised; `(None, full_string)` for infra/session errors with no
+/// separator — those mark no field and display the raw message.
+fn parse_field_error(stripped: &str) -> (Option<RejectedField>, &str) {
+    const SEP: char = '\u{1f}';
+    if let Some((key, msg)) = stripped.split_once(SEP) {
+        let field = match key {
+            "city" => Some(RejectedField::City),
+            "np_number" => Some(RejectedField::NpNumber),
+            _ => None,
+        };
+        (field, msg)
     } else {
-        None
+        (None, stripped)
     }
 }
 
@@ -109,8 +136,9 @@ pub fn OnboardingPage() -> impl IntoView {
                 }
                 Err(e) => {
                     let stripped = strip_server_error_prefix(&e);
-                    let msg = format!("{}{}", t_string!(i18n, onboarding_error_prefix), stripped);
-                    match rejected_field_from_error(&stripped) {
+                    let (field, display_msg) = parse_field_error(&stripped);
+                    let msg = display_msg.to_owned();
+                    match field {
                         Some(RejectedField::City) => {
                             set_city_error.set(Some(msg));
                             set_np_error.set(None);
