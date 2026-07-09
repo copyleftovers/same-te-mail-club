@@ -993,9 +993,9 @@ fn render_home_state(
         .into_any(),
 
         HomeState::Cancelled => view! {
-            <div data-testid="season-cancelled">
-                <h1>{t!(i18n, home_season_cancelled_title)}</h1>
-                <p>{t!(i18n, home_season_cancelled_body)}</p>
+            <div class="empty-state" data-testid="season-cancelled">
+                <h1 class="empty-state-headline">{t!(i18n, home_season_cancelled_title)}</h1>
+                <p class="empty-state-body">{t!(i18n, home_season_cancelled_body)}</p>
             </div>
         }
         .into_any(),
