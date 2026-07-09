@@ -712,23 +712,30 @@ fn LoginStepRouter(
     let resend_cooldown = RwSignal::new(0u32);
     let interval_handle: StoredValue<Option<IntervalHandle>> = StoredValue::new(None);
 
-    // Seed the 60s cooldown the moment the OTP step activates.
+    // The one home for the cooldown timer lifecycle: open the 60s window, cancel any
+    // prior tick loop (leak-safe clear-before-create), start a fresh 1s decrementing
+    // loop, and store its handle for the next clear. Called from both the seeding
+    // Effect (OTP step becomes visible) and the manual resend press.
+    let start_cooldown = move || {
+        resend_cooldown.set(OTP_RESEND_COOLDOWN_SECS);
+        interval_handle
+            .try_get_value()
+            .flatten()
+            .inspect(IntervalHandle::clear);
+        let handle = set_interval_with_handle(
+            move || {
+                resend_cooldown.update(|n| *n = n.saturating_sub(1));
+            },
+            std::time::Duration::from_secs(1),
+        )
+        .expect("set_interval resend cooldown");
+        interval_handle.set_value(Some(handle));
+    };
+
+    // Seed the cooldown the moment the OTP step activates.
     Effect::new(move |_| {
         if otp_step.get() {
-            resend_cooldown.set(OTP_RESEND_COOLDOWN_SECS);
-            // Cancel any prior interval before creating a new one.
-            interval_handle
-                .try_get_value()
-                .flatten()
-                .inspect(IntervalHandle::clear);
-            let handle = set_interval_with_handle(
-                move || {
-                    resend_cooldown.update(|n| *n = n.saturating_sub(1));
-                },
-                std::time::Duration::from_secs(1),
-            )
-            .expect("set_interval resend cooldown");
-            interval_handle.set_value(Some(handle));
+            start_cooldown();
         }
     });
 
@@ -852,17 +859,7 @@ fn LoginStepRouter(
                 disabled=move || resend_cooldown.get() > 0 || !hydrated.get()
                 on:click=move |_| {
                     request_action.dispatch(RequestOtp { phone: submitted_phone.get() });
-                    resend_cooldown.set(OTP_RESEND_COOLDOWN_SECS);
-                    // Restart the countdown interval.
-                    interval_handle.try_get_value().flatten().inspect(IntervalHandle::clear);
-                    let handle = set_interval_with_handle(
-                        move || {
-                            resend_cooldown.update(|n| *n = n.saturating_sub(1));
-                        },
-                        std::time::Duration::from_secs(1),
-                    )
-                    .expect("set_interval resend cooldown");
-                    interval_handle.set_value(Some(handle));
+                    start_cooldown();
                 }
             >
                 {move || {
