@@ -709,6 +709,7 @@ fn render_phase_sms(
                             <leptos::form::ActionForm action=season_open_action>
                                 <button
                                     class="btn"
+                                    data-variant="secondary"
                                     data-size="sm"
                                     type="submit"
                                     data-testid="send-season-open-button"
@@ -746,6 +747,7 @@ fn render_phase_sms(
                             <leptos::form::ActionForm action=confirm_nudge_action>
                                 <button
                                     class="btn"
+                                    data-variant="secondary"
                                     data-size="sm"
                                     type="submit"
                                     data-testid="send-confirm-nudge-button"
@@ -788,6 +790,7 @@ fn render_phase_sms(
                             <leptos::form::ActionForm action=assignment_action>
                                 <button
                                     class="btn"
+                                    data-variant="secondary"
                                     data-size="sm"
                                     type="submit"
                                     data-testid="send-assignment-button"
@@ -821,6 +824,7 @@ fn render_phase_sms(
                             <leptos::form::ActionForm action=receipt_nudge_action>
                                 <button
                                     class="btn"
+                                    data-variant="secondary"
                                     data-size="sm"
                                     type="submit"
                                     data-testid="send-receipt-nudge-button"
