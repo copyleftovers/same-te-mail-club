@@ -160,7 +160,7 @@ fn Header() -> impl IntoView {
                         }
                     }
                     alt="Саме Те"
-                    class="h-8 w-auto max-w-full"
+                    class="w-auto max-w-full"
                 />
             </a>
             <HeaderNav />
@@ -216,9 +216,7 @@ fn HeaderNav() -> impl IntoView {
                     {move || (!is_admin_page() && is_admin_user()).then(|| view! {
                         <a
                             href="/admin"
-                            class="btn"
-                            data-variant="secondary"
-                            data-size="sm"
+                            class="header-nav-link"
                             data-testid="nav-admin-link"
                         >
                             {t!(i18n, admin_nav_dashboard)}
