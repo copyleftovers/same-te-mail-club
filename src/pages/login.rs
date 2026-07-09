@@ -701,6 +701,9 @@ fn LoginStepRouter(
     // The server allows one OTP per 60s. The UI mirrors this window so the
     // user cannot trigger no-op silent resends while the server-side rate limit
     // is still open. Placed before other lets per clippy::items-after-statements.
+    // Client-only: its sole consumer is the cfg-gated (client) cooldown timer body,
+    // so it does not exist in the SSR build (avoids server-side dead code).
+    #[cfg(not(feature = "ssr"))]
     const OTP_RESEND_COOLDOWN_SECS: u32 = 60;
 
     let i18n = use_i18n();
@@ -716,20 +719,30 @@ fn LoginStepRouter(
     // prior tick loop (leak-safe clear-before-create), start a fresh 1s decrementing
     // loop, and store its handle for the next clear. Called from both the seeding
     // Effect (OTP step becomes visible) and the manual resend press.
+    //
+    // WHY the cfg-gate: `set_interval_with_handle` is a client-only DOM API that
+    // panics during SSR. Gating the whole body makes this a server no-op. This is
+    // NOT the banned cfg-hydration-mismatch pattern: it gates a SIDE EFFECT, not a
+    // rendered value. `resend_cooldown`'s initial value (0) is identical on server
+    // and client, so SSR and hydrated initial markup match; the client-only seeding
+    // Effect opens the window after hydration (a normal post-hydration transition).
     let start_cooldown = move || {
-        resend_cooldown.set(OTP_RESEND_COOLDOWN_SECS);
-        interval_handle
-            .try_get_value()
-            .flatten()
-            .inspect(IntervalHandle::clear);
-        let handle = set_interval_with_handle(
-            move || {
-                resend_cooldown.update(|n| *n = n.saturating_sub(1));
-            },
-            std::time::Duration::from_secs(1),
-        )
-        .expect("set_interval resend cooldown");
-        interval_handle.set_value(Some(handle));
+        #[cfg(not(feature = "ssr"))]
+        {
+            resend_cooldown.set(OTP_RESEND_COOLDOWN_SECS);
+            interval_handle
+                .try_get_value()
+                .flatten()
+                .inspect(IntervalHandle::clear);
+            let handle = set_interval_with_handle(
+                move || {
+                    resend_cooldown.update(|n| *n = n.saturating_sub(1));
+                },
+                std::time::Duration::from_secs(1),
+            )
+            .expect("set_interval resend cooldown");
+            interval_handle.set_value(Some(handle));
+        }
     };
 
     // Seed the cooldown the moment the OTP step activates.
