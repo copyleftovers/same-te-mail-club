@@ -936,9 +936,11 @@ fn render_home_state(
         ),
 
         HomeState::Enrolled { confirm_deadline } => view! {
-            <h1>{t!(i18n, home_enrolled_heading)}</h1>
-            <p>{t!(i18n, home_enrolled_desc)}</p>
-            <p class="deadline">{t!(i18n, home_confirm_deadline_label)} {confirm_deadline}</p>
+            <div class="empty-state">
+                <h1 class="empty-state-headline">{t!(i18n, home_enrolled_heading)}</h1>
+                <p class="empty-state-body">{t!(i18n, home_enrolled_desc)}</p>
+                <p class="deadline">{t!(i18n, home_confirm_deadline_label)} {confirm_deadline}</p>
+            </div>
         }
         .into_any(),
 
@@ -954,14 +956,18 @@ fn render_home_state(
         ),
 
         HomeState::Confirmed => view! {
-            <h1>{t!(i18n, home_ready_confirmed_heading)}</h1>
-            <p>{t!(i18n, home_waiting_assignment)}</p>
+            <div class="empty-state">
+                <h1 class="empty-state-headline">{t!(i18n, home_ready_confirmed_heading)}</h1>
+                <p class="empty-state-body">{t!(i18n, home_waiting_assignment)}</p>
+            </div>
         }
         .into_any(),
 
         HomeState::Assigning => view! {
-            <h1>{t!(i18n, home_assigning_heading)}</h1>
-            <p>{t!(i18n, home_assigning_desc)}</p>
+            <div class="empty-state">
+                <h1 class="empty-state-headline">{t!(i18n, home_assigning_heading)}</h1>
+                <p class="empty-state-body">{t!(i18n, home_assigning_desc)}</p>
+            </div>
         }
         .into_any(),
 
@@ -981,14 +987,20 @@ fn render_home_state(
         ),
 
         HomeState::ReceiptConfirmed => view! {
-            <h1>{t!(i18n, home_thanks_heading)}</h1>
-            <p data-testid="receipt-thanks">{t!(i18n, home_reported_label)}</p>
+            <div class="empty-state">
+                <h1 class="empty-state-headline">{t!(i18n, home_thanks_heading)}</h1>
+                <p class="empty-state-body" data-testid="receipt-thanks">
+                    {t!(i18n, home_reported_label)}
+                </p>
+            </div>
         }
         .into_any(),
 
         HomeState::Complete => view! {
-            <h1>{t!(i18n, home_complete_heading)}</h1>
-            <p>{t!(i18n, home_thanks_participation)}</p>
+            <div class="empty-state">
+                <h1 class="empty-state-headline">{t!(i18n, home_complete_heading)}</h1>
+                <p class="empty-state-body">{t!(i18n, home_thanks_participation)}</p>
+            </div>
         }
         .into_any(),
 
