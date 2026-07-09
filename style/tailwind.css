@@ -86,7 +86,6 @@
   --size-touch-target: 2.75rem;
   --size-touch-target-lg: 3rem;
   --size-step-marker: 2.5rem;
-  --size-logo-height: 2rem;
   --size-logo-height-header: 2.5rem;
   --size-textarea: 5.5rem;
   --size-empty-state: 12rem;
@@ -94,7 +93,7 @@
   --size-mobile-menu: 16rem;
   --size-cycle-viz: 400px;
 
-  /* Header height: logo (2rem) + top+bottom padding (3*spacing each side = 6*spacing total) + 1px border.
+  /* Header height: logo (2.5rem) + top+bottom padding (3*spacing each side = 6*spacing total) + 1px border.
      Used by .toast-container so the toast always clears the header band on every layout. */
   --header-height: calc(var(--size-logo-height-header) + calc(var(--spacing) * 6) + 1px);
 }
