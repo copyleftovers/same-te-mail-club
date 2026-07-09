@@ -757,6 +757,24 @@ fn render_preparing(
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
     let confirm_pending = confirm_action.pending();
+
+    // Deadline passed: no confirm CTA, so this is a pure announcement — center it
+    // like the other short terminal states. Deadline open: the confirm-ready form is
+    // the point, so top-flow the worklist and keep the full-width button reachable.
+    if deadline_passed {
+        return view! {
+            <div class="empty-state">
+                <h1 class="empty-state-headline">{t!(i18n, home_preparing_heading)}</h1>
+                <p class="empty-state-body">{t!(i18n, home_preparing_body)}</p>
+                <p class="deadline" data-testid="season-deadline">
+                    {t!(i18n, home_deadline_label)}
+                    {confirm_deadline}
+                </p>
+            </div>
+        }
+        .into_any();
+    }
+
     view! {
         <h1>{t!(i18n, home_preparing_heading)}</h1>
         <p>{t!(i18n, home_preparing_body)}</p>
@@ -765,26 +783,20 @@ fn render_preparing(
             {confirm_deadline}
         </p>
 
-        {if deadline_passed {
-            None
-        } else {
-            Some(view! {
-                <leptos::form::ActionForm action=confirm_action>
-                    <button
-                        class="btn w-full"
-                        type="submit"
-                        data-testid="confirm-ready-button"
-                        disabled=move || confirm_pending.get() || !hydrated.get()
-                    >
-                        {move || if confirm_pending.get() {
-                            "Підтверджую...".into_any()
-                        } else {
-                            t!(i18n, home_confirm_ready_button).into_any()
-                        }}
-                    </button>
-                </leptos::form::ActionForm>
-            })
-        }}
+        <leptos::form::ActionForm action=confirm_action>
+            <button
+                class="btn w-full"
+                type="submit"
+                data-testid="confirm-ready-button"
+                disabled=move || confirm_pending.get() || !hydrated.get()
+            >
+                {move || if confirm_pending.get() {
+                    "Підтверджую...".into_any()
+                } else {
+                    t!(i18n, home_confirm_ready_button).into_any()
+                }}
+            </button>
+        </leptos::form::ActionForm>
     }
     .into_any()
 }
