@@ -1011,7 +1011,9 @@
     min-height: var(--size-empty-state);
   }
 
-  .empty-state-headline {
+  /* Scoped under .empty-state (0,2,0) to win over .prose-page h1 (0,1,1):
+     short-state headlines render at section scale, not the page-title hero clamp. */
+  .empty-state .empty-state-headline {
     font-family: var(--font-display);
     font-weight: 900;
     font-size: var(--text-section);
