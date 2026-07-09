@@ -461,13 +461,24 @@ fn render_active_season(
                 <dt>{t!(i18n, season_confirm_deadline_display)}</dt>
                 <dd>{confirm_deadline_str.clone()}</dd>
                 {if is_terminal {
+                    // Terminal (Complete/Cancelled): dates + theme only, no counts.
                     ().into_any()
-                } else {
+                } else if launched {
+                    // Active (launched): live enrolled + confirmed metrics.
                     view! {
                         <dt>{t!(i18n, season_enrolled_label)}</dt>
                         <dd>{enrolled_count.to_string()}</dd>
                         <dt>{t!(i18n, season_confirmed_label)}</dt>
                         <dd data-testid="confirmed-count">{confirmed_count.to_string()}</dd>
+                    }.into_any()
+                } else {
+                    // Pre-launch: enrolled/confirmed are structurally 0 (enrollment
+                    // requires launched_at IS NOT NULL). Show the participant pool
+                    // size as the single meaningful metric — as a <dl> row, not a
+                    // stray <p>. Reuses the existing bare-label key (uk.json:78).
+                    view! {
+                        <dt>{t!(i18n, admin_pre_launch_participant_count)}</dt>
+                        <dd data-testid="pre-launch-participant-count">{participant_count.to_string()}</dd>
                     }.into_any()
                 }}
             </dl>
@@ -497,17 +508,6 @@ fn render_active_season(
                             {not_received_count}
                         </strong>
                     </div>
-                }.into_any()
-            } else {
-                ().into_any()
-            }}
-
-            // Active participant count (shown before launch for context)
-            {if !launched && !is_terminal {
-                view! {
-                    <p class="text-sm text-(--color-text-muted)" data-testid="pre-launch-participant-count">
-                        {t!(i18n, admin_pre_launch_participant_count)} " " {participant_count}
-                    </p>
                 }.into_any()
             } else {
                 ().into_any()
