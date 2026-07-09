@@ -461,10 +461,8 @@ fn render_active_season(
                 <dt>{t!(i18n, season_confirm_deadline_display)}</dt>
                 <dd>{confirm_deadline_str.clone()}</dd>
                 {if is_terminal {
-                    // Terminal (Complete/Cancelled): dates + theme only, no counts.
                     ().into_any()
                 } else if launched {
-                    // Active (launched): live enrolled + confirmed metrics.
                     view! {
                         <dt>{t!(i18n, season_enrolled_label)}</dt>
                         <dd>{enrolled_count.to_string()}</dd>
