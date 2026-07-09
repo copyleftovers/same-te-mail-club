@@ -1036,7 +1036,12 @@
     display: flex;
     flex-direction: column;
   }
-  .page-frame > .empty-state {
+  .page-frame > .prose-page {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .page-frame > .prose-page > .empty-state {
     margin: auto;
   }
 
