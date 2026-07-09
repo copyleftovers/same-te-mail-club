@@ -868,12 +868,7 @@ fn LoginStepRouter(
                 {move || {
                     let secs = resend_cooldown.get();
                     if secs > 0 {
-                        format!(
-                            "{} ({} с)",
-                            t_string!(i18n, login_resend_code_button),
-                            secs
-                        )
-                        .into_any()
+                        t!(i18n, login_resend_code_cooldown, seconds = secs).into_any()
                     } else {
                         t!(i18n, login_resend_code_button).into_any()
                     }
