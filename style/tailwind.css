@@ -708,6 +708,7 @@
 
   /* SMS send result — neutral informational container, not an error state. */
   .sms-report-result {
+    margin-top: var(--density-space-sm);
     padding: var(--density-space-sm) var(--density-space-md);
     border-radius: var(--radius-md);
     background: oklch(from var(--color-success) l c h / 0.1);
