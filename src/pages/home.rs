@@ -959,7 +959,9 @@ fn render_home_state(
             <div class="empty-state">
                 <h1 class="empty-state-headline">{t!(i18n, home_enrolled_heading)}</h1>
                 <p class="empty-state-body">{t!(i18n, home_enrolled_desc)}</p>
-                <p class="deadline">{t!(i18n, home_confirm_deadline_label)} {confirm_deadline}</p>
+                <p class="empty-state-body">
+                    {t!(i18n, home_enrolled_milestone, confirm_deadline = confirm_deadline.clone())}
+                </p>
             </div>
         }
         .into_any(),
