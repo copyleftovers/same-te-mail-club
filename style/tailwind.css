@@ -92,6 +92,7 @@
   --size-content-max: 28rem;
   --size-mobile-menu: 16rem;
   --size-cycle-viz: 400px;
+  --size-auth-logo: 5rem;   /* auth hero mark: relates to the section-scale heading, not a page-title hero */
 
   /* Header height: logo (2.5rem) + top+bottom padding (3*spacing each side = 6*spacing total) + 1px border.
      Used by .toast-container so the toast always clears the header band on every layout. */
@@ -1046,6 +1047,82 @@
   }
   .page-frame > .prose-page > .empty-state {
     margin: auto;
+  }
+
+  /* ── Auth card ────────────────────────────────────────────────── */
+  /* Narrow centered form column (NOT the 65ch .prose-page reading column).
+     Consumes T01's .page-frame for viewport centering — see .page-frame > .auth-card. */
+  .auth-card {
+    max-width: var(--size-content-max);   /* 28rem — one envelope for field + primary */
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;                   /* centers hero, heading, OTP, primary, link */
+    text-align: center;
+  }
+
+  /* Short/centered state: the card centers in T01's frame — mirrors
+     T01's .page-frame > .prose-page > .empty-state { margin:auto } idiom. */
+  .page-frame > .auth-card {
+    margin: auto;
+  }
+
+  /* Auth hero — scaled to relate to the heading; replaces the inline h-32. */
+  .auth-card img {
+    height: var(--size-auth-logo);
+    width: auto;
+    margin-bottom: var(--density-space-lg);   /* identity → task group boundary (largest gap) */
+  }
+
+  /* Auth step heading — section-display scale, fully specified so it does not
+     depend on any inherited/global h1 rule (.prose-page is not used on the auth page). */
+  .auth-card h1 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: var(--text-section);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--color-text);
+    margin-bottom: var(--density-space-md);   /* heading → field group boundary */
+  }
+
+  /* Fields stretch full card width; labels/inputs left-aligned for scannability
+     (overrides the card's text-center for the input rows). */
+  .auth-card .field {
+    width: 100%;
+    text-align: start;
+  }
+
+  /* Action-group rhythm: the primary button is the .field's next sibling INSIDE the
+     form — .field + button DOES match there. Upgrade field→primary gap to lg to
+     bound the action group. (Primary→link gap stays the inline mt-(--density-space-sm)
+     on each back-button, which cannot be reached by adjacent-sibling from inside the form.) */
+  .auth-card .field + button,
+  .auth-card .field + .btn {
+    margin-top: var(--density-space-lg);
+  }
+
+  /* Step-4 context <p> sits in the task group, tight under the heading. */
+  .auth-card h1 + p {
+    margin-bottom: var(--density-space-md);
+  }
+
+  /* ── Quiet link-button (back / previous step) ─────────────────── */
+  /* Borderless — removes the third border language (bordered field + filled primary
+     + heavy-black secondary outline). Distinct from data-variant="secondary" which
+     commits/exits with a visible border. Inherits .btn min-height (--size-touch-target),
+     pill hit-area, and focus ring. */
+  .btn[data-variant="link"] {
+    --btn-bg: transparent;
+    --btn-fg: var(--color-text-muted);
+    border-color: transparent;   /* no border — eliminates the black currentcolor outline */
+  }
+  @media (hover: hover) {
+    .btn[data-variant="link"]:hover:not(:disabled) {
+      text-decoration: underline;
+      text-underline-offset: 2px;   /* structural: underline offset, matches .header-nav-link */
+      filter: none;                 /* override the base .btn brightness-hover */
+    }
   }
 
   /* ── Skeleton ─────────────────────────────────────────────────── */
