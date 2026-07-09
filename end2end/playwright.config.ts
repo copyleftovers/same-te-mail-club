@@ -27,7 +27,7 @@ export default defineConfig({
     : [["list"], ["html", { open: "on-failure" }], ["json", { outputFile: "results.json" }]],
 
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: process.env.CAPTURE_BASE_URL ?? "http://127.0.0.1:3000",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
 

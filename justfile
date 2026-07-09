@@ -77,6 +77,12 @@ db-migrate:
 db-new name:
     sqlx migrate add {{name}}
 
+# Isolated capture: own free port + own sibling DB (samete_<suffix>).
+# Never touches :3000 or the `samete` DB. Safe to run while dev server is up.
+# mode: visual (default) = visual-audit screenshots only; full = full regression.
+capture-isolated suffix mode="visual":
+    bash scripts/isolated-capture.sh {{suffix}} {{mode}}
+
 # Generate sqlx offline query data
 prepare:
     cargo sqlx prepare
