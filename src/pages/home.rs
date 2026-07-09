@@ -649,7 +649,7 @@ pub fn HomePage() -> impl IntoView {
 }
 
 fn render_enrollment_open(
-    deadline: String,
+    deadline: &str,
     theme: Option<&String>,
     existing_address: Option<(String, i32)>,
     enroll_action: ServerAction<EnrollInSeason>,
@@ -677,7 +677,7 @@ fn render_enrollment_open(
         <p>{t!(i18n, home_guideline)}</p>
 
         <p class="deadline">
-            {t!(i18n, home_enroll_deadline, deadline = deadline.clone())}
+            {t!(i18n, home_enroll_deadline, deadline = deadline.to_string())}
         </p>
 
         <leptos::form::ActionForm action=enroll_action>
@@ -947,7 +947,7 @@ fn render_home_state(
             theme,
             existing_address,
         } => render_enrollment_open(
-            deadline,
+            &deadline,
             theme.as_ref(),
             existing_address,
             enroll_action,
