@@ -36,7 +36,10 @@ SIBLING_DBNAME="samete_${SUFFIX}"
 
 SIBLING_DBURL="postgres://samete:samete@localhost:5432/${SIBLING_DBNAME}"
 
-# --- allocate a free OS port (port-0 trick — atomic, race-resistant) ----
+# --- allocate a free OS port (port-0 trick — race-REDUCED, not race-free) ---
+# TOCTOU window: the probe socket is closed before the server binds, so another
+# process can claim the port in between. The window is small; the server fails
+# loud on EADDRINUSE (caught by the ready-wait below → rerun).
 
 ISOLATED_PORT="$(python3 -c \
     'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
