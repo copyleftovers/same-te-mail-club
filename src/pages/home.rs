@@ -609,39 +609,41 @@ pub fn HomePage() -> impl IntoView {
     // inline thank-you heading — a toast would be redundant, so we omit it.
 
     view! {
-        <div class="prose-page">
-            // Action error display
-            <div id="action-error" role="alert" aria-live="assertive" data-testid="action-error">
-                {move || {
-                    let err = enroll_action
-                        .value()
-                        .get()
-                        .and_then(Result::err)
-                        .or_else(|| confirm_action.value().get().and_then(Result::err))
-                        .or_else(|| receipt_action.value().get().and_then(Result::err));
-                    err.map(|e| view! { <p class="alert">{e.to_string()}</p> })
-                }}
-            </div>
+        <div class="page-frame">
+            <div class="prose-page">
+                // Action error display
+                <div id="action-error" role="alert" aria-live="assertive" data-testid="action-error">
+                    {move || {
+                        let err = enroll_action
+                            .value()
+                            .get()
+                            .and_then(Result::err)
+                            .or_else(|| confirm_action.value().get().and_then(Result::err))
+                            .or_else(|| receipt_action.value().get().and_then(Result::err));
+                        err.map(|e| view! { <p class="alert">{e.to_string()}</p> })
+                    }}
+                </div>
 
-            <Suspense fallback=move || view! { <SkeletonFallback /> }>
-                {move || {
-                    home_state
-                        .get()
-                        .map(|result| match result {
-                            Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
-                            Ok(state) => {
-                                render_home_state(
-                                    state,
-                                    enroll_action,
-                                    confirm_action,
-                                    receipt_action,
-                                    hydrated,
-                                    i18n,
-                                )
-                            }
-                        })
-                }}
-            </Suspense>
+                <Suspense fallback=move || view! { <SkeletonFallback /> }>
+                    {move || {
+                        home_state
+                            .get()
+                            .map(|result| match result {
+                                Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
+                                Ok(state) => {
+                                    render_home_state(
+                                        state,
+                                        enroll_action,
+                                        confirm_action,
+                                        receipt_action,
+                                        hydrated,
+                                        i18n,
+                                    )
+                                }
+                            })
+                    }}
+                </Suspense>
+            </div>
         </div>
     }
 }
