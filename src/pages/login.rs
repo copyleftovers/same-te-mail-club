@@ -647,26 +647,25 @@ pub fn LoginPage() -> impl IntoView {
     let register_action = ServerAction::<RegisterWithCode>::new();
 
     view! {
-        // pt-[10svh]: viewport-relative top padding centers the login card
-        // visually at varying screen heights. Not a Tailwind spacing-scale value.
-        <div class="prose-page flex flex-col items-center text-center pt-[10svh]">
-            <img
-                src="/logo.svg"
-                alt="Саме Те · Поштовий клуб"
-                class="h-32 w-auto mb-8"
-            />
+        <div class="page-frame">
+            <div class="auth-card">
+                <img
+                    src="/logo.svg"
+                    alt="Саме Те · Поштовий клуб"
+                />
 
-            <LoginStepRouter
-                is_pending=is_pending_signal.get()
-                is_otp_error=is_otp_error
-                otp_step=otp_step
-                hydrated=hydrated
-                request_action=request_action
-                submitted_phone=submitted_phone
-                entered_code=entered_code
-                set_entered_code=set_entered_code
-                register_action=register_action
-            />
+                <LoginStepRouter
+                    is_pending=is_pending_signal.get()
+                    is_otp_error=is_otp_error
+                    otp_step=otp_step
+                    hydrated=hydrated
+                    request_action=request_action
+                    submitted_phone=submitted_phone
+                    entered_code=entered_code
+                    set_entered_code=set_entered_code
+                    register_action=register_action
+                />
+            </div>
         </div>
     }
 }
@@ -699,8 +698,46 @@ fn LoginStepRouter(
     set_entered_code: WriteSignal<Option<String>>,
     register_action: ServerAction<RegisterWithCode>,
 ) -> impl IntoView {
+    // The server allows one OTP per 60s. The UI mirrors this window so the
+    // user cannot trigger no-op silent resends while the server-side rate limit
+    // is still open. Placed before other lets per clippy::items-after-statements.
+    const OTP_RESEND_COOLDOWN_SECS: u32 = 60;
+
     let i18n = use_i18n();
     let request_pending = request_action.pending();
+
+    // ── Resend cooldown (Fault-03) ────────────────────────────────────────────
+    // The interval is seeded when the OTP step first becomes visible (step 1 just
+    // sent a code) and reset on every manual resend press.
+    let resend_cooldown = RwSignal::new(0u32);
+    let interval_handle: StoredValue<Option<IntervalHandle>> = StoredValue::new(None);
+
+    // Seed the 60s cooldown the moment the OTP step activates.
+    Effect::new(move |_| {
+        if otp_step.get() {
+            resend_cooldown.set(OTP_RESEND_COOLDOWN_SECS);
+            // Cancel any prior interval before creating a new one.
+            interval_handle
+                .try_get_value()
+                .flatten()
+                .inspect(IntervalHandle::clear);
+            let handle = set_interval_with_handle(
+                move || {
+                    resend_cooldown.update(|n| *n = n.saturating_sub(1));
+                },
+                std::time::Duration::from_secs(1),
+            )
+            .expect("set_interval resend cooldown");
+            interval_handle.set_value(Some(handle));
+        }
+    });
+
+    on_cleanup(move || {
+        interval_handle
+            .try_get_value()
+            .flatten()
+            .inspect(IntervalHandle::clear);
+    });
 
     view! {
         // ── Step 1: Phone ─────────────────────────────────────────────────────
@@ -803,10 +840,49 @@ fn LoginStepRouter(
                     {t!(i18n, login_verify_button)}
                 </button>
             </form>
+            // Resend: re-dispatches request_action with the stored phone.
+            // Disabled for 60s after every send (mirrors server 1/60s rate limit).
+            // aria-live="polite" so the countdown does not interrupt the assertive OTP error region.
             <button
                 type="button"
-                class="btn w-full mt-(--density-space-sm)"
-                data-variant="secondary"
+                class="btn mt-(--density-space-sm)"
+                data-variant="link"
+                data-testid="resend-otp-button"
+                aria-live="polite"
+                disabled=move || resend_cooldown.get() > 0 || !hydrated.get()
+                on:click=move |_| {
+                    request_action.dispatch(RequestOtp { phone: submitted_phone.get() });
+                    resend_cooldown.set(OTP_RESEND_COOLDOWN_SECS);
+                    // Restart the countdown interval.
+                    interval_handle.try_get_value().flatten().inspect(IntervalHandle::clear);
+                    let handle = set_interval_with_handle(
+                        move || {
+                            resend_cooldown.update(|n| *n = n.saturating_sub(1));
+                        },
+                        std::time::Duration::from_secs(1),
+                    )
+                    .expect("set_interval resend cooldown");
+                    interval_handle.set_value(Some(handle));
+                }
+            >
+                {move || {
+                    let secs = resend_cooldown.get();
+                    if secs > 0 {
+                        format!(
+                            "{} ({} с)",
+                            t_string!(i18n, login_resend_code_button),
+                            secs
+                        )
+                        .into_any()
+                    } else {
+                        t!(i18n, login_resend_code_button).into_any()
+                    }
+                }}
+            </button>
+            <button
+                type="button"
+                class="btn mt-(--density-space-sm)"
+                data-variant="link"
                 data-testid="back-to-phone-button"
                 on:click=move |_| request_action.value().set(None)
             >
@@ -1013,8 +1089,8 @@ where
         // Back button — lets user re-enter the code if they made a typo
         <button
             type="button"
-            class="btn w-full mt-(--density-space-sm)"
-            data-variant="secondary"
+            class="btn mt-(--density-space-sm)"
+            data-variant="link"
             data-testid="back-to-invite-code-button"
             on:click=move |_| on_back()
         >
