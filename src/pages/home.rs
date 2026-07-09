@@ -663,16 +663,22 @@ fn render_enrollment_open(
         {theme
             .map(|theme_val| {
                 view! {
-                    <p data-testid="season-theme">
+                    <p class="overline-label" data-testid="season-theme">
                         {t!(i18n, home_theme_label)}
                         {theme_val.clone()}
                     </p>
                 }
             })}
 
-        <p class="deadline">{t!(i18n, home_signup_deadline_label)} {deadline}</p>
+        <p>{t!(i18n, home_enroll_invitation)}</p>
+
+        <p>{t!(i18n, home_enroll_expectation)}</p>
 
         <p>{t!(i18n, home_guideline)}</p>
+
+        <p class="deadline">
+            {t!(i18n, home_enroll_deadline, deadline = deadline.clone())}
+        </p>
 
         <leptos::form::ActionForm action=enroll_action>
             {match existing_address {
@@ -684,15 +690,17 @@ fn render_enrollment_open(
                         city = city.clone()
                     );
                     view! {
-                    <div class="field" data-testid="existing-address">
-                        <span class="field-label">{t!(i18n, home_saved_address_label)}</span>
-                        <p class="field-input">{branch_text}</p>
-                    </div>
-                    <input type="hidden" name="use_existing_address" value="true" />
-                    // city and np_number are required by form deserialization but
-                    // ignored by the server when use_existing_address is true.
-                    <input type="hidden" name="city" value="" />
-                    <input type="hidden" name="np_number" value="" />
+                        <dl class="info-list" data-testid="existing-address">
+                            <div class="info-item">
+                                <dt class="info-label">{t!(i18n, home_saved_address_label)}</dt>
+                                <dd class="info-value">{branch_text}</dd>
+                            </div>
+                        </dl>
+                        <input type="hidden" name="use_existing_address" value="true" />
+                        // city and np_number are required by form deserialization but
+                        // ignored by the server when use_existing_address is true.
+                        <input type="hidden" name="city" value="" />
+                        <input type="hidden" name="np_number" value="" />
                     }.into_any()
                 },
                 None => view! {
