@@ -1027,9 +1027,12 @@
   }
 
   /* ── Page frame ──────────────────────────────────────────────── */
-  /* Layout primitive: claims main's height so short states center and long states flow from top */
+  /* Layout primitive: claims the viewport height below the header so short states
+     center (margin:auto has free space) and long states flow from the top and scroll.
+     A percentage min-height would resolve against main's auto height and collapse to
+     content, so the frame is sized from the viewport (100dvh) minus the header band. */
   .page-frame {
-    min-height: 100%;
+    min-height: calc(100dvh - var(--header-height));
     display: flex;
     flex-direction: column;
   }
