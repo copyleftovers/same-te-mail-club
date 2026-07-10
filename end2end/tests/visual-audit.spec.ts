@@ -204,9 +204,11 @@ test.describe.serial("Visual Audit", () => {
     // the login page SSR always starts from the phone-input step (step 1).
     await page.context().clearCookies();
     await page.goto("/login");
-    // Wait for phone-input to be visible (not just enabled) — confirms step 1
-    // is rendered, not the OTP step that could show if stale state persists.
+    // Step-1 check: phone-input visible confirms the phone step is rendered (not OTP).
     await expect(page.getByTestId("phone-input")).toBeVisible();
+    // Hydration gate: send-otp-button is disabled until WASM hydrates; toBeEnabled()
+    // is the README-prescribed wait before filling inputs (end2end/README.md §The Hydration Gate).
+    await expect(page.getByTestId("send-otp-button")).toBeEnabled();
     await page.getByTestId("phone-input").fill(ADMIN_PHONE);
     await app.clickAndWaitForResponse(
       page.getByTestId("send-otp-button"),

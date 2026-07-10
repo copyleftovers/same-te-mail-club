@@ -710,26 +710,18 @@ fn LoginStepRouter(
     let request_pending = request_action.pending();
 
     // ── Resend cooldown (Fault-03) ────────────────────────────────────────────
-    // The interval is seeded when the OTP step first becomes visible (step 1 just
-    // sent a code) and reset on every manual resend press.
-    //
-    // `resend_cooldown` is unconditional: its initial value (0u32) is identical on
-    // SSR and client, so there is no hydration mismatch. Only the interval handle
-    // and its lifecycle (start_cooldown, on_cleanup) are client-only — gating a
-    // SIDE EFFECT, not a rendered value. This is NOT the banned cfg-hydration-
-    // mismatch pattern. `StoredValue<Option<IntervalHandle>>` must not exist in the
-    // SSR build: its disposal path calls web_sys::AbortController (a wasm-bindgen
-    // import) and panics with "cannot call wasm-bindgen imported functions on
-    // non-wasm targets" (Abort trap 6 on /login).
+    // `resend_cooldown` is unconditional: initial value (0u32) is identical on SSR
+    // and client — no hydration mismatch. Interval handle, timer lifecycle, and
+    // the resend dispatch are client-only (see cfg gates below and on `resend`).
     let resend_cooldown = RwSignal::new(0u32);
 
     #[cfg(not(feature = "ssr"))]
     let interval_handle: StoredValue<Option<IntervalHandle>> = StoredValue::new(None);
 
-    // The one home for the cooldown timer lifecycle: open the 60s window, cancel any
-    // prior tick loop (leak-safe clear-before-create), start a fresh 1s decrementing
-    // loop, and store its handle for the next clear. Called from both the seeding
-    // Effect (OTP step becomes visible) and the manual resend press.
+    // WHY client-only: `StoredValue<Option<IntervalHandle>>` must not exist in the SSR
+    // build — its disposal path calls web_sys::AbortController (a wasm-bindgen import)
+    // and panics on non-wasm targets (Abort trap 6). This gates a SIDE EFFECT, not a
+    // rendered value; NOT the banned cfg-hydration-mismatch pattern.
     #[cfg(not(feature = "ssr"))]
     let start_cooldown = move || {
         resend_cooldown.set(OTP_RESEND_COOLDOWN_SECS);
@@ -763,16 +755,14 @@ fn LoginStepRouter(
             .inspect(IntervalHandle::clear);
     });
 
-    // Dual-cfg binding so the resend handler has an identical signature in both builds.
-    // No #[cfg] may appear inside view! — the Leptos macro tokenizer misparses cfg-gated
-    // items inside on:click closures, causing surrounding attributes (disabled=, on:click=)
-    // to emit as text nodes and desynchronizing step-visibility style:display.
-    // Both cfg branches bind the same symbol `resend` so view! can reference it without
-    // any #[cfg] tokens inside the macro (cfg inside on:click bodies confuses the Leptos
-    // tokenizer and causes surrounding attributes to emit as text nodes). The Leptos macro
-    // elides event handlers in the SSR build and inlines them in the hydrate build, but in
-    // BOTH cases rustc's unused-variable analysis does not see the macro-internal use —
-    // hence the allow on both branches.
+    // Dual-cfg binding so view! references `resend` with zero #[cfg] tokens inside the
+    // macro. WHY no cfg inside view!: the Leptos macro tokenizer misparses cfg-gated items
+    // inside on:click closures, causing surrounding attributes (disabled=, on:click=) to
+    // emit as text nodes. WHY dispatch is client-only: `ArcAction::dispatch` constructs a
+    // BrowserRequest (abort_signal) during SSR route pre-warming — a wasm-bindgen stub that
+    // panics on non-wasm targets (caught by tokio catch_unwind, but generates startup noise).
+    // The #[allow] on both branches: rustc's unused-variable analysis does not see macro-
+    // internal uses, so the symbol appears unused in both builds without the allow.
     #[cfg(not(feature = "ssr"))]
     #[allow(unused_variables)]
     let resend = move || {
