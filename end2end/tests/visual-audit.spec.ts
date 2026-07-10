@@ -258,11 +258,9 @@ test.describe.serial("Visual Audit", () => {
     // Blur so the ring is absent from the subsequent full-page captures.
     await page.getByTestId("phone-input").blur();
     await captureState(page, "login-phone-step", { stateId: "L1", route: "/login" });
-    // ── Error state: invalid phone ──
-    await page.getByTestId("phone-input").fill("123");
-    await page.getByTestId("send-otp-button").click();
-    await expect(page.getByTestId("phone-error")).toBeVisible();
-    await captureElementState(page, "login-phone-step", "error");
+    // ── Note: phone format errors are intentionally unreachable ──
+    // request_otp silently returns AccountExists for invalid phone formats
+    // (to avoid phone enumeration). No "phone-error" state exists.
   });
 
   test("capture login — otp input", async ({ page }) => {
