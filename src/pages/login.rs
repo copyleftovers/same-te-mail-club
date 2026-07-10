@@ -895,7 +895,7 @@ fn LoginStepRouter(
                 data-variant="link"
                 data-testid="resend-otp-button"
                 aria-live="polite"
-                disabled=move || resend_cooldown.get() > 0 || !hydrated.get()
+                disabled={move || resend_cooldown.get() > 0 || !hydrated.get()}
                 on:click=move |_| resend()
             >
                 {move || {
