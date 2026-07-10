@@ -1086,6 +1086,16 @@
     margin-bottom: var(--density-space-md);   /* heading → field group boundary */
   }
 
+  /* Step wrappers and forms stretch to fill the card so that contained fields
+     and their labels align to the card left-edge, not the shrunk flex-item edge.
+     Without this, align-items:center causes step <div>s to shrink-wrap their
+     max-content width, and on mobile the label protrudes to the viewport left edge
+     while the OTP input (max-w-[12ch]) correctly centers. */
+  .auth-card > div,
+  .auth-card form {
+    width: 100%;
+  }
+
   /* Fields stretch full card width; labels/inputs left-aligned for scannability
      (overrides the card's text-center for the input rows). */
   .auth-card .field {
