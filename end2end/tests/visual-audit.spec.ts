@@ -310,9 +310,10 @@ test.describe.serial("Visual Audit", () => {
       "request_otp",
     );
     await expect(page.getByTestId("otp-input")).toBeVisible();
-    // ── Resend active: cooldown is 0 on first OTP step arrival ──
-    await expect(page.getByTestId("resend-otp-button")).toBeVisible();
     await captureState(page, "login-otp-step", { stateId: "L5", route: "/login" });
+    // ── L7: resend affordance active — distinct named capture per design ──
+    await expect(page.getByTestId("resend-otp-button")).toBeVisible();
+    await captureState(page, "login-otp-step-resend-active", { stateId: "L7", route: "/login" });
     // ── Error state: wrong OTP reveals otp-error ──
     // The native POST form processes the bad code server-side and 302-redirects
     // to /login?otp_error=1. The browser follows the redirect and re-renders the
@@ -413,15 +414,6 @@ test.describe.serial("Visual Audit", () => {
     );
     await expect(page.getByTestId("invite-code-error")).not.toBeEmpty();
     await captureElementState(page, "login-invite-code-step", "error");
-    // ── Error: submit a USED code (code A is already used by AUDIT_PHONES.A) ──
-    // Requires we reach the invite step on a fresh phone — AUDIT_PHONES.NEW still works.
-    await page.getByTestId("invite-code-input").fill(AUDIT_CODES.A);
-    await app.clickAndWaitForResponse(
-      page.getByTestId("submit-invite-code-button"),
-      "validate_invite_code",
-    );
-    await expect(page.getByTestId("invite-code-error")).not.toBeEmpty();
-    await captureElementState(page, "login-invite-code-step", "error-used", { stateId: "L11" });
   });
 
   test("capture login — name input step + error", async ({ page }) => {
@@ -477,6 +469,25 @@ test.describe.serial("Visual Audit", () => {
     // Complete onboarding with long city so the address carries through the rest
     // of the flow (enrollment forms, participant list, assignment display).
     await app.completeOnboarding(LONG_CITY_A, LONG_BRANCH_A);
+  });
+
+  // ── Login: used invite code error (L11) ──────────────────────────────────────
+
+  // Precondition: code A is genuinely consumed — participant A registered with it
+  // in the test above. AUDIT_PHONES.NEW never completes registration, so it can
+  // revisit the invite step; submitting the consumed code A yields the
+  // "already used" error. The rejected submission mutates nothing: code NEW
+  // stays unused for the Pass B revoke, and B/C registrations are unaffected.
+  test("capture login — used invite code error", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.reachInviteCodeStep(AUDIT_PHONES.NEW);
+    await page.getByTestId("invite-code-input").fill(AUDIT_CODES.A);
+    await app.clickAndWaitForResponse(
+      page.getByTestId("submit-invite-code-button"),
+      "validate_invite_code",
+    );
+    await expect(page.getByTestId("invite-code-error")).not.toBeEmpty();
+    await captureElementState(page, "login-invite-code-step", "error-used", { stateId: "L11" });
   });
 
   // ── Setup: register and onboard B and C ─────────────────────────────────────
