@@ -200,8 +200,13 @@ test.describe.serial("Visual Audit", () => {
 
   test("capture login — otp input", async ({ page }) => {
     const app = new MailClubPage(page);
+    // Clear any lingering session/pending cookies from the previous test so
+    // the login page SSR always starts from the phone-input step (step 1).
+    await page.context().clearCookies();
     await page.goto("/login");
-    await expect(page.getByTestId("send-otp-button")).toBeEnabled();
+    // Wait for phone-input to be visible (not just enabled) — confirms step 1
+    // is rendered, not the OTP step that could show if stale state persists.
+    await expect(page.getByTestId("phone-input")).toBeVisible();
     await page.getByTestId("phone-input").fill(ADMIN_PHONE);
     await app.clickAndWaitForResponse(
       page.getByTestId("send-otp-button"),
