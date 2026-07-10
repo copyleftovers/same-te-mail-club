@@ -1028,12 +1028,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
         return view! { <div></div> }.into_any();
     }
 
-    let radius = RING_RADIUS;
-    let center_x = CENTER_X;
-    let center_y = CENTER_Y;
-    let node_radius = NODE_RADIUS;
-
-    let positions = compute_circle_positions(n, radius, center_x, center_y);
+    let positions = compute_circle_positions(n, RING_RADIUS, CENTER_X, CENTER_Y);
 
     let arrows = (0..n)
         .map(|i| {
@@ -1044,7 +1039,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
             let dist = (dx * dx + dy * dy).sqrt();
             let ux = dx / dist;
             let uy = dy / dist;
-            let margin = node_radius + 5.0;
+            let margin = NODE_RADIUS + 5.0;
             let start_x = x1 + ux * margin;
             let start_y = y1 + uy * margin;
             let end_x = x2 - ux * margin;
@@ -1080,7 +1075,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                     <circle
                         cx=cx
                         cy=cy
-                        r=node_radius
+                        r=NODE_RADIUS
                         fill="var(--color-accent)"
                         stroke="var(--color-surface-raised)"
                         stroke-width="2"
@@ -1089,7 +1084,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                     />
                     <text
                         x=cx
-                        y=cy + node_radius + LABEL_OFFSET_Y
+                        y=cy + NODE_RADIUS + LABEL_OFFSET_Y
                         text-anchor="middle"
                         font-size="13"
                         font-weight="600"

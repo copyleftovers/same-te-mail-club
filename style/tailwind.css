@@ -1562,7 +1562,7 @@
   .cycle-viz {
     width: 100%;
     max-width: var(--size-cycle-viz);
-    aspect-ratio: 1;
+    aspect-ratio: 600 / 560; /* matches the SVG viewBox in render_cycle_ring */
   }
 
   /* ── Dark-mode container-border alpha lift ────────────────────── */
