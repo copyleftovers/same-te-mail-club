@@ -30,6 +30,32 @@ const DESKTOP_VIEWPORT = { width: 1280, height: 800 } as const;
 // not a test-assertion wait (see deferred_items: `waitForTimeout(LAYOUT_REFLOW_MS)`).
 const LAYOUT_REFLOW_MS = 150;
 
+// Opt-in gate: the default suite (`npx playwright test`, no filter) discovers
+// every spec under testDir — without this gate `just e2e` would fire the cohort
+// seed against the shared `samete` DB. When every test in the file is skipped,
+// Playwright also skips beforeAll, so the seed never executes.
+test.skip(
+  process.env.COHORT_CAPTURE !== "1",
+  "cohort capture is opt-in — the harness exports COHORT_CAPTURE=1 for the cohort invocation",
+);
+
+// Defense in depth: refuse to seed the shared dev DB even if the gate is
+// bypassed. Mirrors the harness's own `samete` guard.
+function assertSiblingDatabaseUrl(rawUrl: string | undefined): string {
+  if (!rawUrl) {
+    throw new Error(
+      "DATABASE_URL is not set — the cohort seed requires the harness-injected sibling DB URL",
+    );
+  }
+  const dbName = new URL(rawUrl).pathname.replace(/^\//, "");
+  if (dbName === "samete") {
+    throw new Error(
+      "DATABASE_URL points at the shared 'samete' DB — refusing to seed; cohort pass must target a samete_<suffix> sibling",
+    );
+  }
+  return rawUrl;
+}
+
 test.beforeAll(() => {
   // Create screenshot directories (mirrors visual-audit.spec.ts structure).
   for (const dir of [
@@ -43,10 +69,9 @@ test.beforeAll(() => {
   }
 
   // Seed the 12-participant cohort into the harness's sibling DB.
-  // DATABASE_URL is injected by isolated-capture.sh; it points at samete_<suffix>,
-  // never at the dev samete DB.
+  const databaseUrl = assertSiblingDatabaseUrl(process.env.DATABASE_URL);
   const seedFile = path.resolve(__dirname, "fixtures/cohort-seed.sql");
-  execSync(`psql "${process.env.DATABASE_URL}" -f "${seedFile}"`, {
+  execSync(`psql "${databaseUrl}" -f "${seedFile}"`, {
     stdio: "inherit",
   });
 });

@@ -117,6 +117,12 @@ cd end2end
 # Marker file timestamps the run start so the floor counts only screenshots from THIS run.
 screenshot_marker="$(mktemp)"
 
+# The cohort spec is opt-in gated (test.skip unless COHORT_CAPTURE=1) so the
+# default suite can never fire its DB seed. Un-gate it for cohort invocations.
+case "${VISUAL_SPEC:-}" in
+    *visual-audit-cohort*) export COHORT_CAPTURE=1 ;;
+esac
+
 playwright_exit=0
 if [ "$CAPTURE_MODE" = "full" ]; then
     CAPTURE_BASE_URL="http://127.0.0.1:${ISOLATED_PORT}" \
