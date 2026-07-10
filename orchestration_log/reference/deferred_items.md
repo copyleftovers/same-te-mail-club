@@ -182,3 +182,31 @@ All 7 Wave-2 units integrated (admin markup, admin i18n, home, onboarding, login
 ## Resolved 2026-07-05 (follow-up)
 - **Onboarding participant errors English** — RESOLVED (c487247+f3291e5): localized via language-independent field routing (server field-key + td_string! message; client routes by key). Ukrainian pixel-verified, CI green.
 - **7 pre-existing orphan uk.json keys** — RESOLVED: removed 8 zero-ref keys (the 7 + onboarding_error_prefix).
+
+## Added 2026-07-09/10 (visual-intervention session — checkpoint)
+
+### BLOCKER — auth /login SSR abort (T02+T03 unintegrated)
+- **Severity:** High (blocks the last redesign thread from landing). **Detail:** the auth worktree (`.claude/worktrees/agent-ad20d8abde56c5c2e` @ bd7c4d9) release binary ABORTS during SSR of `/login` (Abort trap 6, empty response). Root: `set_interval_with_handle` (client-only) reached the SSR path via `start_cooldown`. Fix `#[cfg(not(feature="ssr"))]` gate (bd7c4d9) applied + spec/quality r3 PASS + SSR clippy clean, BUT recapture STILL aborts. Unresolved hypotheses: (A) harness served STALE pre-fix binary; (B) cfg-gate ineffective — release SERVER build may not enable `feature="ssr"`; (C) a different panic (poss. Leptos SSR reactive-disposal). Debug agents hit session limits. Artifacts: `recon/2026-07-09/reviews/auth-login-ssr-rootcause.md` + `scratchpad/auth-capture-r2.log`. **Action:** resume root-cause (fresh agent seeded from artifact) → fix → recapture-proves-render → rendered-verify → rebase onto main → integrate.
+
+### isolated-capture harness: exit-code gap (T-INFRA-FIX, task #10)
+- **Severity:** Medium. **Detail:** `scripts/isolated-capture.sh` exits 0 even when ALL playwright captures fail (empty screenshots). Must propagate `npx playwright test` non-zero exit and/or assert a min screenshot count. Caught only by rendered-verify agents noticing empty dirs.
+
+### main UNPUSHED (6 threads integrated)
+- **Severity:** Medium (process). main @ 17e9891 carries harness + T01 + admin(T04/T05) + participant(T06/T07), no CI run, not pushed. Push pending user decision + (after auth lands) whole-app final verify. When pushing after query changes: re-confirm CI-way `SQLX_OFFLINE=true cargo clippy --no-default-features --features ssr` (admin U4 was locale-only; likely no query change, but verify).
+
+### Proposed Ukrainian copy awaiting user veto
+- **Severity:** Low. Participant + resend copy shipped as PROPOSALS in uk.json: home_enroll_invitation/expectation/deadline, home_enrolled_milestone, login_resend_code_button/cooldown. Surface for user veto/override.
+
+### Orphan worktree css-systemic-fixes still present (relates to #4)
+- Prior-session worktree `.claude/worktrees/css-systemic-fixes` @ cb4f3db + branch `worktree-css-systemic-fixes` (unmerged S1/S4/S5/S6/S7) + branch `capture/dark-and-long-content` (unmerged, dir gone). Decide merge/discard.
+
+## Added 2026-07-10 (auth + T08 + #10 close)
+
+- **cycle-viz long-name top-overflow on mobile** — Low. Pre-existing before T08 (unchanged by viewBox fix): a very long participant name at the ring-top can exceed the SVG top edge at 375px. Revisit with the 11-15-node cohort capture (still uncaptured, carry-forward).
+- **`5.0` arrow-clearance literal in render_cycle_ring** — Nit. Quality r2 deferred; name it on next touch of admin/page.rs geometry.
+- **Orphan Postgres DB `samete_ssr_debug2`** — Nit. Leftover sibling DB from a prior session's debug run (reported by #10 implementer). `psql -c 'DROP DATABASE samete_ssr_debug2;'` at convenience.
+- **RESOLVED: #10 harness exit-0 gap** — isolated-capture.sh now propagates playwright exit + screenshot floor (main @ 47226e8).
+- **RESOLVED: auth /login SSR abort (T02+T03 blocker)** — three-layer root cause; integrated main @ 5da012b. Rendered CLEAN.
+- **RESOLVED: T08 cycle-viz desktop scale-down** — viewBox 600×560 + aspect-ratio match (main @ 443efdd).
+- **Resend + participant UK copy proposals** — user explicitly deferred review 2026-07-10; keys live as proposed (login_resend_code_button/cooldown, home_enroll_*, home_enrolled_milestone).
+- **RESOLVED: orphan branches (#4)** — 85 stale branches pruned with patch-identity evidence; repo single-branch.

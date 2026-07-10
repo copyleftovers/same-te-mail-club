@@ -198,3 +198,95 @@ ALWAYS re-verify rendered pixels at native resolution, BOTH viewports (375px + d
 | Pointing rendered-re-verify agents at light-only screenshots when the change touches color | Dark mode has distinct token assignments; a color change that passes light may fail dark. `screenshots/dark-desktop` and `screenshots/dark-mobile` always exist after a full capture. | 2026-07-04 Wave 2: orchestrator missed dark shots; user challenged |
 | Capping `.field` width to constrain an input | `.field-error` inherits the cap → error text wraps in a narrow column. Cap `.field-input` or the `<input>` element only. | 2026-07-04: login OTP 4-line error wrap, fix 0422a77 |
 | Desktop card split layout without a mobile breakpoint override | No auto-degradation at 375px; cards balloon/rag. Explicit `@media (max-width:639px)` required. | 2026-07-04: invite-card mobile balloon, fix c3433f5 |
+
+## Added 2026-07-09/10 (visual-intervention session — checkpoint lessons)
+
+- **Thread vs agent (user-corrected).** A THREAD = one reported fault; it spans many worker agents and closes only when the fault is solved with NO regressions. Agents are workers within a thread. Track threads on the harness Task tools (shared, visible list) — NOT an agent-managed board file.
+- **Isolated capture harness (own port + own DB per cycle).** NEVER run `just e2e`/`e2e-release`/`db-reset`/`_kill-stale` while the user's dev server is live on :3000 — it stomps their server + wipes `samete`. Instead: sibling `samete_<suffix>` DB on the live Postgres + a free port + run the binary directly with LEPTOS_SITE_ADDR/DATABASE_URL + playwright CAPTURE_BASE_URL + trap teardown. `scripts/isolated-capture.sh` is the mechanism. Parallel-safe (validated: concurrent sibling DBs, samete untouched).
+- **Pixel gate earns its keep.** T01's void-fix passed spec review AND quality review TWICE while the RENDER was still broken (centering inert). Rendered-verify at native resolution, both viewports (375/414+desktop) AND both modes (light+dark), is the arbiter for visual work — code review cannot catch inert CSS. Similarly the auth `/login` SSR crash passed spec+quality (no SSR render in review) and was caught only by an actual capture.
+- **Worktree-scoped agents get WORKTREE paths.** A debug agent given MAIN-repo paths grepped an unintegrated feature and wrongly concluded "phantom class." Conversely, gitignored recon plans live in MAIN's untracked tree — implementers read them by ABSOLUTE main path and edit in their own worktree. Always match the path to the tree the fact lives in.
+- **CSS centering: `>` matches direct children only.** `.page-frame > .empty-state` failed because `.prose-page` (and Suspense) sit between. Verify the ACTUAL rendered DOM ancestry before writing structural selectors; 2 source-reasoning fixes failed before rendered-DOM debugging found it.
+- **client-only APIs (`set_interval_with_handle`) must be `#[cfg(not(feature="ssr"))]`-gated** if reachable on the SSR render path, else the server binary panics (Abort trap 6, empty response). This gates a SIDE EFFECT (not a rendered value) so it is NOT the banned cfg-hydration-mismatch pattern — provided the associated signal's INITIAL value is unconditional/identical across SSR+client. (NOTE: bd7c4d9 applied this yet the abort persisted — root cause still open; see deferred_items.)
+- **recon artifact filenames: avoid "findings"/"report".** A subagent guard blocks Writes to files it classifies as report/findings. Use `design-intervention.md`/`impl-plan.md`/`spec-*.md`/`diagnosis`/`rootcause` names. If a Write is guard-blocked, the agent must relay content in its notification for the orchestrator to persist via a scribe.
+- **Harness exit-0 gap.** `scripts/isolated-capture.sh` exited 0 despite total playwright failure — do NOT trust the capture exit code; confirm screenshots were produced (`ls | wc -l`) before rendered-verify. (Fix tracked, task #10.)
+- **Notification attribution cross-wires; content is truth.** Repeatedly the completion notification named the wrong agent (e.g. T04 designer vs T03 scribe swapped). Trust the RESULT content + verify disk, never the attributed agent name.
+
+## Orchestration Doctrine — Delegation, Recycling & Context Budgeting (2026-07-10)
+
+The single home for: when to delegate, when to recycle vs fresh-launch, and how to keep an agent inside its window. Flow: **why → budget → measure → decide → discipline.**
+
+### 1. Cost model — what delegation actually buys
+Authoring content costs the same tokens in the orchestrator's context whether written directly OR dictated to an agent — it lands in the dispatch prompt either way. A scribe therefore only ADDS overhead (framing) and SUBTRACTS fidelity (it transcribes/interprets). Consequences:
+- Delegation's ONLY real win is making an agent ABSORB token cost the orchestrator would otherwise bear — READING/processing large inputs that never enter the orchestrator's context (many files in → a short answer out). **Delegate for READS.**
+- Delegation NEVER wins for emitting content the orchestrator already holds.
+
+**STANDING POLICY (user-set, binding):**
+- **NORMAL mode (file-ops prohibited) = DELEGATION-FIRST on everything.** The dispatch overhead is accepted deliberately; context hygiene is the point, not token-minimization. Do NOT bypass the file-op constraint even when holding the content.
+- **CHECKPOINT phase (the only write-permitted state) = MEMORY WORK → orchestrator writes DIRECTLY, NEVER delegates.** Delegating memory ops is costly now (overhead) and later (fidelity drift in the durable record that must survive compaction).
+- If guidance MUST be authored via delegation (only under normal prohibition), the agent MUST be **opus** — guidance authorship is an opus task regardless of who types it.
+
+### 2. The budget — context windows are MODEL-DEPENDENT
+- Opus 4.8 ≈ **1,000,000** tok · Sonnet 4.6 ≈ **250,000** · Haiku ≈ **200,000**. Always budget against the AGENT'S OWN window.
+- **Model selection has TWO drivers: reasoning tier AND context budget.** A context-heavy task (big logs + source + reproduce + author, or a long recycled investigation) may warrant opus purely for its window even when sonnet's reasoning would suffice.
+
+### 3. Measure — estimating resident load
+`resident_tokens ≈ init(~6k) + dispatch_prompt + Σ(text_bytes ÷ 3–4) + Σ(images × ~1.5k) + output_headroom`
+- Content-type matters: prose ≈ 4 B/tok · code/JSON/logs ≈ 3 B/tok (denser) · images ≈ ~1.5k tok each regardless of byte-bulk.
+- **Runtime probe** (cheap, no content read): `stat -f %z` the `subagents/agent-<id>.jsonl`; compute % against the agent's window.
+- **Calibration** (this session): a SONNET agent overflowed at 735 KB dense text (~245k tok ≈ its 250k ceiling); an OPUS agent sailed through 4158 KB (image-heavy) on its 1M window. Byte-size misleads until read against window + content type.
+
+### 4. Decide — recycle vs fresh-launch
+Recycling (SendMessage-continuation) is delta-continuation of a still-cheap context, **not** a free lunch: the transcript only grows, spending the window to save the re-load cost.
+- **RECYCLE when:** the follow-up is a tight delta that LEVERAGES what the agent holds (fix cycle, re-review of the same diff, "also check X in the file you read") AND estimated load < ~65% of that agent's window.
+- **FRESH-LAUNCH** (seeded from the on-disk artifact) when ANY of: window near ceiling · new domain/approach (held context is dead weight) · transcript reaped · model/tier change needed (recycle cannot change the model).
+- Own a problem until the **DELTA STOPS BEING CHEAP** — hand to a seeded successor BEFORE the window wall, not at it. ("Own until context-exhausted" ≠ drive-to-exhaustion. Traced: `ae4d7c7a` recycled thrice into overflow, zero salvage.)
+
+### 5. Discipline — never over-commit one agent
+- **EXTERNALIZE STATE TO FILES FIRST, recycle second.** Durable progress lives in artifacts; a successor is then cheap and recycling is a fast-lane over a file-backed spine, never a dependency.
+- **PLAN-TIME BUDGET before dispatch:** sum the big inputs. If one task's inputs (multi-MB log AND source AND reproduce AND author) alone approach the window → too big for one agent → SPLIT into single-question agents.
+- **FAILURE-MODE DISCIPLINE — distinguish, do not conflate:**
+  - `"Prompt is too long"` = resident CONTEXT exhausted → NOT resumable → decompose + fresh-launch smaller.
+  - `"session/rate limit"` = throughput cap → RESUMABLE after reset via SendMessage to the SAME agent (unless its task record was reaped at a session boundary).
+
+## Orchestration Doctrine — Concurrent Fault-Threads (2026-07-10)
+
+Running many independent problems in parallel without collision or context blowup. (Validated this session: ~7 fault-threads concurrently, foundation-first, sequential integration.)
+
+### A THREAD is one problem, not one agent
+One reported fault / unit of work = one thread. It spans many worker agents and CLOSES only when the fault is solved with NO regressions. Agents are workers WITHIN a thread. Track threads on the harness Task tools (the shared, user-visible list) — one task per thread, phase in metadata. Do NOT build an agent-maintained board file (superseded this session).
+
+### Per-thread lifecycle
+DISCOVERY → DESIGN → PLAN → IMPLEMENT → SPEC-REVIEW → QUALITY-REVIEW → VERIFY (rendered pixels / e2e / behavioral) → INTEGRATE → CLOSED. Reviews are inevitable — no unit skips spec→quality; no exemptions.
+
+### Parallelize thinking; serialize only the shared foundation
+Worktrees make every dev cycle natively isolated, so a shared write-set is a PLANNING problem, NOT a `blockedBy` dependency:
+- Run ALL discovery/design/plan in parallel immediately (read-only — no collision).
+- If threads share files, land the shared FOUNDATION once (one thread), then branch the rest FROM the integrated foundation.
+- Integrate sequentially; rebase each thread onto the prior's updated main — git auto-resolves distinct keys/regions. Only genuinely conflicting same-line edits need a resolver agent.
+
+### Isolated run/capture per cycle
+Any thread that builds + runs the app uses the isolated-capture harness (own free port + own sibling `samete_<suffix>` DB on the live Postgres). NEVER `:3000` / `samete` / `db-reset` / `_kill-stale` while a dev server is live. N captures run concurrently on distinct sibling DBs (parallel-safe, validated).
+
+### Liveness & truth
+A single global heartbeat cron is dormancy insurance; harness completion-notifications drive real transitions. Notification ATTRIBUTION cross-wires — trust the RESULT content + verify on disk, never the named agent. Every background wave gets the backstop.
+
+## Added 2026-07-10 (auth SSR-abort campaign + parallel-thread close)
+
+**Leptos view! macro hazards (both verified in rendered pixels this session):**
+| Pattern | Why | Traced to |
+|---|---|---|
+| `#[cfg(...)]` tokens ANYWHERE inside view! (incl. closure bodies) | Macro tokenizer misparses; attrs emit as TEXT NODES; step-visibility desyncs. Gate via dual cfg'd bindings OUTSIDE view! — signature-identical, SSR no-op stub | 2026-07-10: 73275f4/dc2d4af broke /login render; restructured 9fd53bf |
+| Bare `>` comparison in an unbraced view! attribute expression | Parsed as tag close; every following attr leaks as text | 2026-07-10: `disabled=move \|\| x.get() > 0` → 410ef0f braces fix |
+
+**Debugging doctrine additions:**
+- Release+LTO backtraces MISATTRIBUTE frames (phantom toast.rs across 2 independent probes). Rebuild debug profile for frame-accurate backtraces before trusting any frame.
+- Grep-verification of served HTML must be TOKEN-SPACING-TOLERANT (`on ?: ?click`); the leak rendered `on : click` and exact-match grep returned 0 = false clean.
+- Never feed a prior agent's conclusions to an opinion-forming probe (anchoring: one contaminated dispatch "confirmed" the phantom toast root cause). Raw evidence only; empirical probe (debug server + curl) arbitrates.
+- SSR-render assertion belongs in the fix agent's verify step: serve + curl + step-visibility grep — code review and clippy cannot see render breakage.
+
+**Capture/verify mechanics:**
+- Playwright serial capture: session cookies LEAK across tests in one browser context — clearCookies before auth-state captures.
+- Image-pass budget: ~30 full-page shots ≈ one sonnet window. One screenshot-dir per agent; NEVER recycle an image-heavy verifier into a second full pass (2 overflows this session).
+- isolated-capture.sh exit code trustworthy as of 47226e8 (propagation + screenshot floor); sabotage-test harness changes (fake build binary + no-match grep / `true` playwright) instead of full runs.
+- Worktree removal invalidates any CWD inside it → next spawn fails "Failed to resolve HEAD". cd to project root before removal+spawn.
+- Session-limit interruption (rate-limit class) is losslessly resumable via SendMessage — even hours later; pair with a one-shot resume cron at reset time.

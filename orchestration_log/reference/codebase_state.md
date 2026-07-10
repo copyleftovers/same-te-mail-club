@@ -156,3 +156,22 @@ main @ **d4a9396** (17 commits ahead of ae39300; UNPUSHED at session close; push
 - **2026-07-04 close:** main @ `77d7d05` (code d4a9396 + close-docs c6bae49 + conventions-dedup 77d7d05), pushed to origin/main. CI run 28717592269 GREEN (Check + E2E). Wave 2 complete.
 
 - **2026-07-05 follow-up:** onboarding participant errors localized via language-independent field routing (c487247+f3291e5) + 8 orphan uk.json keys removed. main @ f3291e5, CI run 28719895709 GREEN (Check + E2E). Resolves the onboarding-i18n + orphan-keys deferrals.
+
+## Changes 2026-07-09/10 (visual design-intervention campaign — checkpoint, IN PROGRESS)
+
+main @ **17e9891**, UNPUSHED, clean tree. Six fault-threads integrated via full spec→quality→rendered-verify→integrate chains; one (auth) blocked.
+
+- **Isolated capture harness (NEW, on main):** `scripts/isolated-capture.sh`, `end2end/playwright.config.ts` `CAPTURE_BASE_URL` env fallback (line ~30), `capture-isolated` justfile recipe. Runs any worktree binary on a free port + sibling `samete_<suffix>` DB on the live Docker Postgres, playwright via CAPTURE_BASE_URL, trap teardown, `!=3000`/`!=samete` guards. Bypasses `cargo leptos end-to-end`. Enables parallel captures that never touch the user's :3000/samete. Invocation: `cd <worktree> && bash scripts/isolated-capture.sh <suffix> [visual|full]`.
+- **`.page-frame` layout primitive (NEW, on main):** viewport-height (`min-height: calc(100dvh - var(--header-height))`); short/terminal participant states center via `.page-frame > .prose-page > .empty-state { margin:auto }` (`.empty-state` is a grandchild of `.page-frame` — `.prose-page` between; Suspense emits no wrapper). Scoped to participant home ONLY (never wraps admin). `--size-logo-height-header` token. `.empty-state .empty-state-headline` (0,2,0) out-specifies `.prose-page h1` for --text-section scale.
+- **Header (app.rs shared Header fn):** rebuilt — dominant mark, logout=quiet pill, admin-nav=`.header-nav-link` text link. Shared across participant/admin/login/onboarding; participant-home layout fix did NOT touch shared `<main>`.
+- **home.rs participant states:** 7 short states route through `.empty-state` (centered); Cancelled/NoSeason/Confirmed/Assigning/ReceiptConfirmed/Complete/Enrolled. Preparing SPLIT: deadline_passed=true (announcement)→centered empty-state; deadline_passed=false (confirm CTA)→top-flow. EnrollmentOpen: `.info-list` address block + deadline constraint sentence (LONG, top-flow). Enrolled: zero-CTA empty-state wait card.
+- **admin/page.rs Season Management:** typography consolidated; status→aligned `.badge`; per-phase IA 3-way gate on `season.launched`; unified counter/metric treatment; `.sms-report-result` margin; 4 SMS buttons→secondary, "Далі" sole primary.
+- **BLOCKED:** auth (login.rs) redesign + OTP resend in worktree agent-ad20d8ab @ bd7c4d9 — `/login` SSR abort unresolved (see deferred_items).
+
+## Changes 2026-07-10 (auth integration + T08 + #10)
+
+main @ **443efdd**, UNPUSHED, clean tree (except orchestration_log docs). No CI run yet.
+- **Auth (T02+T03) INTEGRATED** (5da012b, 13 rebased commits): `.auth-card` + `.btn[data-variant="link"]` + page-frame wrap + OTP resend affordance (RwSignal cooldown, dual cfg'd `resend` bindings — client dispatch+cooldown / SSR no-op — OUTSIDE view!; interval_handle StoredValue + on_cleanup cfg-gated outside view!). login.rs:~888 braces on `disabled={...}` are LOAD-BEARING (bare `>` eats the tag). visual-audit.spec.ts: clearCookies before /login captures + toBeVisible step-gate + toBeEnabled hydration wait.
+- **isolated-capture.sh** (47226e8): playwright exit propagated through EXIT-trap teardown; screenshot floor (exit 1 on exit-0-with-0-pngs); marker cleaned in trap. Exit code now TRUSTWORTHY (supersedes "gate on screenshot count only" workaround).
+- **cycle-viz** (443efdd): render_cycle_ring viewBox `0 0 600 560`, center(300,260), named geometry constants (RING_RADIUS/CENTER_X/CENTER_Y/NODE_RADIUS/LABEL_OFFSET_Y); `.cycle-viz` aspect-ratio 600/560 + `--size-cycle-viz: 480px`.
+- Screenshot sets in worktrees are GONE (worktrees removed); regenerate via `bash scripts/isolated-capture.sh <suffix> visual` from any tree.
