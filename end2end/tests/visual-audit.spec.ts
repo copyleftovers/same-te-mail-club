@@ -680,8 +680,8 @@ test.describe.serial("Visual Audit", () => {
     await app.goToDashboard();
     await expect(page.getByTestId("override-available")).toBeVisible();
     // Select the same participant for both sender slots to trigger a server error.
-    const senderASelect = page.locator("select[name='sender_a_id']");
-    const senderBSelect = page.locator("select[name='sender_b_id']");
+    const senderASelect = page.getByTestId("sender-a-input");
+    const senderBSelect = page.getByTestId("sender-b-input");
     await expect(senderASelect).toBeVisible();
     await expect(senderBSelect).toBeVisible();
     // Pick the first option value from sender A, set same in sender B.
