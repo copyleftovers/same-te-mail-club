@@ -1012,6 +1012,12 @@ fn compute_circle_positions(
         .collect()
 }
 
+const CENTER_X: f64 = 300.0;
+const CENTER_Y: f64 = 260.0;
+const RING_RADIUS: f64 = 150.0;
+const NODE_RADIUS: f64 = 20.0;
+const LABEL_OFFSET_Y: f64 = 26.0;
+
 /// Render a single cohort cycle as an SVG ring.
 ///
 /// Precision loss is acceptable for visual positioning of <20 participants.
@@ -1022,10 +1028,10 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
         return view! { <div></div> }.into_any();
     }
 
-    let radius = 150.0;
-    let center_x = 200.0;
-    let center_y = 200.0;
-    let node_radius = 20.0;
+    let radius = RING_RADIUS;
+    let center_x = CENTER_X;
+    let center_y = CENTER_Y;
+    let node_radius = NODE_RADIUS;
 
     let positions = compute_circle_positions(n, radius, center_x, center_y);
 
@@ -1083,7 +1089,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                     />
                     <text
                         x=cx
-                        y=cy + node_radius + 26.0
+                        y=cy + node_radius + LABEL_OFFSET_Y
                         text-anchor="middle"
                         font-size="13"
                         font-weight="600"
@@ -1102,7 +1108,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                 "Assignment cycle " {cohort_num} ": " {n} " participants (score: " {score} ")"
             </figcaption>
             <svg
-                viewBox="0 0 400 400"
+                viewBox="0 0 600 560"
                 class="cycle-viz"
                 role="img"
                 aria-label=format!("Assignment cycle {cohort_num}: {n} participants")
