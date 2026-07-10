@@ -649,32 +649,12 @@ test.describe.serial("Visual Audit", () => {
     await captureSection(page, "admin-assignment-cycle", "cycle-visualization");
   });
 
-  // ── Admin: swap form error ────────────────────────────────────────────────────
-
-  test("capture admin — swap form error (same participant both slots)", async ({ page }) => {
-    const app = new MailClubPage(page);
-    await app.login(ADMIN_PHONE);
-    await app.goToDashboard();
-    await expect(page.getByTestId("override-available")).toBeVisible();
-    // Select the same participant for both sender slots to trigger a server error.
-    const senderASelect = page.getByTestId("sender-a-input");
-    const senderBSelect = page.getByTestId("sender-b-input");
-    await expect(senderASelect).toBeVisible();
-    await expect(senderBSelect).toBeVisible();
-    // Pick the first option value from sender A, set same in sender B.
-    const firstValue = await senderASelect.locator("option").nth(1).getAttribute("value");
-    if (firstValue) {
-      await senderASelect.selectOption(firstValue);
-      await senderBSelect.selectOption(firstValue);
-    }
-    await expect(page.getByTestId("swap-button")).toBeEnabled();
-    await app.clickAndWaitForResponse(
-      page.getByTestId("swap-button"),
-      "swap_assignments",
-    );
-    await expect(page.getByTestId("action-error")).toBeVisible();
-    await captureElementState(page, "admin-swap-form", "error", { stateId: "A40" });
-  });
+  // ── Note: admin swap form error (A40) is unreachable via UI ──────────────────
+  // Submitting the same participant for both swap slots is a silent no-op:
+  // swap_assignment (assignments.rs:330) updates two rows whose sender_id is the
+  // same UUID, so UPDATE 1 and UPDATE 2 cancel each other out. The resulting
+  // topology is still a valid ring — validate_swap_topology returns Ok, the server
+  // function returns Ok(()), and no error reaches action-error. No capture for A40.
 
   // ── Phase: advance to delivery ────────────────────────────────────────────────
 
