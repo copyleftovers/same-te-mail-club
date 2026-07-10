@@ -1,7 +1,9 @@
+import { execSync } from "child_process";
 import { type Page } from "@playwright/test";
 import { test, expect } from "./fixtures/cached-context";
 import { MailClubPage } from "./fixtures/mail_club_page";
 import * as fs from "fs";
+import * as path from "path";
 
 /**
  * Visual Audit — screenshot harvester for every meaningful app state.
@@ -14,10 +16,16 @@ import * as fs from "fs";
  * verifies correctness.
  *
  * Screenshot paths resolve relative to end2end/ (the Playwright working directory):
- *   screenshots/mobile/NN-page-state.png
- *   screenshots/desktop/NN-page-state.png
- *   screenshots/dark-desktop/NN-page-state.png
- *   screenshots/dark-mobile/NN-page-state.png
+ *   screenshots/light-desktop/{area}-{state-slug}[__{variant}].png
+ *   screenshots/light-mobile/{area}-{state-slug}[__{variant}].png
+ *   screenshots/dark-desktop/{area}-{state-slug}[__{variant}].png
+ *   screenshots/dark-mobile/{area}-{state-slug}[__{variant}].png
+ *   screenshots/sections/{area}-{state-slug}__{testid}.png
+ *   screenshots/INDEX.md (generated in afterAll)
+ *
+ * Naming: {area}-{state-slug}[__{variant}].png  — stable across runs,
+ * no sequential counter. A failed capture produces a missing file, not a
+ * shifted index for all subsequent captures.
  *
  * Env (same as main suite):
  *   SAMETE_TEST_MODE=true   — fixed OTP "000000", deadline gates bypassed
@@ -65,120 +73,201 @@ const SEASON_THEME =
 
 const AUDIT_CODES = { A: "", B: "", C: "", NEW: "" };
 
-// ── Sequence counter shared across all tests in the serial block ───────────────
-// Module-level mutable object gives all tests a single incrementing counter,
-// producing globally ordered filenames without any inter-test coordination.
+// ── Manifest accumulator ───────────────────────────────────────────────────────
+// Populated during capture calls; written to INDEX.md in afterAll.
 
-const SEQ = { n: 1 };
+interface ManifestEntry {
+  file: string;
+  stateId: string;
+  route: string;
+}
 
-// ── Screenshot helper ──────────────────────────────────────────────────────────
+const MANIFEST: ManifestEntry[] = [];
+
+function addManifestEntry(file: string, stateId: string, route: string): void {
+  MANIFEST.push({ file, stateId, route });
+}
+
+// ── Screenshot directories ─────────────────────────────────────────────────────
+
+const SCREENSHOT_DIRS = [
+  "screenshots/light-desktop",
+  "screenshots/light-mobile",
+  "screenshots/dark-desktop",
+  "screenshots/dark-mobile",
+  "screenshots/sections",
+] as const;
+
+// ── Viewport + timing constants ────────────────────────────────────────────────
 
 const MOBILE_VIEWPORT = { width: 375, height: 812 } as const;
 const DESKTOP_VIEWPORT = { width: 1280, height: 800 } as const;
+// Documented exception to the waitForTimeout ban: paint-timing settle for
+// screenshot captures only (not an assertion wait). Pre-existing pattern.
 const LAYOUT_REFLOW_MS = 150;
 
-// ── Element-state helpers ──────────────────────────────────────────────────────
+// ── Core capture helpers ───────────────────────────────────────────────────────
 
 /**
- * Capture a single desktop + mobile pair for a named element state (error, focus).
- *
- * Uses the same SEQ counter as captureState so file indices stay globally ordered.
- * Does NOT emit dark captures — element-state shots are light only; the reviewer
- * can correlate against the dark full-page shots taken in the surrounding states.
+ * Capture all four full-page variants (light/dark × desktop/mobile) for a
+ * named app state. Adds four INDEX.md entries.
  */
-async function captureElementState(
+async function captureState(
   page: Page,
   name: string,
-  suffix: string,
+  meta: { stateId?: string; route?: string } = {},
 ): Promise<void> {
-  const paddedIndex = String(SEQ.n).padStart(2, "0");
-  SEQ.n += 1;
+  const stateId = meta.stateId ?? name;
+  const route = meta.route ?? "";
 
-  await page.emulateMedia({ colorScheme: "light" });
-
-  await page.setViewportSize(DESKTOP_VIEWPORT);
-  await page.waitForTimeout(LAYOUT_REFLOW_MS);
-  await page.screenshot({
-    path: `screenshots/desktop/${paddedIndex}-${name}__${suffix}.png`,
-    fullPage: true,
-  });
-
-  await page.setViewportSize(MOBILE_VIEWPORT);
-  await page.waitForTimeout(LAYOUT_REFLOW_MS);
-  await page.screenshot({
-    path: `screenshots/mobile/${paddedIndex}-${name}__${suffix}.png`,
-    fullPage: true,
-  });
-}
-
-async function captureState(page: Page, name: string): Promise<void> {
-  const paddedIndex = String(SEQ.n).padStart(2, "0");
-  SEQ.n += 1;
-
-  // ── Light captures (existing) ──
+  // ── Light captures ──
   await page.emulateMedia({ colorScheme: "light" });
 
   await page.setViewportSize(MOBILE_VIEWPORT);
   await page.waitForTimeout(LAYOUT_REFLOW_MS);
   await page.screenshot({
-    path: `screenshots/mobile/${paddedIndex}-${name}.png`,
+    path: `screenshots/light-mobile/${name}.png`,
     fullPage: true,
   });
+  addManifestEntry(`light-mobile/${name}.png`, stateId, route);
 
   await page.setViewportSize(DESKTOP_VIEWPORT);
   await page.waitForTimeout(LAYOUT_REFLOW_MS);
   await page.screenshot({
-    path: `screenshots/desktop/${paddedIndex}-${name}.png`,
+    path: `screenshots/light-desktop/${name}.png`,
     fullPage: true,
   });
+  addManifestEntry(`light-desktop/${name}.png`, stateId, route);
 
-  // ── Dark captures (new) ──
+  // ── Dark captures ──
   await page.emulateMedia({ colorScheme: "dark" });
   await page.waitForTimeout(LAYOUT_REFLOW_MS);
 
   await page.setViewportSize(DESKTOP_VIEWPORT);
   await page.waitForTimeout(LAYOUT_REFLOW_MS);
   await page.screenshot({
-    path: `screenshots/dark-desktop/${paddedIndex}-${name}.png`,
+    path: `screenshots/dark-desktop/${name}.png`,
     fullPage: true,
   });
+  addManifestEntry(`dark-desktop/${name}.png`, stateId, route);
 
   await page.setViewportSize(MOBILE_VIEWPORT);
   await page.waitForTimeout(LAYOUT_REFLOW_MS);
   await page.screenshot({
-    path: `screenshots/dark-mobile/${paddedIndex}-${name}.png`,
+    path: `screenshots/dark-mobile/${name}.png`,
     fullPage: true,
   });
+  addManifestEntry(`dark-mobile/${name}.png`, stateId, route);
 
   // Reset to light so subsequent interactions use the default color scheme.
   await page.emulateMedia({ colorScheme: "light" });
 }
 
-// ── Section screenshot helper ──────────────────────────────────────────────────
-// Captures a single admin section by testid, desktop viewport only.
-// Uses the same NN index as the parent captureState call.
+/**
+ * Capture a single element-state variant (error, focus) in all four
+ * light+dark × desktop+mobile combinations.
+ *
+ * `captureElementState` adds dark variants; the `field-error` dark-mode gap
+ * from deferred_items is closed here.
+ */
+async function captureElementState(
+  page: Page,
+  name: string,
+  suffix: string,
+  meta: { stateId?: string; route?: string } = {},
+): Promise<void> {
+  const stateId = meta.stateId ?? name;
+  const route = meta.route ?? "";
+  const filename = `${name}__${suffix}.png`;
 
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.waitForTimeout(LAYOUT_REFLOW_MS);
+    const dir = scheme === "light" ? "light" : "dark";
+
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.waitForTimeout(LAYOUT_REFLOW_MS);
+    await page.screenshot({
+      path: `screenshots/${dir}-desktop/${filename}`,
+      fullPage: true,
+    });
+    addManifestEntry(`${dir}-desktop/${filename}`, stateId, route);
+
+    await page.setViewportSize(MOBILE_VIEWPORT);
+    await page.waitForTimeout(LAYOUT_REFLOW_MS);
+    await page.screenshot({
+      path: `screenshots/${dir}-mobile/${filename}`,
+      fullPage: true,
+    });
+    addManifestEntry(`${dir}-mobile/${filename}`, stateId, route);
+  }
+
+  // Reset to light.
+  await page.emulateMedia({ colorScheme: "light" });
+}
+
+/**
+ * Capture a single admin section by testid, desktop/light only.
+ * Section crops are detail close-ups; full-page shots cover both modes.
+ */
 async function captureSection(
   page: Page,
-  stateIndex: string,
   stateName: string,
   sectionTestid: string,
 ): Promise<void> {
   await page.setViewportSize(DESKTOP_VIEWPORT);
-  const locator = page.getByTestId(sectionTestid);
-  await locator.screenshot({
-    path: `screenshots/sections/${stateIndex}-${stateName}__${sectionTestid}.png`,
+  await page.waitForTimeout(LAYOUT_REFLOW_MS);
+  const filename = `${stateName}__${sectionTestid}.png`;
+  await page.getByTestId(sectionTestid).screenshot({
+    path: `screenshots/sections/${filename}`,
   });
+  addManifestEntry(`sections/${filename}`, stateName, "");
 }
 
-// ── Directory creation ─────────────────────────────────────────────────────────
+// ── Directory creation + stale-file cleanup ────────────────────────────────────
 
 test.beforeAll(() => {
-  fs.mkdirSync("screenshots/mobile", { recursive: true });
-  fs.mkdirSync("screenshots/desktop", { recursive: true });
-  fs.mkdirSync("screenshots/sections", { recursive: true });
-  fs.mkdirSync("screenshots/dark-desktop", { recursive: true });
-  fs.mkdirSync("screenshots/dark-mobile", { recursive: true });
+  for (const dir of SCREENSHOT_DIRS) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  // Remove stale .png files so orphans from prior runs don't accumulate.
+  for (const dir of SCREENSHOT_DIRS) {
+    for (const file of fs.readdirSync(dir)) {
+      if (file.endsWith(".png")) {
+        fs.rmSync(path.join(dir, file));
+      }
+    }
+  }
+});
+
+// ── INDEX.md generation ────────────────────────────────────────────────────────
+
+test.afterAll(() => {
+  const timestamp = new Date().toISOString();
+  let head = "(unknown)";
+  try {
+    head = execSync("git rev-parse HEAD", { cwd: path.resolve("..") })
+      .toString()
+      .trim();
+  } catch {
+    // non-fatal: git may not be available in all harness environments
+  }
+
+  const rows = MANIFEST.map(
+    (e) =>
+      `| ${e.file} | ${e.stateId} | ${e.route} |`,
+  ).join("\n");
+
+  const content = [
+    "# Screenshot Index",
+    `Generated: ${timestamp} | HEAD: ${head}`,
+    "",
+    "| File | State | Route |",
+    "|------|-------|-------|",
+    rows,
+  ].join("\n");
+
+  fs.writeFileSync("screenshots/INDEX.md", content + "\n");
 });
 
 // ── Visual Audit ──────────────────────────────────────────────────────────────
@@ -188,14 +277,20 @@ test.describe.serial("Visual Audit", () => {
   // ── Login flow (admin) ───────────────────────────────────────────────────────
 
   test("capture login — phone input", async ({ page }) => {
+    await page.context().clearCookies();
     await page.goto("/login");
     await expect(page.getByTestId("send-otp-button")).toBeEnabled();
     // ── Focus state: focus the phone input to capture :focus-visible ring ──
     await page.getByTestId("phone-input").focus();
-    await captureElementState(page, "login-phone-input", "focus");
+    await captureElementState(page, "login-phone-step", "focus");
     // Blur so the ring is absent from the subsequent full-page captures.
     await page.getByTestId("phone-input").blur();
-    await captureState(page, "login-phone-input");
+    await captureState(page, "login-phone-step", { stateId: "L1", route: "/login" });
+    // ── Error state: invalid phone ──
+    await page.getByTestId("phone-input").fill("123");
+    await page.getByTestId("send-otp-button").click();
+    await expect(page.getByTestId("phone-error")).toBeVisible();
+    await captureElementState(page, "login-phone-step", "error");
   });
 
   test("capture login — otp input", async ({ page }) => {
@@ -215,7 +310,9 @@ test.describe.serial("Visual Audit", () => {
       "request_otp",
     );
     await expect(page.getByTestId("otp-input")).toBeVisible();
-    await captureState(page, "login-otp-input");
+    // ── Resend active: cooldown is 0 on first OTP step arrival ──
+    await expect(page.getByTestId("resend-otp-button")).toBeVisible();
+    await captureState(page, "login-otp-step", { stateId: "L5", route: "/login" });
     // ── Error state: wrong OTP reveals otp-error ──
     // The native POST form processes the bad code server-side and 302-redirects
     // to /login?otp_error=1. The browser follows the redirect and re-renders the
@@ -225,7 +322,7 @@ test.describe.serial("Visual Audit", () => {
     await page.getByTestId("verify-otp-button").click();
     await expect(page).toHaveURL(/otp_error/);
     await expect(page.getByTestId("otp-error")).not.toBeEmpty();
-    await captureElementState(page, "login-otp-input", "error");
+    await captureElementState(page, "login-otp-step", "error");
   });
 
   // ── Admin: generate invite codes ─────────────────────────────────────────────
@@ -235,11 +332,7 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await app.goToDashboard();
     await expect(page.getByTestId("generate-code-button")).toBeEnabled();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-invite-codes-initial");
-    await captureSection(page, sIdx, "admin-invite-codes-initial", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-invite-codes-initial", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-invite-codes-initial", "participant-list");
+    await captureState(page, "admin-invite-codes-initial", { stateId: "A60", route: "/admin" });
   });
 
   test("setup — generate invite codes for audit participants", async ({ page }) => {
@@ -252,36 +345,86 @@ test.describe.serial("Visual Audit", () => {
     expect(AUDIT_CODES.A.length).toBeGreaterThan(0);
   });
 
-  test("capture admin — invite codes with data", async ({ page }) => {
+  test("capture admin — invite codes with data + filter active", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.goToDashboard();
     await expect(page.getByTestId("invite-code-list")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-invite-codes-populated");
-    await captureSection(page, sIdx, "admin-invite-codes-populated", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-invite-codes-populated", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-invite-codes-populated", "participant-list");
+    await captureState(page, "admin-invite-codes-populated", { stateId: "A61a", route: "/admin" });
+    // ── A62: filter active — fill partial code to narrow the list ──
+    const filterInput = page.getByTestId("invite-code-filter-input");
+    await filterInput.fill(AUDIT_CODES.A.slice(0, 4));
+    await page.waitForTimeout(LAYOUT_REFLOW_MS);
+    await captureState(page, "admin-invite-codes-filter-active", { stateId: "A62", route: "/admin" });
+    // Clear filter so downstream tests see unfiltered list.
+    await filterInput.fill("");
+  });
+
+  // ── Global: mobile menu open ──────────────────────────────────────────────────
+
+  test("capture global — mobile menu open", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.login(ADMIN_PHONE);
+    await app.goToDashboard();
+    // Set mobile viewport before clicking so the menu button is rendered.
+    await page.setViewportSize(MOBILE_VIEWPORT);
+    await page.waitForTimeout(LAYOUT_REFLOW_MS);
+    await page.getByTestId("menu-toggle").click();
+    await page.waitForTimeout(LAYOUT_REFLOW_MS);
+    // Capture light only (menu overlay is the same element in both modes;
+    // full-page dark shots cover dark rendering in every state).
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.screenshot({
+      path: "screenshots/light-mobile/global-mobile-menu-open.png",
+      fullPage: true,
+    });
+    addManifestEntry("light-mobile/global-mobile-menu-open.png", "G7", "/admin");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.waitForTimeout(LAYOUT_REFLOW_MS);
+    await page.screenshot({
+      path: "screenshots/dark-mobile/global-mobile-menu-open.png",
+      fullPage: true,
+    });
+    addManifestEntry("dark-mobile/global-mobile-menu-open.png", "G7", "/admin");
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+  });
+
+  // ── Global: 404 fallback ──────────────────────────────────────────────────────
+
+  test("capture global — 404 fallback", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.login(ADMIN_PHONE);
+    await page.goto("/this-route-does-not-exist");
+    await expect(page.getByTestId("not-found")).toBeVisible();
+    await captureState(page, "global-404-fallback", { stateId: "G13", route: "/this-route-does-not-exist" });
   });
 
   // ── Self-registration flow (new participant) ──────────────────────────────────
 
-  test("capture login — invite code input step", async ({ page }) => {
+  test("capture login — invite code input step + error", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.reachInviteCodeStep(AUDIT_PHONES.NEW);
-    await captureState(page, "login-invite-code-input");
-    // ── Error state: submit an empty invite code ──
-    // The server fn returns "Invite code is required" immediately; ActionForm
-    // surfaces it in invite-code-error. No DB mutation — code is not consumed.
+    await captureState(page, "login-invite-code-step", { stateId: "L10", route: "/login" });
+    // ── Error: submit an empty invite code ──
     await app.clickAndWaitForResponse(
       page.getByTestId("submit-invite-code-button"),
       "validate_invite_code",
     );
     await expect(page.getByTestId("invite-code-error")).not.toBeEmpty();
-    await captureElementState(page, "login-invite-code-input", "error");
+    await captureElementState(page, "login-invite-code-step", "error");
+    // ── Error: submit a USED code (code A is already used by AUDIT_PHONES.A) ──
+    // Requires we reach the invite step on a fresh phone — AUDIT_PHONES.NEW still works.
+    await page.getByTestId("invite-code-input").fill(AUDIT_CODES.A);
+    await app.clickAndWaitForResponse(
+      page.getByTestId("submit-invite-code-button"),
+      "validate_invite_code",
+    );
+    await expect(page.getByTestId("invite-code-error")).not.toBeEmpty();
+    await captureElementState(page, "login-invite-code-step", "error-used", { stateId: "L11" });
   });
 
-  test("capture login — name input step", async ({ page }) => {
+  test("capture login — name input step + error", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.reachInviteCodeStep(AUDIT_PHONES.NEW);
     await page.getByTestId("invite-code-input").fill(AUDIT_CODES.NEW);
@@ -290,7 +433,12 @@ test.describe.serial("Visual Audit", () => {
       "validate_invite_code",
     );
     await expect(page.getByTestId("legal-name-input")).toBeVisible();
-    await captureState(page, "login-name-input");
+    await captureState(page, "login-name-step", { stateId: "L14", route: "/login" });
+    // ── Error: submit empty name ──
+    await expect(page.getByTestId("register-button")).toBeEnabled();
+    await page.getByTestId("register-button").click();
+    await expect(page.getByTestId("name-error")).toBeVisible();
+    await captureElementState(page, "login-name-step", "error", { stateId: "L15" });
   });
 
   // ── Onboarding ────────────────────────────────────────────────────────────────
@@ -298,18 +446,13 @@ test.describe.serial("Visual Audit", () => {
   // Participant A uses the long name + long city to exercise text-overflow
   // in cards, badges, and participant-list table cells throughout the rest of
   // the audit flow.
-  test("capture onboarding — branch selection", async ({ page }) => {
+  test("capture onboarding — branch selection + errors", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.selfRegister(AUDIT_PHONES.A, AUDIT_CODES.A, LONG_NAME_A);
     await expect(page).toHaveURL(/\/onboarding/);
     await expect(page.getByTestId("save-onboarding-button")).toBeEnabled();
-    await captureState(page, "onboarding-branch-selection");
-    // ── Error state: per-field validation error (branch number out of range) ──
-    // Fill city with a valid value and np_number with "0" — both fields have
-    // values so browser required-validation passes; the server rejects because
-    // number < 1. No DB write occurs. np-number-error becomes non-empty.
-    // completeOnboarding() refills both fields with correct values afterwards,
-    // so the downstream serial flow is unaffected.
+    await captureState(page, "onboard-branch-selection", { stateId: "O1", route: "/onboarding" });
+    // ── Error: np-number = 0 (branch number out of range) ──
     await page.getByTestId("np-city-input").fill(LONG_CITY_A);
     await page.getByTestId("np-number-input").fill("0");
     await app.clickAndWaitForResponse(
@@ -317,7 +460,20 @@ test.describe.serial("Visual Audit", () => {
       "complete_onboarding",
     );
     await expect(page.getByTestId("np-number-error")).not.toBeEmpty();
-    await captureElementState(page, "onboarding-branch-selection", "error");
+    await captureElementState(page, "onboard-branch-selection", "error-np-number", { stateId: "O3" });
+    // ── Error: city empty (with valid np-number) ──
+    // Clear city, set a valid np-number; server should reject empty city.
+    await page.getByTestId("np-city-input").fill("");
+    await page.getByTestId("np-number-input").fill("1");
+    await app.clickAndWaitForResponse(
+      page.getByTestId("save-onboarding-button"),
+      "complete_onboarding",
+    );
+    // City error may surface in np-city-error or action-error depending on server routing.
+    // We assert on the general save button still being present (not redirected) as the
+    // completion signal, then capture whatever error state is shown.
+    await expect(page.getByTestId("save-onboarding-button")).toBeVisible();
+    await captureElementState(page, "onboard-branch-selection", "error-city", { stateId: "O2" });
     // Complete onboarding with long city so the address carries through the rest
     // of the flow (enrollment forms, participant list, assignment display).
     await app.completeOnboarding(LONG_CITY_A, LONG_BRANCH_A);
@@ -344,42 +500,30 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await app.goToDashboard();
     await expect(page.getByTestId("participant-list")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-participants-list");
-    await captureSection(page, sIdx, "admin-participants-list", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-participants-list", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-participants-list", "participant-list");
+    await captureState(page, "admin-participants-list", { stateId: "A68a", route: "/admin" });
+  });
+
+  // ── Home: no season at all ────────────────────────────────────────────────────
+
+  // Inserted between participants list and season creation. At this point no
+  // season has been created yet, so participant A sees the NoSeason empty-state.
+  test("capture home — no season", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.login(AUDIT_PHONES.A);
+    await app.goHome();
+    await expect(page.locator("main")).toBeVisible();
+    await captureState(page, "home-no-season", { stateId: "H1", route: "/" });
   });
 
   // ── Admin: season creation ────────────────────────────────────────────────────
 
-  // At this point in the audit flow no season has been created yet, so the admin
-  // page shows the participants list and the create-season form together. This is
-  // the "no active season" state; create-season-button is visible.
-  //
-  // Explicit page.goto() is required here: after login, the browser is already
-  // on /admin via a redirect. goToDashboard() would skip the navigation and only
-  // wait for main — not sufficient to guarantee the SSR Suspense (admin_state
-  // Resource) has resolved and injected create-season-button into the HTML.
-  // A fresh goto forces a complete SSR round-trip, so the resolved state is
-  // present before the enabled check starts.
   test("capture admin — no active season (participants list + create form)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await page.goto("/admin");
     await expect(page.getByTestId("create-season-button")).toBeEnabled();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-no-season-create-form-available");
-    await captureSection(page, sIdx, "admin-no-season-create-form-available", "season-section");
-    await captureSection(page, sIdx, "admin-no-season-create-form-available", "create-season-form");
-    await captureSection(page, sIdx, "admin-no-season-create-form-available", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-no-season-create-form-available", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-no-season-create-form-available", "participant-list");
+    await captureState(page, "admin-no-season-create-form-available", { stateId: "A3", route: "/admin" });
     // ── Error state: submit create-season with past deadlines ──
-    // Both inputs are required=true so the browser blocks empty submission.
-    // Instead fill with a past date — bypasses browser validation, reaches the
-    // server fn, which rejects with "signup deadline must be in the future"
-    // and surfaces the error in action-error. No season is created.
     const pastDate = "2020-01-01T00:00";
     await page.getByTestId("signup-deadline-input").fill(pastDate);
     await page.getByTestId("confirm-deadline-input").fill(pastDate);
@@ -388,24 +532,12 @@ test.describe.serial("Visual Audit", () => {
     await captureElementState(page, "admin-create-season-form", "error");
   });
 
-  // Long SEASON_THEME is passed here — exercises theme display in season
-  // summary, admin section headings, and the phase-stepper label throughout
-  // the rest of the audit flow.
   test("capture admin — unlaunched season (launch button visible)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.createSeason(SIGNUP_DEADLINE, CONFIRM_DEADLINE, SEASON_THEME);
     await expect(page.getByTestId("launch-button")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-season-created-pre-launch");
-    await captureSection(page, sIdx, "admin-season-created-pre-launch", "season-section");
-    await captureSection(page, sIdx, "admin-season-created-pre-launch", "season-summary");
-    await captureSection(page, sIdx, "admin-season-created-pre-launch", "phase-stepper");
-    await captureSection(page, sIdx, "admin-season-created-pre-launch", "pre-launch-participant-count");
-    await captureSection(page, sIdx, "admin-season-created-pre-launch", "season-action-buttons");
-    await captureSection(page, sIdx, "admin-season-created-pre-launch", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-season-created-pre-launch", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-season-created-pre-launch", "participant-list");
+    await captureState(page, "admin-season-created-pre-launch", { stateId: "A8", route: "/admin" });
   });
 
   // ── Home: no enrollment available (season not yet launched) ──────────────────
@@ -414,7 +546,7 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(AUDIT_PHONES.A);
     await app.goHome();
-    await captureState(page, "home-enrollment-not-open");
+    await captureState(page, "home-enrollment-not-open", { stateId: "H4a", route: "/" });
   });
 
   // ── Admin: launch → signup phase ─────────────────────────────────────────────
@@ -425,23 +557,12 @@ test.describe.serial("Visual Audit", () => {
     await app.launchSeason();
     await app.goToDashboard();
     await expect(page.getByTestId("advance-button")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-signup-phase");
-    await captureSection(page, sIdx, "admin-signup-phase", "season-section");
-    await captureSection(page, sIdx, "admin-signup-phase", "season-summary");
-    await captureSection(page, sIdx, "admin-signup-phase", "phase-stepper");
-    await captureSection(page, sIdx, "admin-signup-phase", "sms-section-enrollment");
-    await captureSection(page, sIdx, "admin-signup-phase", "season-action-buttons");
-    await captureSection(page, sIdx, "admin-signup-phase", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-signup-phase", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-signup-phase", "participant-list");
+    await captureState(page, "admin-signup-phase", { stateId: "A7", route: "/admin" });
     // Cancel-confirmation dialog — requires client-side interaction; open, capture, dismiss.
     await expect(page.getByTestId("cancel-button")).toBeEnabled();
     await page.getByTestId("cancel-button").click();
     await expect(page.getByTestId("cancel-confirmation")).toBeVisible();
-    await page.getByTestId("cancel-confirmation").screenshot({
-      path: `screenshots/sections/${sIdx}-admin-signup-phase__cancel-confirmation.png`,
-    });
+    await captureSection(page, "admin-signup-phase", "cancel-confirmation");
     await page.getByTestId("cancel-back-button").click();
     await expect(page.getByTestId("cancel-button")).toBeVisible();
   });
@@ -453,20 +574,18 @@ test.describe.serial("Visual Audit", () => {
     await app.login(AUDIT_PHONES.A);
     await app.goHome();
     await expect(page.getByTestId("enroll-button")).toBeVisible();
-    await captureState(page, "home-enrollment-available");
+    await captureState(page, "home-enrollment-available", { stateId: "H2b", route: "/" });
   });
 
   // ── Home: enrolled state ──────────────────────────────────────────────────────
 
-  // Participant A enrolls using the long city — exercises address display
-  // in the enrolled state and the assignment view later.
   test("capture home — enrolled (after enroll)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(AUDIT_PHONES.A);
     await app.goHome();
     await app.enrollInSeason(LONG_CITY_A, LONG_BRANCH_A);
     await app.expectEnrolled();
-    await captureState(page, "home-enrolled");
+    await captureState(page, "home-enrolled", { stateId: "H3", route: "/" });
   });
 
   // ── Setup: enroll B and C ─────────────────────────────────────────────────────
@@ -490,16 +609,7 @@ test.describe.serial("Visual Audit", () => {
     await app.advanceSeason();
     await app.goToDashboard();
     await expect(page.getByTestId("advance-button")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-confirm-phase");
-    await captureSection(page, sIdx, "admin-confirm-phase", "season-section");
-    await captureSection(page, sIdx, "admin-confirm-phase", "season-summary");
-    await captureSection(page, sIdx, "admin-confirm-phase", "phase-stepper");
-    await captureSection(page, sIdx, "admin-confirm-phase", "sms-section-preparation");
-    await captureSection(page, sIdx, "admin-confirm-phase", "season-action-buttons");
-    await captureSection(page, sIdx, "admin-confirm-phase", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-confirm-phase", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-confirm-phase", "participant-list");
+    await captureState(page, "admin-confirm-phase", { stateId: "A27", route: "/admin" });
   });
 
   // ── Home: confirmed ready ─────────────────────────────────────────────────────
@@ -509,10 +619,10 @@ test.describe.serial("Visual Audit", () => {
     await app.login(AUDIT_PHONES.A);
     await app.goHome();
     await expect(page.getByTestId("confirm-ready-button")).toBeVisible();
-    await captureState(page, "home-confirm-ready-available");
+    await captureState(page, "home-confirm-ready-available", { stateId: "H5", route: "/" });
     await app.confirmReady();
     await app.expectConfirmed();
-    await captureState(page, "home-confirmed-ready");
+    await captureState(page, "home-confirmed-ready", { stateId: "H5", route: "/" });
   });
 
   // ── Setup: B and C confirm ready ─────────────────────────────────────────────
@@ -534,23 +644,21 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.advanceSeason();
-    // Explicit page.goto() required: advanceSeason() leaves the browser on
-    // /admin after the POST. goToDashboard() would skip navigation and only
-    // wait for main — not sufficient after a phase advance, because the
-    // admin_state Resource refetch is async. A fresh SSR goto guarantees
-    // the resolved Assignment-phase state (generate-button) is in the HTML.
     await page.goto("/admin");
     await expect(page.getByTestId("generate-button")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-assignment-phase-pre-generate");
-    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "season-section");
-    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "season-summary");
-    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "phase-stepper");
-    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "season-action-buttons");
-    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "assignment-section");
-    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-assignment-phase-pre-generate", "participant-list");
+    await captureState(page, "admin-assignment-phase-pre-generate", { stateId: "A30", route: "/admin" });
+  });
+
+  // ── Home: assigning state ─────────────────────────────────────────────────────
+
+  // Participant sees "organizer preparing assignments" between phase advance
+  // and assignment generation.
+  test("capture home — assigning state", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.login(AUDIT_PHONES.A);
+    await app.goHome();
+    await expect(page.locator("main")).toBeVisible();
+    await captureState(page, "home-assigning", { stateId: "H6", route: "/" });
   });
 
   // ── Admin: assignments generated ─────────────────────────────────────────────
@@ -560,43 +668,35 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await app.generateAssignments();
     await expect(page.getByTestId("cycle-visualization")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-assignment-cycle");
-    await captureSection(page, sIdx, "admin-assignment-cycle", "season-section");
-    await captureSection(page, sIdx, "admin-assignment-cycle", "season-summary");
-    await captureSection(page, sIdx, "admin-assignment-cycle", "phase-stepper");
-    await captureSection(page, sIdx, "admin-assignment-cycle", "season-action-buttons");
-    await captureSection(page, sIdx, "admin-assignment-cycle", "assignment-section");
-    await page.getByTestId("cycle-visualization").first().screenshot({
-      path: `screenshots/sections/${sIdx}-admin-assignment-cycle__cycle-visualization.png`,
-    });
-    await captureSection(page, sIdx, "admin-assignment-cycle", "override-available");
-    await captureSection(page, sIdx, "admin-assignment-cycle", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-assignment-cycle", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-assignment-cycle", "participant-list");
+    await captureState(page, "admin-assignment-cycle", { stateId: "A36", route: "/admin" });
+    await captureSection(page, "admin-assignment-cycle", "cycle-visualization");
   });
 
-  // ── Admin: swap UI ────────────────────────────────────────────────────────────
+  // ── Admin: swap form error ────────────────────────────────────────────────────
 
-  test("capture admin — swap UI visible", async ({ page }) => {
+  test("capture admin — swap form error (same participant both slots)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.goToDashboard();
     await expect(page.getByTestId("override-available")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-swap-ui");
-    await captureSection(page, sIdx, "admin-swap-ui", "season-section");
-    await captureSection(page, sIdx, "admin-swap-ui", "season-summary");
-    await captureSection(page, sIdx, "admin-swap-ui", "phase-stepper");
-    await captureSection(page, sIdx, "admin-swap-ui", "season-action-buttons");
-    await captureSection(page, sIdx, "admin-swap-ui", "assignment-section");
-    await page.getByTestId("cycle-visualization").first().screenshot({
-      path: `screenshots/sections/${sIdx}-admin-swap-ui__cycle-visualization.png`,
-    });
-    await captureSection(page, sIdx, "admin-swap-ui", "override-available");
-    await captureSection(page, sIdx, "admin-swap-ui", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-swap-ui", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-swap-ui", "participant-list");
+    // Select the same participant for both sender slots to trigger a server error.
+    const senderASelect = page.locator("select[name='sender_a_id']");
+    const senderBSelect = page.locator("select[name='sender_b_id']");
+    await expect(senderASelect).toBeVisible();
+    await expect(senderBSelect).toBeVisible();
+    // Pick the first option value from sender A, set same in sender B.
+    const firstValue = await senderASelect.locator("option").nth(1).getAttribute("value");
+    if (firstValue) {
+      await senderASelect.selectOption(firstValue);
+      await senderBSelect.selectOption(firstValue);
+    }
+    await expect(page.getByTestId("swap-button")).toBeEnabled();
+    await app.clickAndWaitForResponse(
+      page.getByTestId("swap-button"),
+      "swap_assignments",
+    );
+    await expect(page.getByTestId("action-error")).toBeVisible();
+    await captureElementState(page, "admin-swap-form", "error", { stateId: "A40" });
   });
 
   // ── Phase: advance to delivery ────────────────────────────────────────────────
@@ -605,25 +705,9 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.advanceSeason();
-    // Explicit page.goto() required: same race as assignment-phase test.
-    // Delivery phase introduces send-assignment-button; fresh SSR round-trip
-    // ensures it is present before the assertion starts.
     await page.goto("/admin");
     await expect(page.getByTestId("send-assignment-button")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-delivery-phase-sms-controls");
-    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "season-section");
-    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "season-summary");
-    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "phase-stepper");
-    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "sms-section-delivery");
-    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "season-action-buttons");
-    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "assignment-section");
-    await page.getByTestId("cycle-visualization").first().screenshot({
-      path: `screenshots/sections/${sIdx}-admin-delivery-phase-sms-controls__cycle-visualization.png`,
-    });
-    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-delivery-phase-sms-controls", "participant-list");
+    await captureState(page, "admin-delivery-phase-sms-controls", { stateId: "A41", route: "/admin" });
   });
 
   // ── Admin: SMS report after sending ──────────────────────────────────────────
@@ -633,34 +717,19 @@ test.describe.serial("Visual Audit", () => {
     await app.login(ADMIN_PHONE);
     await app.triggerSms("assignment");
     await expect(page.getByTestId("sms-report")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-sms-report");
-    await captureSection(page, sIdx, "admin-sms-report", "season-section");
-    await captureSection(page, sIdx, "admin-sms-report", "season-summary");
-    await captureSection(page, sIdx, "admin-sms-report", "phase-stepper");
-    await captureSection(page, sIdx, "admin-sms-report", "sms-section-delivery");
-    await captureSection(page, sIdx, "admin-sms-report", "sms-report");
-    await captureSection(page, sIdx, "admin-sms-report", "season-action-buttons");
-    await captureSection(page, sIdx, "admin-sms-report", "assignment-section");
-    await page.getByTestId("cycle-visualization").first().screenshot({
-      path: `screenshots/sections/${sIdx}-admin-sms-report__cycle-visualization.png`,
-    });
-    await captureSection(page, sIdx, "admin-sms-report", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-sms-report", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-sms-report", "participant-list");
+    await captureState(page, "admin-sms-report", { stateId: "A42", route: "/admin" });
+    await captureSection(page, "admin-sms-report", "sms-report");
   });
 
-  // ── Home: participant sees assignment (includes receipt form in same DOM) ─────
+  // ── Home: participant sees assignment ─────────────────────────────────────────
 
-  // Participant A has the long name — their recipient-name card exercises
-  // text-overflow in the assignment display.
   test("capture home — assignment visible to participant", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(AUDIT_PHONES.A);
     await app.goHome();
     await expect(page.getByTestId("recipient-name")).toBeVisible();
     await expect(page.getByTestId("received-button")).toBeVisible();
-    await captureState(page, "home-assignment-and-receipt-form");
+    await captureState(page, "home-assignment-and-receipt-form", { stateId: "H7", route: "/" });
   });
 
   // ── Home: receipt confirmed (thank you) ──────────────────────────────────────
@@ -671,19 +740,27 @@ test.describe.serial("Visual Audit", () => {
     await app.goHome();
     await app.confirmReceipt(true);
     await expect(page.getByTestId("receipt-thanks")).toBeVisible();
-    await captureState(page, "home-receipt-confirmed-thanks");
+    await captureState(page, "home-receipt-confirmed-thanks", { stateId: "H8", route: "/" });
   });
 
-  // ── Setup: B confirms receipt ─────────────────────────────────────────────────
+  // ── Home: not-received receipt ────────────────────────────────────────────────
 
-  test("setup — participant B confirms receipt", async ({ page }) => {
+  // Participant B reports NOT received before the season advances to complete.
+  // A and C confirm received. The "not received" state is the visual target.
+  // Note: if the server requires all receipts to advance to complete, B's
+  // not-received report is captured but the season-complete capture below is
+  // skipped gracefully (B's state is still captured either way).
+  test("capture home — not-received receipt (participant B)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(AUDIT_PHONES.B);
     await app.goHome();
-    await app.confirmReceipt(true);
+    await expect(page.getByTestId("received-button")).toBeVisible();
+    await app.confirmReceipt(false);
+    // Capture the result — POM waits for "reported" text or not-received indicator.
+    await captureState(page, "home-receipt-not-received", { stateId: "H7", route: "/" });
   });
 
-  // ── Setup: C confirms receipt ─────────────────────────────────────────────────
+  // ── Setup: C confirms receipt (B remains not-received) ───────────────────────
 
   test("setup — participant C confirms receipt", async ({ page }) => {
     const app = new MailClubPage(page);
@@ -694,22 +771,16 @@ test.describe.serial("Visual Audit", () => {
 
   // ── Phase: advance to complete ────────────────────────────────────────────────
 
+  // If B's not-received status blocks advance, this test (and subsequent ones
+  // in this serial block) will fail. That is acceptable — the not-received
+  // capture is already obtained.
   test("capture admin — complete phase", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
     await app.advanceSeason();
-    // Explicit page.goto() required: same race as other post-advance tests.
     await page.goto("/admin");
     await expect(page.locator("main")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-season-complete");
-    await captureSection(page, sIdx, "admin-season-complete", "season-section");
-    await captureSection(page, sIdx, "admin-season-complete", "season-summary");
-    await captureSection(page, sIdx, "admin-season-complete", "season-terminal-badge");
-    await captureSection(page, sIdx, "admin-season-complete", "create-season-form");
-    await captureSection(page, sIdx, "admin-season-complete", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-season-complete", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-season-complete", "participant-list");
+    await captureState(page, "admin-season-complete", { stateId: "A47", route: "/admin" });
   });
 
   // ── Home: season complete ─────────────────────────────────────────────────────
@@ -719,7 +790,7 @@ test.describe.serial("Visual Audit", () => {
     await app.login(AUDIT_PHONES.A);
     await app.goHome();
     await app.expectHomeContent(/complete|завершено/i);
-    await captureState(page, "home-season-complete");
+    await captureState(page, "home-season-complete", { stateId: "H9", route: "/" });
   });
 
   // ── Cancelled season state ────────────────────────────────────────────────────
@@ -737,15 +808,7 @@ test.describe.serial("Visual Audit", () => {
     await app.cancelSeason();
     await app.goToDashboard();
     await expect(page.locator("main")).toBeVisible();
-    const sIdx = String(SEQ.n).padStart(2, "0");
-    await captureState(page, "admin-season-cancelled");
-    await captureSection(page, sIdx, "admin-season-cancelled", "season-section");
-    await captureSection(page, sIdx, "admin-season-cancelled", "season-summary");
-    await captureSection(page, sIdx, "admin-season-cancelled", "season-terminal-badge");
-    await captureSection(page, sIdx, "admin-season-cancelled", "create-season-form");
-    await captureSection(page, sIdx, "admin-season-cancelled", "participants-outer-section");
-    await captureSection(page, sIdx, "admin-season-cancelled", "invite-codes-section");
-    await captureSection(page, sIdx, "admin-season-cancelled", "participant-list");
+    await captureState(page, "admin-season-cancelled", { stateId: "A52", route: "/admin" });
   });
 
   test("capture home — cancelled season state", async ({ page }) => {
@@ -753,7 +816,56 @@ test.describe.serial("Visual Audit", () => {
     await app.login(AUDIT_PHONES.A);
     await app.goHome();
     await expect(page.locator("main")).toBeVisible();
-    await captureState(page, "home-cancelled-season");
+    await captureState(page, "home-cancelled-season", { stateId: "H10", route: "/" });
+  });
+
+  // ── Pass B: post-lifecycle mutations ─────────────────────────────────────────
+  // After the full lifecycle + cancel, the DB has:
+  //   - 4 invite codes: A/B/C used, NEW unused
+  //   - 3 active participants
+  // We mutate to capture revoked/inactive states.
+
+  test("capture admin — mixed invite code statuses (after revoke)", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.login(ADMIN_PHONE);
+    // Revoke code NEW — it was never consumed (participant NEW never finished registration).
+    await app.revokeInviteCode(AUDIT_CODES.NEW);
+    await app.goToDashboard();
+    await expect(page.getByTestId("invite-code-list")).toBeVisible();
+    // At this point: A/B/C = used (gray), NEW = revoked (gray), no unused.
+    await captureState(page, "admin-invite-codes-mixed-statuses", { stateId: "A61b+A61e", route: "/admin" });
+  });
+
+  test("capture admin — mixed participant statuses (after deactivate)", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.login(ADMIN_PHONE);
+    // Deactivate participant C — shows active/inactive mix in the list.
+    await app.deactivateParticipant(AUDIT_NAMES.C);
+    await app.goToDashboard();
+    await expect(page.getByTestId("participant-list")).toBeVisible();
+    await captureState(page, "admin-participants-mixed-statuses", { stateId: "A68b", route: "/admin" });
+  });
+
+  // ── Pass C: existing-address enrollment ──────────────────────────────────────
+  // Create a third season. Participant A already has an address from the first
+  // enrollment. The EnrollmentOpen state shows the existing-address branch
+  // (info-list display, hidden inputs, no text fields visible).
+
+  test("setup — create and launch third season for existing-address capture", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.login(ADMIN_PHONE);
+    await app.createSeason(futureDatetime(7), futureDatetime(21));
+    await app.launchSeason();
+  });
+
+  test("capture home — enrollment open with existing address", async ({ page }) => {
+    const app = new MailClubPage(page);
+    await app.login(AUDIT_PHONES.A);
+    await app.goHome();
+    // Participant A has an address; the EnrollmentOpen state shows the
+    // existing-address branch with the info-list and hidden inputs.
+    await expect(page.getByTestId("enroll-button")).toBeVisible();
+    await captureState(page, "home-enrollment-existing-address", { stateId: "H2a", route: "/" });
   });
 
 });
