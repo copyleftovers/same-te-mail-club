@@ -125,7 +125,7 @@ if [ "$CAPTURE_MODE" = "full" ]; then
 else
     CAPTURE_BASE_URL="http://127.0.0.1:${ISOLATED_PORT}" \
     DATABASE_URL="$SIBLING_DBURL" \
-        npx playwright test tests/visual-audit.spec.ts || playwright_exit=$?
+        npx playwright test "${VISUAL_SPEC:-tests/visual-audit.spec.ts}" || playwright_exit=$?
 fi
 
 # Screenshot floor: guard against silent-skip (playwright exits 0 but wrote nothing).
