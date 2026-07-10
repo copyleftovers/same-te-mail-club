@@ -875,6 +875,7 @@ fn LoginStepRouter(
                 aria-live="polite"
                 disabled=move || resend_cooldown.get() > 0 || !hydrated.get()
                 on:click=move |_| {
+                    #[cfg(not(feature = "ssr"))]
                     request_action.dispatch(RequestOtp { phone: submitted_phone.get() });
                     #[cfg(not(feature = "ssr"))]
                     start_cooldown();
