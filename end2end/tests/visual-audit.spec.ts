@@ -419,19 +419,12 @@ test.describe.serial("Visual Audit", () => {
     );
     await expect(page.getByTestId("np-number-error")).not.toBeEmpty();
     await captureElementState(page, "onboard-branch-selection", "error-np-number", { stateId: "O3" });
-    // ── Error: city empty (with valid np-number) ──
-    // Clear city, set a valid np-number; server should reject empty city.
-    await page.getByTestId("np-city-input").fill("");
-    await page.getByTestId("np-number-input").fill("1");
-    await app.clickAndWaitForResponse(
-      page.getByTestId("save-onboarding-button"),
-      "complete_onboarding",
-    );
-    // City error may surface in np-city-error or action-error depending on server routing.
-    // We assert on the general save button still being present (not redirected) as the
-    // completion signal, then capture whatever error state is shown.
-    await expect(page.getByTestId("save-onboarding-button")).toBeVisible();
-    await captureElementState(page, "onboard-branch-selection", "error-city", { stateId: "O2" });
+    // ── Note: city-empty error (O2) is unreachable via browser UI ──
+    // Both city and np-number carry the HTML `required` attribute (onboarding.rs
+    // lines 178 and 204). Submitting an empty city field triggers the browser's own
+    // HTML5 form validation, which prevents the ActionForm POST from firing at all.
+    // The server-side city validation is a defense-in-depth that normal browser
+    // interaction cannot reach. No capture for O2.
     // Complete onboarding with long city so the address carries through the rest
     // of the flow (enrollment forms, participant list, assignment display).
     await app.completeOnboarding(LONG_CITY_A, LONG_BRANCH_A);
