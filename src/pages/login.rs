@@ -712,46 +712,50 @@ fn LoginStepRouter(
     // ── Resend cooldown (Fault-03) ────────────────────────────────────────────
     // The interval is seeded when the OTP step first becomes visible (step 1 just
     // sent a code) and reset on every manual resend press.
+    //
+    // `resend_cooldown` is unconditional: its initial value (0u32) is identical on
+    // SSR and client, so there is no hydration mismatch. Only the interval handle
+    // and its lifecycle (start_cooldown, on_cleanup) are client-only — gating a
+    // SIDE EFFECT, not a rendered value. This is NOT the banned cfg-hydration-
+    // mismatch pattern. `StoredValue<Option<IntervalHandle>>` must not exist in the
+    // SSR build: its disposal path calls web_sys::AbortController (a wasm-bindgen
+    // import) and panics with "cannot call wasm-bindgen imported functions on
+    // non-wasm targets" (Abort trap 6 on /login).
     let resend_cooldown = RwSignal::new(0u32);
+
+    #[cfg(not(feature = "ssr"))]
     let interval_handle: StoredValue<Option<IntervalHandle>> = StoredValue::new(None);
 
     // The one home for the cooldown timer lifecycle: open the 60s window, cancel any
     // prior tick loop (leak-safe clear-before-create), start a fresh 1s decrementing
     // loop, and store its handle for the next clear. Called from both the seeding
     // Effect (OTP step becomes visible) and the manual resend press.
-    //
-    // WHY the cfg-gate: `set_interval_with_handle` is a client-only DOM API that
-    // panics during SSR. Gating the whole body makes this a server no-op. This is
-    // NOT the banned cfg-hydration-mismatch pattern: it gates a SIDE EFFECT, not a
-    // rendered value. `resend_cooldown`'s initial value (0) is identical on server
-    // and client, so SSR and hydrated initial markup match; the client-only seeding
-    // Effect opens the window after hydration (a normal post-hydration transition).
+    #[cfg(not(feature = "ssr"))]
     let start_cooldown = move || {
-        #[cfg(not(feature = "ssr"))]
-        {
-            resend_cooldown.set(OTP_RESEND_COOLDOWN_SECS);
-            interval_handle
-                .try_get_value()
-                .flatten()
-                .inspect(IntervalHandle::clear);
-            let handle = set_interval_with_handle(
-                move || {
-                    resend_cooldown.update(|n| *n = n.saturating_sub(1));
-                },
-                std::time::Duration::from_secs(1),
-            )
-            .expect("set_interval resend cooldown");
-            interval_handle.set_value(Some(handle));
-        }
+        resend_cooldown.set(OTP_RESEND_COOLDOWN_SECS);
+        interval_handle
+            .try_get_value()
+            .flatten()
+            .inspect(IntervalHandle::clear);
+        let handle = set_interval_with_handle(
+            move || {
+                resend_cooldown.update(|n| *n = n.saturating_sub(1));
+            },
+            std::time::Duration::from_secs(1),
+        )
+        .expect("set_interval resend cooldown");
+        interval_handle.set_value(Some(handle));
     };
 
     // Seed the cooldown the moment the OTP step activates.
     Effect::new(move |_| {
         if otp_step.get() {
+            #[cfg(not(feature = "ssr"))]
             start_cooldown();
         }
     });
 
+    #[cfg(not(feature = "ssr"))]
     on_cleanup(move || {
         interval_handle
             .try_get_value()
@@ -872,6 +876,7 @@ fn LoginStepRouter(
                 disabled=move || resend_cooldown.get() > 0 || !hydrated.get()
                 on:click=move |_| {
                     request_action.dispatch(RequestOtp { phone: submitted_phone.get() });
+                    #[cfg(not(feature = "ssr"))]
                     start_cooldown();
                 }
             >
