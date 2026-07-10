@@ -380,7 +380,7 @@ test.describe.serial("Visual Audit", () => {
     await captureElementState(page, "login-invite-code-step", "error");
   });
 
-  test("capture login — name input step + error", async ({ page }) => {
+  test("capture login — name input step", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.reachInviteCodeStep(AUDIT_PHONES.NEW);
     await page.getByTestId("invite-code-input").fill(AUDIT_CODES.NEW);
@@ -390,11 +390,13 @@ test.describe.serial("Visual Audit", () => {
     );
     await expect(page.getByTestId("legal-name-input")).toBeVisible();
     await captureState(page, "login-name-step", { stateId: "L14", route: "/login" });
-    // ── Error: submit empty name ──
-    await expect(page.getByTestId("register-button")).toBeEnabled();
-    await page.getByTestId("register-button").click();
-    await expect(page.getByTestId("name-error")).toBeVisible();
-    await captureElementState(page, "login-name-step", "error", { stateId: "L15" });
+    // ── Note: name validation error (L15) is unreachable via UI ──
+    // The name form uses a native POST (not ActionForm) — register_with_code
+    // redirects to /login?pending=1 for empty names (server-side guard, line 410
+    // of login.rs). This sends the browser back to the invite-code step, not
+    // back to the name step with a DOM error. register_action.value() stays None
+    // throughout a native POST round-trip, so legal-name-error is always empty.
+    // No error capture for this step.
   });
 
   // ── Onboarding ────────────────────────────────────────────────────────────────
