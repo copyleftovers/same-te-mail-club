@@ -49,8 +49,10 @@ ISOLATED_PORT="$(python3 -c \
 # --- teardown: kills only our spawned PID, drops only our sibling DB ----
 
 SERVER_PID=""
+screenshot_marker=""
 teardown() {
     [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null || true
+    [ -n "$screenshot_marker" ] && rm -f "$screenshot_marker" || true
     DATABASE_URL="$SIBLING_DBURL" sqlx database drop -y >/dev/null 2>&1 || true
 }
 trap teardown EXIT INT TERM
@@ -130,7 +132,6 @@ fi
 # `|| true` keeps a failing find (missing screenshots dir) from killing the script
 # via set -e/pipefail before the floor check runs; wc still emits 0 on empty input.
 screenshots_this_run="$(find screenshots -name '*.png' -newer "$screenshot_marker" 2>/dev/null | wc -l | tr -d ' ' || true)"
-rm -f "$screenshot_marker"
 
 if [ "$playwright_exit" -eq 0 ] && [ "$screenshots_this_run" -eq 0 ]; then
     echo "[isolated-capture] FATAL: playwright reported success but produced 0 screenshots — aborting"
