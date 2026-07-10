@@ -885,6 +885,9 @@ fn LoginStepRouter(
                 data-variant="link"
                 data-testid="resend-otp-button"
                 aria-live="polite"
+                // Braces are load-bearing: bare `>` in an unbraced view! attribute
+                // expression is parsed as the closing `>` of the tag, causing the
+                // remaining attributes to leak as text nodes.
                 disabled={move || resend_cooldown.get() > 0 || !hydrated.get()}
                 on:click=move |_| resend()
             >
