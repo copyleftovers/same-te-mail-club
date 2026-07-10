@@ -112,12 +112,30 @@ wait_for_server_ready
 cd end2end
 [ -d node_modules ] || npm ci
 
+# Marker file timestamps the run start so the floor counts only screenshots from THIS run.
+screenshot_marker="$(mktemp)"
+
+playwright_exit=0
 if [ "$CAPTURE_MODE" = "full" ]; then
     CAPTURE_BASE_URL="http://127.0.0.1:${ISOLATED_PORT}" \
     DATABASE_URL="$SIBLING_DBURL" \
-        npx playwright test
+        npx playwright test || playwright_exit=$?
 else
     CAPTURE_BASE_URL="http://127.0.0.1:${ISOLATED_PORT}" \
     DATABASE_URL="$SIBLING_DBURL" \
-        npx playwright test tests/visual-audit.spec.ts
+        npx playwright test tests/visual-audit.spec.ts || playwright_exit=$?
 fi
+
+# Screenshot floor: guard against silent-skip (playwright exits 0 but wrote nothing).
+# `|| true` keeps a failing find (missing screenshots dir) from killing the script
+# via set -e/pipefail before the floor check runs; wc still emits 0 on empty input.
+screenshots_this_run="$(find screenshots -name '*.png' -newer "$screenshot_marker" 2>/dev/null | wc -l | tr -d ' ' || true)"
+rm -f "$screenshot_marker"
+
+if [ "$playwright_exit" -eq 0 ] && [ "$screenshots_this_run" -eq 0 ]; then
+    echo "[isolated-capture] FATAL: playwright reported success but produced 0 screenshots — aborting"
+    playwright_exit=1
+fi
+
+# Teardown fires via the EXIT trap regardless; exit with playwright's code.
+exit "$playwright_exit"
