@@ -763,6 +763,28 @@ fn LoginStepRouter(
             .inspect(IntervalHandle::clear);
     });
 
+    // Dual-cfg binding so the resend handler has an identical signature in both builds.
+    // No #[cfg] may appear inside view! — the Leptos macro tokenizer misparses cfg-gated
+    // items inside on:click closures, causing surrounding attributes (disabled=, on:click=)
+    // to emit as text nodes and desynchronizing step-visibility style:display.
+    // Both cfg branches bind the same symbol `resend` so view! can reference it without
+    // any #[cfg] tokens inside the macro (cfg inside on:click bodies confuses the Leptos
+    // tokenizer and causes surrounding attributes to emit as text nodes). The Leptos macro
+    // elides event handlers in the SSR build and inlines them in the hydrate build, but in
+    // BOTH cases rustc's unused-variable analysis does not see the macro-internal use —
+    // hence the allow on both branches.
+    #[cfg(not(feature = "ssr"))]
+    #[allow(unused_variables)]
+    let resend = move || {
+        request_action.dispatch(RequestOtp {
+            phone: submitted_phone.get(),
+        });
+        start_cooldown();
+    };
+    #[cfg(feature = "ssr")]
+    #[allow(unused_variables)]
+    let resend = move || {};
+
     view! {
         // ── Step 1: Phone ─────────────────────────────────────────────────────
         // Hidden once OTP step activates, pending_registration is set, or OTP error redirect.
@@ -874,12 +896,7 @@ fn LoginStepRouter(
                 data-testid="resend-otp-button"
                 aria-live="polite"
                 disabled=move || resend_cooldown.get() > 0 || !hydrated.get()
-                on:click=move |_| {
-                    #[cfg(not(feature = "ssr"))]
-                    request_action.dispatch(RequestOtp { phone: submitted_phone.get() });
-                    #[cfg(not(feature = "ssr"))]
-                    start_cooldown();
-                }
+                on:click=move |_| resend()
             >
                 {move || {
                     let secs = resend_cooldown.get();
