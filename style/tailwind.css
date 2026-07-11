@@ -607,6 +607,14 @@
     white-space: nowrap;
   }
 
+  /* Deactivated-row em-dash: muted in desktop (action absent, not failed).
+     aria-hidden — purely structural; STATUS badge already conveys the state.
+     In mobile the parent td:nth-child(4) rule supplies the muted color;
+     here we cover the desktop path where the td has no explicit color rule. */
+  [data-testid="inactive-status"] {
+    color: var(--color-text-muted);
+  }
+
   /* Name / primary-identifier column: cap its width so a long hyphenated name
      ("Олександра-Вікторія Кравченко-Мельниченко") wraps within the cell rather
      than doubling the row height and misaligning sibling cells. overflow-wrap
@@ -1591,6 +1599,15 @@
 
     .data-table tr {
       border-color: oklch(from var(--color-border) l c h / 0.4);
+    }
+
+    /* A6: em-dash on deactivated row is structurally muted (--color-text-muted)
+       in light mode but near-invisible in dark (thin horizontal stroke at
+       text-secondary size on the raised card). Use --color-text (cream) in dark
+       so the placeholder remains legible. aria-hidden means this is invisible to
+       AT — the STATUS badge communicates deactivation; the em-dash is spatial only. */
+    [data-testid="inactive-status"] {
+      color: var(--color-text);
     }
   }
 

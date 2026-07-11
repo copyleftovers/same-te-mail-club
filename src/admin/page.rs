@@ -1782,7 +1782,6 @@ fn ParticipantListSection(
                                                                                 // intentionally empty. testid preserved for E2E.
                                                                                 view! {
                                                                                     <span
-                                                                                        class="text-(--color-text-muted)"
                                                                                         aria-hidden="true"
                                                                                         data-testid="inactive-status"
                                                                                     >
