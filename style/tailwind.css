@@ -131,9 +131,10 @@
     /* Solid dark container fill for informational panels (.alert /
        .sms-report-result) and stepper markers. A colour-alpha wash over
        near-black tops out at ~1.6:1 vs the page (invisible as a panel), so dark
-       mode uses a solid raised-tinted fill instead — +0.07 L above base reads as
-       a real container. Light mode keeps the alpha wash (see the component rules). */
-    --color-panel-dark: oklch(0.22 0.01 250);
+       mode uses a solid raised-tinted fill instead. Value 0.28: +0.13L above base
+       (0.15) for page-level use, and +0.06L above raised cards (0.22) so the panel
+       remains a perceptible container when nested inside .admin-section. */
+    --color-panel-dark: oklch(0.28 0.01 250);
     /* Stepper pending/locked marker + connector fill: +0.15 L solid step above
        base so the sequence structure stays visible (alpha 0.2 gray was invisible). */
     --color-step-idle: oklch(0.30 0.01 250);

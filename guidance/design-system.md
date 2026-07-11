@@ -62,7 +62,7 @@ These are CSS custom properties on `:root`, not `@theme` tokens. They do not gen
 Plus two dark-only helper tokens (defined only inside the dark `:root`, no light-mode counterpart):
 
 ```
---color-panel-dark    → oklch(0.22 0.01 250)   /* solid fill for .alert / .sms-report-result */
+--color-panel-dark    → oklch(0.28 0.01 250)   /* solid fill for .alert / .sms-report-result */
 --color-step-idle     → oklch(0.30 0.01 250)   /* solid stepper idle marker + connector */
 ```
 
