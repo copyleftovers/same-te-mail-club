@@ -85,7 +85,7 @@ capture-isolated suffix mode="visual":
 
 # Generate sqlx offline query data
 prepare:
-    cargo sqlx prepare
+    cargo sqlx prepare --workspace -- --features ssr
 
 # Format all code
 fmt:
