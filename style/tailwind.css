@@ -1560,7 +1560,7 @@
   .cycle-viz {
     width: 100%;
     max-width: var(--size-cycle-viz);
-    aspect-ratio: 1; /* matches the 700×700 viewBox in render_cycle_ring */
+    aspect-ratio: 900 / 750; /* matches the 900×750 viewBox in render_cycle_ring */
   }
 
   /* ── Dark-mode container-border alpha lift ────────────────────── */

@@ -1078,8 +1078,8 @@ fn compute_circle_positions(
         .collect()
 }
 
-const CENTER_X: f64 = 350.0;
-const CENTER_Y: f64 = 350.0;
+const CENTER_X: f64 = 450.0;
+const CENTER_Y: f64 = 375.0;
 const RING_RADIUS: f64 = 190.0;
 const NODE_RADIUS: f64 = 20.0;
 /// Gap from node edge to label anchor, measured radially outward.
@@ -1214,7 +1214,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                 "Assignment cycle " {cohort_num} ": " {n} " participants (score: " {score} ")"
             </figcaption>
             <svg
-                viewBox="0 0 700 700"
+                viewBox="0 0 900 750"
                 class="cycle-viz"
                 role="img"
                 aria-label=format!("Assignment cycle {cohort_num}: {n} participants")
