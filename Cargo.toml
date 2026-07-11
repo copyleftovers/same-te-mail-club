@@ -27,14 +27,13 @@ time = { version = "0.3", features = ["serde", "formatting", "macros"] }
 # SSR-only
 leptos_axum = { version = "0.8", optional = true }
 axum = { version = "0.8", optional = true }
-tokio = { version = "1", features = ["full"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net"], optional = true }
 tower-http = { version = "0.6", features = ["compression-br", "trace"], optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"], optional = true }
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "macros", "uuid", "time"], optional = true }
 reqwest = { version = "0.13", features = ["json"], optional = true }
 phonenumber = { version = "0.3", optional = true }
 rand = { version = "0.9", optional = true }
-blake2 = { version = "0.10", optional = true }
 sha2 = { version = "0.10", optional = true }
 subtle = { version = "2", optional = true }
 base64 = { version = "0.22", optional = true }
@@ -70,7 +69,6 @@ ssr = [
     "dep:reqwest",
     "dep:phonenumber",
     "dep:rand",
-    "dep:blake2",
     "dep:sha2",
     "dep:subtle",
     "dep:base64",
