@@ -92,8 +92,8 @@ pub fn App() -> impl IntoView {
         <Router>
             <div class="flex min-h-dvh flex-col">
                 <Header />
+                <Toast />
                 <main class="flex-1">
-                    <Toast />
                     <Routes fallback=move || view! {
                         <div class="page-frame" data-testid="not-found">
                             <div class="prose-page">

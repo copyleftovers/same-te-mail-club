@@ -95,7 +95,7 @@
   --size-auth-logo: 5rem;   /* auth hero mark: relates to the section-scale heading, not a page-title hero */
 
   /* Header height: logo (2.5rem) + top+bottom padding (3*spacing each side = 6*spacing total) + 1px border.
-     Used by .toast-container so the toast always clears the header band on every layout. */
+     Used by .page-frame for full-viewport-height participant layouts. */
   --header-height: calc(var(--size-logo-height-header) + calc(var(--spacing) * 6) + 1px);
 }
 
@@ -1148,12 +1148,11 @@
   }
 
   /* ── Toast ────────────────────────────────────────────────────── */
-  /* z-index: 50 — above dropdowns/mobile menu (40), same layer as modals */
-  /* sticky top:0 so the banner pins to the top of <main> on scroll and
-     participates in normal flow — pushes page content down, never overlaps h1 */
+  /* z-index: 50 — same layer as modals, above dropdowns/mobile-menu (40).
+     The container lives between <Header> and <main> in the app flex column —
+     in normal block flow. Empty = zero height. Message present = pushes <main>
+     down. No overlap with content is geometrically possible. */
   .toast-container {
-    position: sticky;
-    top: 0;
     z-index: 50;
     width: 100%;
   }
