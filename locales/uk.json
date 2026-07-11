@@ -143,6 +143,8 @@
   "assignments_select_sender": "Обрати учасника",
   "app_title": "Саме Те",
   "app_not_found": "Сторінку не знайдено.",
+  "not_found_body": "Такої сторінки не існує.",
+  "not_found_home_link": "На головну",
   "sms_count_active_users": "{{ count }} ще не отримали",
   "sms_count_unnotified_senders": "{{ count }} не отримали повідомлення",
   "sms_count_unconfirmed_enrolled": "{{ count }} не підтвердили готовність",

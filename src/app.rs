@@ -95,7 +95,15 @@ pub fn App() -> impl IntoView {
                 <main class="flex-1">
                     <Toast />
                     <Routes fallback=move || view! {
-                        <p data-testid="not-found">{t!(i18n, app_not_found)}</p>
+                        <div class="page-frame" data-testid="not-found">
+                            <div class="prose-page">
+                                <div class="empty-state">
+                                    <h1 class="empty-state-headline">{t!(i18n, app_not_found)}</h1>
+                                    <p class="empty-state-body">{t!(i18n, not_found_body)}</p>
+                                    <a href="/" class="btn" data-variant="secondary">{t!(i18n, not_found_home_link)}</a>
+                                </div>
+                            </div>
+                        </div>
                     }>
                     <Route path=StaticSegment("login") view=LoginPage />
                     <Route
