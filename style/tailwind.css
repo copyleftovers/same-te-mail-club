@@ -1171,7 +1171,7 @@
     color: var(--color-text);
   }
 
-  /* Slides down into view from above — correct for a sticky top banner */
+  /* Slides down into view from above — correct for an in-flow top banner */
   @keyframes toast-in {
     from { opacity: 0; translate: 0 -100%; }
     to { opacity: 1; translate: 0 0; }

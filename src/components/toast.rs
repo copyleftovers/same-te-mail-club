@@ -36,7 +36,7 @@ pub fn use_toast() -> WriteSignal<Option<String>> {
 
 /// Toast notification component.
 ///
-/// Renders a sticky flow-banner at the top of `<main>` (not a fixed overlay).
+/// Renders an in-flow block banner between the header and `<main>` (not a fixed overlay).
 /// Visible only while the signal holds a message.
 /// Auto-dismisses after `TOAST_DISMISS_MS` with a slide-out exit animation.
 #[component]
