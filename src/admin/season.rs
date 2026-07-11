@@ -3,6 +3,14 @@ use leptos::prelude::*;
 #[cfg(feature = "ssr")]
 use crate::error::db_err;
 
+/// ASCII Unit Separator used to encode a stable field discriminant alongside
+/// the localized user-facing message in a single `ServerFnError` string.
+///
+/// Format: `"<field_key>\u{1f}<localized_message>"`
+/// where `field_key` ∈ {`"signup_deadline"`, `"confirm_deadline"`} for create-season
+/// validation errors. Infra/DB/auth errors carry no separator.
+pub(super) const FIELD_DISCRIMINANT_SEPARATOR: char = '\u{1f}';
+
 // ── SSR-only row types ─────────────────────────────────────────────────────────
 
 #[cfg(feature = "ssr")]
@@ -50,21 +58,24 @@ pub async fn create_season(
 
     let now = OffsetDateTime::now_utc();
     if signup_dt <= now {
-        return Err(ServerFnError::new(td_string!(
-            Locale::uk,
-            season_error_signup_deadline_past
+        return Err(ServerFnError::new(format!(
+            "signup_deadline{SEP}{msg}",
+            SEP = FIELD_DISCRIMINANT_SEPARATOR,
+            msg = td_string!(Locale::uk, season_error_signup_deadline_past),
         )));
     }
     if confirm_dt <= now {
-        return Err(ServerFnError::new(td_string!(
-            Locale::uk,
-            season_error_confirm_deadline_past
+        return Err(ServerFnError::new(format!(
+            "confirm_deadline{SEP}{msg}",
+            SEP = FIELD_DISCRIMINANT_SEPARATOR,
+            msg = td_string!(Locale::uk, season_error_confirm_deadline_past),
         )));
     }
     if signup_dt >= confirm_dt {
-        return Err(ServerFnError::new(td_string!(
-            Locale::uk,
-            season_error_signup_after_confirm
+        return Err(ServerFnError::new(format!(
+            "signup_deadline{SEP}{msg}",
+            SEP = FIELD_DISCRIMINANT_SEPARATOR,
+            msg = td_string!(Locale::uk, season_error_signup_after_confirm),
         )));
     }
 

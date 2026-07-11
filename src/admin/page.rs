@@ -7,7 +7,9 @@ use crate::admin::invite_codes::{
     list_distributor_options, list_invite_codes,
 };
 use crate::admin::participants::{DeactivateParticipant, ParticipantSummary, list_participants};
-use crate::admin::season::{AdvanceSeason, CancelSeason, CreateSeason, LaunchSeason};
+use crate::admin::season::{
+    AdvanceSeason, CancelSeason, CreateSeason, FIELD_DISCRIMINANT_SEPARATOR, LaunchSeason,
+};
 use crate::admin::sms::{
     SendAssignmentSms, SendConfirmNudgeSms, SendReceiptNudgeSms, SendSeasonOpenSms, SmsReport,
 };
@@ -208,7 +210,13 @@ pub fn AdminPage() -> impl IntoView {
     view! {
         <div class="prose-page" data-testid="dashboard-content">
             <div id="action-error" role="alert" aria-live="assertive" data-testid="action-error">
-                {move || action_error().map(|e| view! { <p class="alert">{strip_server_error_prefix(&e)}</p> })}
+                {move || action_error().map(|e| {
+                    let stripped = strip_server_error_prefix(&e);
+                    // If the error carries a field discriminant (create-season
+                    // validation), show only the user-facing message portion.
+                    let (_field, display_msg) = parse_create_season_field_error(&stripped);
+                    view! { <p class="alert">{display_msg.to_owned()}</p> }
+                })}
             </div>
 
             // ── Season section ─────────────────────────────────────────────────
@@ -314,6 +322,31 @@ fn render_season_section(
     }
 }
 
+/// Which create-season field the server rejected.
+#[derive(Clone, PartialEq)]
+enum CreateSeasonRejectedField {
+    SignupDeadline,
+    ConfirmDeadline,
+}
+
+/// Split a stripped server error into `(field, display_message)`.
+///
+/// The server encodes deadline validation errors as `"field_key\u{1f}message"`.
+/// Returns `(Some(field), message)` for field-keyed errors; `(None, full_string)`
+/// for infra/auth/DB errors with no separator — those show on the banner only.
+fn parse_create_season_field_error(stripped: &str) -> (Option<CreateSeasonRejectedField>, &str) {
+    if let Some((key, msg)) = stripped.split_once(FIELD_DISCRIMINANT_SEPARATOR) {
+        let field = match key {
+            "signup_deadline" => Some(CreateSeasonRejectedField::SignupDeadline),
+            "confirm_deadline" => Some(CreateSeasonRejectedField::ConfirmDeadline),
+            _ => None,
+        };
+        (field, msg)
+    } else {
+        (None, stripped)
+    }
+}
+
 /// Render the create-season form (no active season).
 fn render_create_form(
     create_action: ServerAction<CreateSeason>,
@@ -321,6 +354,40 @@ fn render_create_form(
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
     let pending = create_action.pending();
+    // Per-field invalid signals — only the rejected field becomes true.
+    let (signup_invalid, set_signup_invalid) = signal(false);
+    let (confirm_invalid, set_confirm_invalid) = signal(false);
+
+    Effect::new(move |_| {
+        if let Some(result) = create_action.value().get() {
+            match result {
+                Ok(()) => {
+                    set_signup_invalid.set(false);
+                    set_confirm_invalid.set(false);
+                }
+                Err(e) => {
+                    let stripped = strip_server_error_prefix(&e);
+                    let (field, _msg) = parse_create_season_field_error(&stripped);
+                    match field {
+                        Some(CreateSeasonRejectedField::SignupDeadline) => {
+                            set_signup_invalid.set(true);
+                            set_confirm_invalid.set(false);
+                        }
+                        Some(CreateSeasonRejectedField::ConfirmDeadline) => {
+                            set_signup_invalid.set(false);
+                            set_confirm_invalid.set(true);
+                        }
+                        None => {
+                            // Infra/auth/active-exists errors: no field border.
+                            set_signup_invalid.set(false);
+                            set_confirm_invalid.set(false);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
     view! {
         <div data-testid="create-season-form">
             <p class="text-sm text-(--color-text-muted) mb-(--density-space-sm)">{t!(i18n, dashboard_no_season)}</p>
@@ -339,7 +406,7 @@ fn render_create_form(
                             required=true
                             data-testid="signup-deadline-input"
                             aria-describedby="action-error"
-                            aria-invalid=move || create_action.value().get().and_then(Result::err).map(|_| "true")
+                            aria-invalid=move || signup_invalid.get().then_some("true")
                         />
                     </div>
                     <div class="field">
@@ -354,7 +421,7 @@ fn render_create_form(
                             required=true
                             data-testid="confirm-deadline-input"
                             aria-describedby="action-error"
-                            aria-invalid=move || create_action.value().get().and_then(Result::err).map(|_| "true")
+                            aria-invalid=move || confirm_invalid.get().then_some("true")
                         />
                     </div>
                     <div class="field">
@@ -370,7 +437,6 @@ fn render_create_form(
                             placeholder=move || t_string!(i18n, season_theme_placeholder)
                             data-testid="theme-input"
                             aria-describedby="action-error"
-                            aria-invalid=move || create_action.value().get().and_then(Result::err).map(|_| "true")
                         />
                     </div>
                     <button
