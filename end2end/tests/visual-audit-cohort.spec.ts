@@ -11,6 +11,12 @@
  *
  * The harness seeds test_admin.sql before running. This spec's beforeAll seeds
  * the 12-participant cohort via cohort-seed.sql using DATABASE_URL from the harness env.
+ *
+ * INDEX.md merging: the main visual-audit.spec.ts afterAll rewrites INDEX.md from
+ * scratch (it owns the MANIFEST array). The cohort pass runs after and APPENDS its
+ * rows. Idempotency: before appending, existing rows for cohort files are removed so
+ * a re-run never duplicates entries. The main pass afterAll never sees cohort files
+ * (different screenshot paths), so ordering is safe regardless of which runs first.
  */
 
 import { execSync } from "child_process";
@@ -29,6 +35,20 @@ const DESKTOP_VIEWPORT = { width: 1280, height: 800 } as const;
 // Exempted from waitForTimeout ban: this is a capture harness paint settle,
 // not a test-assertion wait (see deferred_items: `waitForTimeout(LAYOUT_REFLOW_MS)`).
 const LAYOUT_REFLOW_MS = 150;
+
+// The five files this spec produces (relative to screenshots/).
+// Kept in sync with the actual screenshot() calls below so the INDEX merge
+// can locate them without parsing the raw paths a second time.
+const COHORT_FILES = [
+  "light-desktop/admin-cycle-viz-12-nodes.png",
+  "light-mobile/admin-cycle-viz-12-nodes.png",
+  "dark-desktop/admin-cycle-viz-12-nodes.png",
+  "dark-mobile/admin-cycle-viz-12-nodes.png",
+  "sections/admin-cycle-viz-12-nodes__cycle-visualization.png",
+] as const;
+
+const COHORT_STATE_ID = "A36-cohort";
+const COHORT_ROUTE = "/admin";
 
 // Opt-in gate: the default suite (`npx playwright test`, no filter) discovers
 // every spec under testDir — without this gate `just e2e` would fire the cohort
@@ -74,6 +94,56 @@ test.beforeAll(() => {
   execSync(`psql "${databaseUrl}" -f "${seedFile}"`, {
     stdio: "inherit",
   });
+});
+
+// ── INDEX.md merge ─────────────────────────────────────────────────────────────
+//
+// The main visual-audit.spec.ts afterAll rewrites screenshots/INDEX.md from
+// scratch for every run. This cohort afterAll appends the cohort rows so the
+// INDEX ends complete after the standard two-invocation sequence (main → cohort).
+//
+// Idempotency: existing rows whose `file` column matches a COHORT_FILES entry
+// are stripped before the new rows are appended. A re-run therefore never
+// duplicates entries. The main pass afterAll owns its own MANIFEST array and
+// never references cohort paths, so the ordering is safe if cohort runs first
+// (the main pass would later overwrite without cohort rows — that case is a
+// partial run and is expected to produce a partial INDEX).
+
+test.afterAll(() => {
+  const indexPath = "screenshots/INDEX.md";
+
+  // Read the existing INDEX (written by the main pass) or start fresh.
+  let existing = "";
+  try {
+    existing = fs.readFileSync(indexPath, "utf8");
+  } catch {
+    // INDEX does not exist yet — cohort ran before main pass; start from scratch.
+    existing = [
+      "# Screenshot Index",
+      "Generated: (cohort-only run)",
+      "",
+      "| File | State | Route |",
+      "|------|-------|-------|",
+      "",
+    ].join("\n");
+  }
+
+  // Strip any previously-appended cohort rows so re-runs don't duplicate.
+  const lines = existing.split("\n");
+  const withoutCohortRows = lines.filter(
+    (line) => !COHORT_FILES.some((f) => line.includes(f)),
+  );
+
+  // Append the fresh cohort rows.
+  const cohortRows = COHORT_FILES.map(
+    (f) => `| ${f} | ${COHORT_STATE_ID} | ${COHORT_ROUTE} |`,
+  );
+
+  // Ensure there is exactly one trailing newline before appending.
+  const base = withoutCohortRows.join("\n").trimEnd();
+  const merged = [base, ...cohortRows, ""].join("\n");
+
+  fs.writeFileSync(indexPath, merged);
 });
 
 test.describe.serial("Cohort Capture", () => {
