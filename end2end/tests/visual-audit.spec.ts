@@ -281,12 +281,14 @@ test.describe.serial("Visual Audit", () => {
     );
     await expect(page.getByTestId("otp-input")).toBeVisible();
     await captureState(page, "login-otp-step", { stateId: "L5", route: "/login" });
-    // ── L7: resend affordance — deterministically in cooldown at capture time ──
+    // ── L7 (login-otp-step-resend-cooldown) removed — identical to L5 ──
     // login.rs seeds a 60s cooldown the moment the OTP step activates, so the
-    // enabled resend CTA is unreachable without a 60s wait. The honest capture
-    // is the affordance in its cooldown state: disabled, countdown label shown.
+    // resend button is always disabled at capture time. Both L5 and L7 render
+    // identically: the resend button is present but disabled with the countdown
+    // label. Capturing a duplicate under a different name is misleading — it
+    // implies a distinct visual state that does not exist without a 60s wait.
+    // The assertion below guards that the cooldown IS active (design intent check).
     await expect(page.getByTestId("resend-otp-button")).toBeDisabled();
-    await captureState(page, "login-otp-step-resend-cooldown", { stateId: "L7", route: "/login" });
     // ── Error state: wrong OTP reveals otp-error ──
     // The native POST form processes the bad code server-side and 302-redirects
     // to /login?otp_error=1. The browser follows the redirect and re-renders the
