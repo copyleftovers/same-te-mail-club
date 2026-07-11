@@ -104,10 +104,13 @@ test.beforeAll(() => {
 //
 // Idempotency: existing rows whose `file` column matches a COHORT_FILES entry
 // are stripped before the new rows are appended. A re-run therefore never
-// duplicates entries. The main pass afterAll owns its own MANIFEST array and
-// never references cohort paths, so the ordering is safe if cohort runs first
-// (the main pass would later overwrite without cohort rows — that case is a
-// partial run and is expected to produce a partial INDEX).
+// duplicates entries.
+//
+// Order-flip safety (cohort → main): the main pass beforeAll deletes ALL pngs
+// in the shared screenshot dirs — including cohort files — and its afterAll
+// rewrites INDEX.md from its own MANIFEST. Both the cohort files AND their
+// rows vanish together, so INDEX↔disk consistency holds in either order; a
+// flipped sequence yields a coherent main-only set, never orphaned rows.
 
 test.afterAll(() => {
   const indexPath = "screenshots/INDEX.md";
