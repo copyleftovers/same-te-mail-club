@@ -144,7 +144,7 @@ pub fn PhaseStepper(
                             <li
                                 class="step"
                                 data-status=status
-                                attr:aria-current=if status == "current" { Some("step") } else { None }
+                                aria-current=if status == "current" { Some("step") } else { None }
                             >
                                 <div class="step-marker" aria-hidden="true">
                                     {marker_content}
