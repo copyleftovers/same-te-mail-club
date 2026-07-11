@@ -218,6 +218,10 @@ Pill shape. Variants via `data-status`. One coherent semantic colour system, map
 
 Mont 600, text-xs, uppercase, letter-spacing 0.02em.
 
+### Info Link
+
+Inline informational link (tel/address): `color: var(--color-text)`, `text-decoration: underline`, `text-underline-offset: 2px`. Used for non-CTA links where accent-orange would compete with primary actions.
+
 ### Content Container
 
 `max-width: 65ch; margin-inline: auto; padding-inline: var(--spacing-4)`
