@@ -611,7 +611,7 @@
      aria-hidden — purely structural; STATUS badge already conveys the state.
      In mobile the parent td:nth-child(4) rule supplies the muted color;
      here we cover the desktop path where the td has no explicit color rule. */
-  [data-testid="inactive-status"] {
+  .inactive-marker {
     color: var(--color-text-muted);
   }
 
@@ -1606,7 +1606,7 @@
        text-secondary size on the raised card). Use --color-text (cream) in dark
        so the placeholder remains legible. aria-hidden means this is invisible to
        AT — the STATUS badge communicates deactivation; the em-dash is spatial only. */
-    [data-testid="inactive-status"] {
+    .inactive-marker {
       color: var(--color-text);
     }
   }
