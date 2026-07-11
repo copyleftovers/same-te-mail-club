@@ -3,7 +3,7 @@ pub struct Config {
     pub database_url: String,
     pub turbosms_token: String,
     pub turbosms_sender: String,
-    // CSRF: SameSite=Strict cookie attribute is the mitigation (see auth.rs set_cookie_header)
+    // CSRF: SameSite=Strict cookie attribute is the mitigation (see src/pages/login.rs set_cookie_header)
     pub sms_dry_run: bool,
 }
 
