@@ -67,6 +67,7 @@ db-reset:
 
 # Seed test admin (for E2E)
 db-seed:
+    [ -n "${DATABASE_URL:-}" ] || { echo "ERROR: DATABASE_URL not set -- source .env.example"; exit 1; }
     psql $DATABASE_URL -f seed/test_admin.sql
 
 # Run pending migrations
