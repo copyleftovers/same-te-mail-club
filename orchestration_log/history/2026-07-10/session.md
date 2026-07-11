@@ -61,3 +61,7 @@ L2 phone-error + L15 name-error (anti-enumeration: invalid input → Ok(AccountE
 
 ### State
 Repo: single worktree, main @ d6a17f6 pushed, CI green. Crons: all deleted except 07:02/07:32 one-shot session-limit insurance (auto-expire). Task #12 → completed. Deferred-items delta: cycle-viz cohort-capture gap RESOLVED (now captured + defect proven); new: app-defect catalog (7+1 entries) awaiting user fault-intake.
+
+## Close pointer
+
+Session continued into 2026-07-11 (same session-id); close record + quantitative summary live in ../2026-07-11/session.md.

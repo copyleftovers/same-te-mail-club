@@ -223,3 +223,9 @@ All 7 Wave-2 units integrated (admin markup, admin i18n, home, onboarding, login
 - **RESOLVED: all 7 app-defect-catalog actionables** (A1 label collisions, A2 404, A3 toast BLOCKER, A4 error borders, A5 orange phones, A6 em-dash [pixel-first re-fix after wrong math-based no-op], A9 panel fill — capped 0.27 by AA ceiling). Pixel-verified; CI green ×2; component-propagation audit PASS.
 - **NEW lessons → conventions candidates:** merge-base diffs mandatory in reviewer briefs after mid-wave integration; computed-ratio ≠ perception for hairline glyphs; no testid selectors in production CSS (enforced zero).
 - **Still open:** A10 unlaunched-season visibility (product decision); cohort-seed.sql LIKE/UUID idempotency-guard error (harmless, seed works — fix on next touch); F4/F5 (separator const ×2 modules, error-routing idiom undocumented — rule of three); uk.json copy proposals awaiting user review; intermittent Leptos SSR disposal 500 (pre-existing).
+
+## Closed 2026-07-11 (session close)
+
+- **RESOLVED: UK copy proposals** — all 8 proposal keys native-reviewed with owner-delegated judgment; 4 strings improved (form-neutral resend cooldown "Повторно через {{ seconds }} с"; gender-neutral "Тебе запрошено"; de-bureaucratized enrolled-milestone; ти-form cancelled-season body), 4 confirmed as-is. Commits 83b1f85+80d1c70, CI green 29151064861.
+- **CLOSED: A10 unlaunched-season visibility** — NOT-PRESCRIBED (spec trace: story 4.2 "Enrollment opens immediately upon launch"; 4.3 recreate-not-cancel treats draft as admin-internal). User ruling 2026-07-11: create/launch stays as separate steps; no participant-facing pre-launch state. No code change.
+- Still open (carry-forward): cohort-seed.sql LIKE/UUID idempotency-guard nit; F4/F5 NOTEs (separator const ×2 modules, error-routing idiom undocumented — rule of three); intermittent Leptos SSR disposal 500; IP rate limiting absent.
