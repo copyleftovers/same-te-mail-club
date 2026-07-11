@@ -78,20 +78,24 @@ pub async fn deactivate_participant(user_id: uuid::Uuid) -> Result<(), ServerFnE
 
     let (pool, _user) = auth::require_admin().await?;
 
+    let mut tx = pool.begin().await.map_err(db_err)?;
+
     sqlx::query!(
         "UPDATE users SET status = 'deactivated' WHERE id = $1",
         user_id,
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await
     .map_err(db_err)?;
 
     // Revoke all active sessions immediately — deactivated user cannot continue
     // using existing browser sessions on the next request.
     sqlx::query!("DELETE FROM sessions WHERE user_id = $1", user_id)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await
         .map_err(db_err)?;
+
+    tx.commit().await.map_err(db_err)?;
 
     Ok(())
 }
