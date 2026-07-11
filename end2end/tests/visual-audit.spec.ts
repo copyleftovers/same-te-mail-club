@@ -496,6 +496,12 @@ test.describe.serial("Visual Audit", () => {
 
   // ── Admin: season creation ────────────────────────────────────────────────────
 
+  // The serial position of this capture is after invite codes A/B/C have been
+  // generated AND participants A/B/C have registered (codes = used, participants =
+  // active). The NAME describes the season axis (no active season, create form
+  // available) — which is accurate. Participants and used codes are truthful DB
+  // state: in a real deployment the admin always has existing participants and
+  // historical codes. This is NOT a leaked state; it is the honest context.
   test("capture admin — no active season (participants list + create form)", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
