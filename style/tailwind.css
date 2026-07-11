@@ -203,7 +203,7 @@
   /* z-index layer map:
      1  — grain overlay (body::after)
      40 — mobile menu overlay, dropdowns
-     50 — mobile menu panel, modals, toasts
+     50 — mobile menu panel, modals
      60 — confetti burst (above modals during delivery phase) */
   body::after {
     content: '';
@@ -1148,12 +1148,11 @@
   }
 
   /* ── Toast ────────────────────────────────────────────────────── */
-  /* z-index: 50 — same layer as modals, above dropdowns/mobile-menu (40).
-     The container lives between <Header> and <main> in the app flex column —
+  /* The container lives between <Header> and <main> in the app flex column —
      in normal block flow. Empty = zero height. Message present = pushes <main>
-     down. No overlap with content is geometrically possible. */
+     down. No overlap with content is geometrically possible, so no positioning
+     and no z-index layer is needed. */
   .toast-container {
-    z-index: 50;
     width: 100%;
   }
 
