@@ -3,7 +3,7 @@ pub struct Config {
     pub database_url: String,
     pub turbosms_token: String,
     pub turbosms_sender: String,
-    pub csrf_secret: u128,
+    // CSRF: SameSite=Strict cookie attribute is the mitigation (see auth.rs set_cookie_header)
     pub sms_dry_run: bool,
 }
 
@@ -63,16 +63,10 @@ impl Config {
             sender
         };
 
-        let csrf_secret = std::env::var("CSRF_SECRET")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(rand::random::<u128>);
-
         Ok(Self {
             database_url,
             turbosms_token,
             turbosms_sender,
-            csrf_secret,
             sms_dry_run,
         })
     }
