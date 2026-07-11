@@ -973,7 +973,7 @@
   }
 
   .info-link {
-    color: var(--color-accent);
+    color: var(--color-text);
     text-decoration: underline;
     text-underline-offset: 2px; /* structural: aesthetic underline spacing */
   }
