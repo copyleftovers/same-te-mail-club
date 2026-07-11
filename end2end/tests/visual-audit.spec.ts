@@ -518,11 +518,19 @@ test.describe.serial("Visual Audit", () => {
   });
 
   // ── Home: no enrollment available (season not yet launched) ──────────────────
-
+  //
+  // App-identical state: get_home_state() queries seasons WHERE launched_at IS NOT NULL.
+  // An unlaunched season (launched_at = NULL) is invisible to participants — both
+  // H1 (no season at all) and H4a (season exists but not yet launched) render the
+  // same NoSeason branch. There is no distinct H4a visual to capture; the admin
+  // controls launch, not participants. This capture documents the state as the
+  // participant experiences it — it will look identical to home-no-season.
   test("capture home — season exists but enrollment not open", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(AUDIT_PHONES.A);
     await app.goHome();
+    // H4a and H1 are visually indistinguishable: the unlaunched season is not
+    // visible to participants (get_home_state requires launched_at IS NOT NULL).
     await captureState(page, "home-enrollment-not-open", { stateId: "H4a", route: "/" });
   });
 
