@@ -184,4 +184,4 @@ main @ **443efdd**, UNPUSHED, clean tree (except orchestration_log docs). No CI 
 - **`scripts/isolated-capture.sh`:** `"${VISUAL_SPEC:-tests/visual-audit.spec.ts}"` override + cohort case-block. `mode=full` + isolated port/DB = CI-way full-suite validation without touching :3000/samete (117 passed / 2 by-design skips verified pre-push).
 - **5 designed captures removed as unreachable-by-design** (anti-enumeration silent-Ok paths, HTML5 required gating, no-op same-participant swap, always-seeded resend cooldown) — each with source-cited WHY comment. Gap-analysis lesson: DOM-element presence ≠ reachable state; trace server semantics.
 - **Artifact contract:** 174 pngs == 174 INDEX rows (two-direction verified); INDEX.md is the navigation manifest for review.
-- App-defect catalog (7 actionable + 1 design question) extracted to `orchestration_log/history/2026-07-10/app-defect-catalog.md`.
+- App-defect catalog (7 actionable + 1 design question) extracted to `orchestration_log/history/2026-07-09/app-defect-catalog.md`.
