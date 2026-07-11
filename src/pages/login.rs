@@ -465,13 +465,15 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
     let session_cookie = set_cookie_header("session", &raw_token, 7_776_000);
     () = response_options.append_header(
         axum::http::header::SET_COOKIE,
-        axum::http::HeaderValue::from_str(&session_cookie).unwrap(),
+        axum::http::HeaderValue::from_str(&session_cookie)
+            .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
     );
 
     let clear_cookie = set_cookie_header("pending_phone", "", 0);
     () = response_options.append_header(
         axum::http::header::SET_COOKIE,
-        axum::http::HeaderValue::from_str(&clear_cookie).unwrap(),
+        axum::http::HeaderValue::from_str(&clear_cookie)
+            .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
     );
 
     leptos_axum::redirect("/onboarding");
