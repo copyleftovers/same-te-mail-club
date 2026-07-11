@@ -704,6 +704,15 @@ test.describe.serial("Visual Audit", () => {
 
   // Participant B reports NOT received before the season advances to complete.
   // A and C confirm received. The "not received" state is the visual target.
+  //
+  // Root cause of the prior capture bug: the POM's confirmReceipt(false) waits
+  // for `receipt-thanks` before returning — the DOM is already in the
+  // post-confirmation state by the time captureState fired. The fix is to
+  // capture the pre-submit assignment+receipt form while `received-button` is
+  // still visible (before calling confirmReceipt), then submit. B's post-confirm
+  // state (ReceiptConfirmed = receipt-thanks) is already covered by A's capture
+  // of `home-receipt-confirmed-thanks` — both routes end on the same state.
+  //
   // Note: if the server requires all receipts to advance to complete, B's
   // not-received report is captured but the season-complete capture below is
   // skipped gracefully (B's state is still captured either way).
@@ -711,10 +720,12 @@ test.describe.serial("Visual Audit", () => {
     const app = new MailClubPage(page);
     await app.login(AUDIT_PHONES.B);
     await app.goHome();
+    // Confirm the form is visible before capturing — this IS the pre-submit state.
     await expect(page.getByTestId("received-button")).toBeVisible();
-    await app.confirmReceipt(false);
-    // Capture the result — POM waits for "reported" text or not-received indicator.
+    // Capture the assignment+receipt form (H7): received-button + not-received-button visible.
     await captureState(page, "home-receipt-not-received", { stateId: "H7", route: "/" });
+    // Now submit the not-received report so the DB state advances for C and admin.
+    await app.confirmReceipt(false);
   });
 
   // ── Setup: C confirms receipt (B remains not-received) ───────────────────────
