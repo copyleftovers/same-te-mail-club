@@ -155,7 +155,7 @@ After clicking, the action POST and Resource refetch may still be in flight. Cho
 |----------|-------------|
 | New element appears after action | `await expect(locator).toBeVisible()` |
 | Element disappears after action | `await expect(locator).not.toBeVisible()` |
-| Page navigates (redirect) | `await page.waitForURL("/path")` |
+| Page navigates (redirect) | `await expect(page).toHaveURL(/\/path/)` |
 | Text content changes | `await expect(locator).toContainText(/pattern/)` |
 | No visible change (rare) | The POST wait from `clickAndWaitForResponse` is enough |
 
@@ -334,7 +334,7 @@ async expectSomeContent(text: string | RegExp) {
 - [ ] Self-contained actions wait for their completion signal
 - [ ] Assertion-separated actions document what the caller should assert
 - [ ] All selectors use testids — never CSS classes, roles with name, or tag structures
-- [ ] Methods that trigger 302 redirects (login, logout, completeOnboarding) use `expect(page).not.toHaveURL(/\/the-source-path/)` to wait for the redirect to complete — `waitForLoadState` in any form is banned after redirects
+- [ ] Methods that trigger 302 redirects (login, logout, completeOnboarding) use `await expect(page).not.toHaveURL(/\/login/)` (the redirect's source path) to wait for the redirect to complete — `waitForLoadState` in any form is banned after redirects
 
 ---
 
