@@ -1078,11 +1078,16 @@ fn compute_circle_positions(
         .collect()
 }
 
-const CENTER_X: f64 = 300.0;
-const CENTER_Y: f64 = 260.0;
-const RING_RADIUS: f64 = 150.0;
+const CENTER_X: f64 = 350.0;
+const CENTER_Y: f64 = 350.0;
+const RING_RADIUS: f64 = 190.0;
 const NODE_RADIUS: f64 = 20.0;
-const LABEL_OFFSET_Y: f64 = 26.0;
+/// Gap from node edge to label anchor, measured radially outward.
+const LABEL_RADIAL_GAP: f64 = 14.0;
+/// Clearance from node edge to arrow tip/tail so arrows don't overlap nodes.
+const ARROW_CLEARANCE: f64 = 5.0;
+/// Nodes within this many degrees of the vertical axis use middle text-anchor.
+const VERTICAL_AXIS_TOLERANCE_DEGREES: f64 = 20.0;
 
 /// Render a single cohort cycle as an SVG ring.
 ///
@@ -1105,7 +1110,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
             let dist = (dx * dx + dy * dy).sqrt();
             let ux = dx / dist;
             let uy = dy / dist;
-            let margin = NODE_RADIUS + 5.0;
+            let margin = NODE_RADIUS + ARROW_CLEARANCE;
             let start_x = x1 + ux * margin;
             let start_y = y1 + uy * margin;
             let end_x = x2 - ux * margin;
@@ -1130,14 +1135,53 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
         .iter()
         .enumerate()
         .map(|(i, link)| {
+            use std::f64::consts::{PI, TAU};
             let (cx, cy) = positions[i];
             let name = link.sender_name.clone();
             let sanitized = name.to_lowercase().replace(' ', "-");
             let testid = format!("node-{sanitized}");
             let user_id = link.sender_id.clone();
 
+            // Radial angle of this node from center (0 = right, -PI/2 = top).
+            let node_angle = (i as f64 / n as f64) * TAU - (PI / 2.0);
+
+            // Place the label anchor point radially beyond the node edge.
+            let label_radius = RING_RADIUS + NODE_RADIUS + LABEL_RADIAL_GAP;
+            let label_x = CENTER_X + label_radius * node_angle.cos();
+            let label_y = CENTER_Y + label_radius * node_angle.sin();
+
+            // Choose SVG text-anchor so the label grows away from the ring center,
+            // preventing overlap with the adjacent node's label on the same side.
+            let degrees_from_vertical = (node_angle.to_degrees().abs() % 180.0 - 90.0).abs();
+            let anchor = if degrees_from_vertical < VERTICAL_AXIS_TOLERANCE_DEGREES {
+                // Near the top or bottom: center-anchor avoids left/right drift.
+                "middle"
+            } else if node_angle.cos() > 0.0 {
+                // Right half of ring: text grows rightward from anchor.
+                "start"
+            } else {
+                // Left half of ring: text grows leftward from anchor.
+                "end"
+            };
+
+            // Split "Given-Name Surname-Name" into two lines at the first space.
+            // Each line of a 30-char double-barrel name becomes ~15 chars ≈ 112px
+            // at font-size 12 — fits within the per-node arc lane at n=15.
+            let (line1, line2) = name
+                .find(' ')
+                .map_or((&name[..], ""), |pos| (&name[..pos], &name[pos + 1..]));
+
+            let line_height = 15.0_f64;
+            let line1_y = if line2.is_empty() {
+                label_y
+            } else {
+                label_y - line_height / 2.0
+            };
+            let line2_y = line1_y + line_height;
+
             view! {
                 <g>
+                    <title>{name.clone()}</title>
                     <circle
                         cx=cx
                         cy=cy
@@ -1149,14 +1193,15 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                         data-user-id=user_id
                     />
                     <text
-                        x=cx
-                        y=cy + NODE_RADIUS + LABEL_OFFSET_Y
-                        text-anchor="middle"
-                        font-size="13"
+                        text-anchor=anchor
+                        font-size="12"
                         font-weight="600"
                         fill="var(--color-text)"
                     >
-                        {name}
+                        <tspan x=label_x y=line1_y>{line1.to_owned()}</tspan>
+                        {(!line2.is_empty()).then(|| view! {
+                            <tspan x=label_x y=line2_y>{line2.to_owned()}</tspan>
+                        })}
                     </text>
                 </g>
             }
@@ -1169,7 +1214,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                 "Assignment cycle " {cohort_num} ": " {n} " participants (score: " {score} ")"
             </figcaption>
             <svg
-                viewBox="0 0 600 560"
+                viewBox="0 0 700 700"
                 class="cycle-viz"
                 role="img"
                 aria-label=format!("Assignment cycle {cohort_num}: {n} participants")
