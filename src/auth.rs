@@ -346,6 +346,60 @@ pub async fn current_user(
 // `CurrentUser` lives in `crate::types` so it's available in both SSR and WASM builds.
 pub use crate::types::CurrentUser;
 
+#[cfg(test)]
+mod tests {
+    use super::{constant_time_hash_eq, sha256_hex};
+
+    // SHA-256 of the empty string — NIST FIPS 180-4 published test vector.
+    // This verifies the algorithm identity, not any application constant.
+    const SHA256_OF_EMPTY_STRING: &str =
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+    #[test]
+    fn sha256_hex_matches_published_empty_string_vector() {
+        assert_eq!(sha256_hex(""), SHA256_OF_EMPTY_STRING);
+    }
+
+    #[test]
+    fn sha256_hex_is_deterministic_for_same_input() {
+        let first = sha256_hex("hello");
+        let second = sha256_hex("hello");
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn sha256_hex_produces_distinct_digests_for_distinct_inputs() {
+        assert_ne!(sha256_hex("abc"), sha256_hex("abd"));
+    }
+
+    #[test]
+    fn sha256_hex_output_is_64_lowercase_hex_characters() {
+        let digest = sha256_hex("any input");
+        assert_eq!(digest.len(), 64);
+        assert!(digest.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn constant_time_hash_eq_accepts_equal_digests() {
+        let digest = sha256_hex("secret");
+        assert!(constant_time_hash_eq(&digest, &digest));
+    }
+
+    #[test]
+    fn constant_time_hash_eq_rejects_different_digests() {
+        let digest_a = sha256_hex("correct");
+        let digest_b = sha256_hex("incorrect");
+        assert!(!constant_time_hash_eq(&digest_a, &digest_b));
+    }
+
+    #[test]
+    fn constant_time_hash_eq_rejects_empty_against_non_empty() {
+        let digest = sha256_hex("something");
+        assert!(!constant_time_hash_eq("", &digest));
+        assert!(!constant_time_hash_eq(&digest, ""));
+    }
+}
+
 // ── Server function context helpers ─────────────────────────────────────────
 
 /// Extract the database pool and authenticated user from server function context.
