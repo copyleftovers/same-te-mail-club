@@ -69,7 +69,7 @@ The `/qa-run` skill orchestrates E2E test execution and locator healing. The exi
 
 ## E2E Pitfalls (Learned)
 
-- **Login race:** `login()` POM method must `waitForLoadState("domcontentloaded")` after the OTP verify redirect. Without it, subsequent `page.goto()` fires mid-redirect and SSR responses hang (Suspense never resolves).
+- **Login race:** `login()` POM method must assert `expect(page).not.toHaveURL(/\/login/)` after the OTP verify redirect. Without it, subsequent `page.goto()` fires mid-redirect and SSR responses hang (Suspense never resolves). `waitForLoadState("domcontentloaded")` is banned — it races if DOMContentLoaded fires before the call.
 - **Redundant navigation:** `goHome()` skips `page.goto("/")` if already on `/`. The dev WASM bundle is ~14MB; redundant full reloads intermittently exceed the 15s `navigationTimeout`.
 - **Serial cascade:** The main flow runs in one `test.describe.serial` block. Epic 6 (Account Management) and Session Management (Logout) are split into independent serial blocks to avoid cascade from main-flow failures.
 - **Pre-compressed WASM:** `end2end/precompress-and-test.sh` pre-compresses static assets (brotli + gzip) before every E2E run. `CompressionLayer` then serves `.br` files directly instead of re-compressing 14MB on the fly. Without this, SSR stalls under sustained load.

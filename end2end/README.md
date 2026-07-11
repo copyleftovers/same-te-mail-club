@@ -181,7 +181,7 @@ These methods wait for their own completion. The test can proceed immediately af
 | Method | Completion Signal |
 |--------|------------------|
 | `login(phone)` | Navigates away from `/login` |
-| `completeOnboarding(branch)` | Navigates to `/` |
+| `completeOnboarding(city, branchNumber)` | Navigates to `/` |
 | `createSeason(signup, confirm, theme?)` | `launch-button` becomes visible |
 | `launchSeason()` | `advance-button` becomes visible |
 | `advanceSeason()` | POST response received (no DOM change — uses `clickAndWaitForResponse`) |
@@ -193,7 +193,7 @@ These methods use `click()` + element visibility wait internally. The test can p
 
 | Method | Completion Signal |
 |--------|------------------|
-| `enrollInSeason(branch?)` | `enroll-button` disappears |
+| `enrollInSeason(city?, branchNumber?)` | `enroll-button` disappears |
 | `confirmReady()` | `confirm-ready-button` disappears |
 | `confirmReceipt(received, note?)` | Thank-you/reported text appears |
 | `generateAssignments()` | `cycle-visualization` appears |
@@ -334,7 +334,7 @@ async expectSomeContent(text: string | RegExp) {
 - [ ] Self-contained actions wait for their completion signal
 - [ ] Assertion-separated actions document what the caller should assert
 - [ ] All selectors use testids — never CSS classes, roles with name, or tag structures
-- [ ] Methods that trigger 302 redirects (login, logout, completeOnboarding) wait for `domcontentloaded` after redirect
+- [ ] Methods that trigger 302 redirects (login, logout, completeOnboarding) use `expect(page).not.toHaveURL(/\/the-source-path/)` to wait for the redirect to complete — `waitForLoadState` in any form is banned after redirects
 
 ---
 
@@ -502,7 +502,7 @@ A flaky test is a test with a missing wait. Find the missing synchronization poi
 
 - [ ] No `waitForTimeout` calls anywhere in POM or tests
 - [ ] No `networkidle` waits
-- [ ] Every ActionForm click uses `clickAndWaitForResponse()` with a `urlHint`
+- [ ] Every ActionForm click uses element visibility wait (`toBeVisible()` / `not.toBeVisible()`) as the primary pattern; `clickAndWaitForResponse()` with a `urlHint` only when there is no visible DOM change
 - [ ] Every assertion uses web-first form (`await expect(locator).toX()`)
 - [ ] New POM methods wait for hydration where needed
 - [ ] **All selectors use `getByTestId()` — no `getByLabel`, `getByRole` with name, or `getByText`**
