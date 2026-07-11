@@ -115,8 +115,8 @@
      imperceptible). WCAG contrast is the wrong metric for two near-black surfaces;
      OKLCH L is perceptually uniform, so the L delta is the correct measure.
    - --color-border 0.58 = 4.04:1 on raised(0.22), 4.60:1 on base(0.15) — ≥3:1 non-text.
-   - --color-error 0.68 error text on the solid dark alert panel(0.22) = 5.27:1 — AA.
-   - --color-success 0.72 success text on the solid dark report panel(0.22) = 7.48:1 — AA.
+   - --color-error 0.68 error text on the solid dark alert panel(0.27) = 4.59:1 — AA.
+   - --color-success 0.72 success text on the solid dark report panel(0.27) = 6.51:1 — AA.
    Raw tokens (brand-*) never change; only semantic aliases do. */
 @media (prefers-color-scheme: dark) {
   :root {
@@ -131,10 +131,12 @@
     /* Solid dark container fill for informational panels (.alert /
        .sms-report-result) and stepper markers. A colour-alpha wash over
        near-black tops out at ~1.6:1 vs the page (invisible as a panel), so dark
-       mode uses a solid raised-tinted fill instead. Value 0.28: +0.13L above base
-       (0.15) for page-level use, and +0.06L above raised cards (0.22) so the panel
-       remains a perceptible container when nested inside .admin-section. */
-    --color-panel-dark: oklch(0.28 0.01 250);
+       mode uses a solid raised-tinted fill instead. Value 0.27: +0.12L above base
+       (0.15) for page-level use, and +0.05L above raised cards (0.22) so the panel
+       remains a perceptible container when nested inside .admin-section. 0.27 is
+       the AA ceiling: error text (0.68) on 0.27 = 4.59:1; on 0.28 it drops to
+       4.44:1 — below the 4.5:1 normal-text minimum. */
+    --color-panel-dark: oklch(0.27 0.01 250);
     /* Stepper pending/locked marker + connector fill: +0.15 L solid step above
        base so the sequence structure stays visible (alpha 0.2 gray was invisible). */
     --color-step-idle: oklch(0.30 0.01 250);
@@ -720,10 +722,10 @@
 
   /* Dark mode: a 0.1-alpha colour wash over near-black tops out at ~1.4:1 vs the
      page — the informational container disappears. Use a SOLID panel fill
-     (--color-panel-dark = oklch 0.22, +0.07 L above base = a real container) with
+     (--color-panel-dark = oklch 0.27, +0.12 L above base = a real container) with
      a 3px colour-accent left border to carry the semantic (error red / success
-     green). Text stays on the solid panel: error text (0.68 dark) = 5.27:1,
-     success value cream = 16:1 — both AA. */
+     green). Text stays on the solid panel: error text (0.68 dark) = 4.59:1,
+     success value cream = 14.2:1 — both AA. */
   @media (prefers-color-scheme: dark) {
     .alert {
       background: var(--color-panel-dark);
