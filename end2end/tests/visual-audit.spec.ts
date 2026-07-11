@@ -739,7 +739,7 @@ test.describe.serial("Visual Audit", () => {
     // Confirm the form is visible before capturing — this IS the pre-submit state.
     await expect(page.getByTestId("received-button")).toBeVisible();
     // Capture the assignment+receipt form (H7): received-button + not-received-button visible.
-    await captureState(page, "home-receipt-not-received", { stateId: "H7", route: "/" });
+    await captureState(page, "home-receipt-not-received", { stateId: "H7b", route: "/" });
     // Now submit the not-received report so the DB state advances for C and admin.
     await app.confirmReceipt(false);
   });
