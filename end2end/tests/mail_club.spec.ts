@@ -1,5 +1,6 @@
 import { test, expect } from "./fixtures/cached-context";
 import { MailClubPage } from "./fixtures/mail_club_page";
+import { ADMIN_PHONE, futureDeadline } from "./fixtures/capture-constants";
 
 /**
  * The Mail Club — E2E Test Suite
@@ -22,7 +23,7 @@ import { MailClubPage } from "./fixtures/mail_club_page";
  *   SAMETE_SMS_DRY_RUN=true — SMS logged, not sent
  */
 
-const ADMIN_PHONE = "+380670000001";
+// ADMIN_PHONE is imported from capture-constants (shared with visual-audit specs).
 
 const PHONES = {
   A: "+380670000002",
@@ -51,10 +52,7 @@ const BRANCH_10 = "10";
 
 // Deadlines in the future — enrollment and confirmation stay open.
 // Phase advancement bypasses deadline gates in test mode.
-function futureDeadline(daysFromNow: number): string {
-  const d = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000);
-  return d.toISOString().slice(0, 16);
-}
+// futureDeadline() is imported from capture-constants (shared with visual-audit specs).
 
 const SIGNUP_DEADLINE = futureDeadline(7);
 const CONFIRM_DEADLINE = futureDeadline(21);

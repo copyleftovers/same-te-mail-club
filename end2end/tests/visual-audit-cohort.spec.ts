@@ -24,17 +24,13 @@ import * as fs from "fs";
 import * as path from "path";
 import { test, expect } from "./fixtures/cached-context";
 import { MailClubPage } from "./fixtures/mail_club_page";
-
-// Admin phone matches seed/test_admin.sql
-const ADMIN_PHONE = "+380670000001";
-
-const MOBILE_VIEWPORT  = { width: 375, height: 812 } as const;
-const DESKTOP_VIEWPORT = { width: 1280, height: 800 } as const;
-
-// Paint-settle delay reused from visual-audit.spec.ts precedent.
-// Exempted from waitForTimeout ban: this is a capture harness paint settle,
-// not a test-assertion wait (see deferred_items: `waitForTimeout(LAYOUT_REFLOW_MS)`).
-const LAYOUT_REFLOW_MS = 150;
+import {
+  ADMIN_PHONE,
+  MOBILE_VIEWPORT,
+  DESKTOP_VIEWPORT,
+  LAYOUT_REFLOW_MS,
+  paintSettle,
+} from "./fixtures/capture-constants";
 
 // The five files this spec produces (relative to screenshots/).
 // Kept in sync with the actual screenshot() calls below so the INDEX merge
@@ -163,14 +159,14 @@ test.describe.serial("Cohort Capture", () => {
     // Capture full-page in all four matrix slots.
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
-      await page.waitForTimeout(LAYOUT_REFLOW_MS);
+      await paintSettle(page);
 
       for (const [viewport, label] of [
         [DESKTOP_VIEWPORT, "desktop"],
         [MOBILE_VIEWPORT, "mobile"],
       ] as const) {
         await page.setViewportSize(viewport);
-        await page.waitForTimeout(LAYOUT_REFLOW_MS);
+        await paintSettle(page);
         await page.screenshot({
           path: `screenshots/${scheme}-${label}/admin-cycle-viz-12-nodes.png`,
           fullPage: true,
@@ -181,7 +177,7 @@ test.describe.serial("Cohort Capture", () => {
     // Restore to light + desktop for the section crop.
     await page.emulateMedia({ colorScheme: "light" });
     await page.setViewportSize(DESKTOP_VIEWPORT);
-    await page.waitForTimeout(LAYOUT_REFLOW_MS);
+    await paintSettle(page);
 
     // Section crop: the SVG element alone — too small to evaluate in the full-page shot.
     await page.getByTestId("cycle-visualization").first().screenshot({

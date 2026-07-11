@@ -2,6 +2,14 @@ import { execSync } from "child_process";
 import { type Page } from "@playwright/test";
 import { test, expect } from "./fixtures/cached-context";
 import { MailClubPage } from "./fixtures/mail_club_page";
+import {
+  ADMIN_PHONE,
+  MOBILE_VIEWPORT,
+  DESKTOP_VIEWPORT,
+  LAYOUT_REFLOW_MS,
+  paintSettle,
+  futureDeadline,
+} from "./fixtures/capture-constants";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -34,8 +42,7 @@ import * as path from "path";
 
 // ── Phone constants ────────────────────────────────────────────────────────────
 // Separate phones from the main suite so the two suites can run independently.
-
-const ADMIN_PHONE = "+380670000001";
+// ADMIN_PHONE is imported from capture-constants (shared with mail_club.spec.ts).
 
 const AUDIT_PHONES = {
   A: "+380680000002",
@@ -57,14 +64,10 @@ const LONG_CITY_A = "Кривий Ріг Дніпропетровська обл
 const LONG_BRANCH_A = "128";
 
 // ── Deadline helpers ───────────────────────────────────────────────────────────
+// futureDeadline() is imported from capture-constants (shared with mail_club.spec.ts).
 
-function futureDatetime(daysFromNow: number): string {
-  const d = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000);
-  return d.toISOString().slice(0, 16);
-}
-
-const SIGNUP_DEADLINE = futureDatetime(7);
-const CONFIRM_DEADLINE = futureDatetime(21);
+const SIGNUP_DEADLINE = futureDeadline(7);
+const CONFIRM_DEADLINE = futureDeadline(21);
 // Long theme string — exercises theme display in season summary and admin headings.
 const SEASON_THEME =
   "Аудит — Перший сезон: Книги про мандри та подорожі навколо світу";
@@ -99,12 +102,8 @@ const SCREENSHOT_DIRS = [
 ] as const;
 
 // ── Viewport + timing constants ────────────────────────────────────────────────
-
-const MOBILE_VIEWPORT = { width: 375, height: 812 } as const;
-const DESKTOP_VIEWPORT = { width: 1280, height: 800 } as const;
-// Documented exception to the waitForTimeout ban: paint-timing settle for
-// screenshot captures only (not an assertion wait). Pre-existing pattern.
-const LAYOUT_REFLOW_MS = 150;
+// MOBILE_VIEWPORT, DESKTOP_VIEWPORT, LAYOUT_REFLOW_MS, and paintSettle are
+// imported from capture-constants (shared with visual-audit-cohort.spec.ts).
 
 // ── Core capture helpers ───────────────────────────────────────────────────────
 
@@ -122,7 +121,7 @@ async function recordScreenshot(
   route: string,
 ): Promise<void> {
   await page.setViewportSize(viewport);
-  await page.waitForTimeout(LAYOUT_REFLOW_MS);
+  await paintSettle(page);
   await page.screenshot({ path: `screenshots/${relPath}`, fullPage: true });
   addManifestEntry(relPath, stateId, route);
 }
@@ -188,7 +187,7 @@ async function captureSection(
   sectionTestid: string,
 ): Promise<void> {
   await page.setViewportSize(DESKTOP_VIEWPORT);
-  await page.waitForTimeout(LAYOUT_REFLOW_MS);
+  await paintSettle(page);
   const filename = `${stateName}__${sectionTestid}.png`;
   await page.getByTestId(sectionTestid).screenshot({
     path: `screenshots/sections/${filename}`,
@@ -330,7 +329,7 @@ test.describe.serial("Visual Audit", () => {
     // ── A62: filter active — fill partial code to narrow the list ──
     const filterInput = page.getByTestId("invite-code-filter-input");
     await filterInput.fill(AUDIT_CODES.A.slice(0, 4));
-    await page.waitForTimeout(LAYOUT_REFLOW_MS);
+    await paintSettle(page);
     await captureState(page, "admin-invite-codes-filter-active", { stateId: "A62", route: "/admin" });
     // Clear filter so downstream tests see unfiltered list.
     await filterInput.fill("");
@@ -344,9 +343,9 @@ test.describe.serial("Visual Audit", () => {
     await app.goToDashboard();
     // Set mobile viewport before clicking so the menu button is rendered.
     await page.setViewportSize(MOBILE_VIEWPORT);
-    await page.waitForTimeout(LAYOUT_REFLOW_MS);
+    await paintSettle(page);
     await page.getByTestId("menu-toggle").click();
-    await page.waitForTimeout(LAYOUT_REFLOW_MS);
+    await paintSettle(page);
     // Mobile viewport only — the menu toggle does not render at desktop widths.
     // Captured in both color schemes.
     await page.emulateMedia({ colorScheme: "light" });
@@ -782,7 +781,7 @@ test.describe.serial("Visual Audit", () => {
   test("setup — create and launch a second season for cancel demo", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await app.createSeason(futureDatetime(7), futureDatetime(21));
+    await app.createSeason(futureDeadline(7), futureDeadline(21));
     await app.launchSeason();
   });
 
@@ -838,7 +837,7 @@ test.describe.serial("Visual Audit", () => {
   test("setup — create and launch third season for existing-address capture", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await app.createSeason(futureDatetime(7), futureDatetime(21));
+    await app.createSeason(futureDeadline(7), futureDeadline(21));
     await app.launchSeason();
   });
 
