@@ -46,7 +46,7 @@ LEAVE protocol (session close, reference updates, session record) is governed by
 | Command | Purpose |
 |---------|---------|
 | `just dev` | Start dev server (hot reload) |
-| `just test` | Run unit tests |
+| `just test` | Run unit tests (55 tests bare; 62 with `--features ssr`) |
 | `just clippy` | Run clippy (SSR) |
 | `just e2e` | Run Playwright E2E tests |
 | `just e2e-release` | E2E tests against release build |
@@ -54,7 +54,8 @@ LEAVE protocol (session close, reference updates, session record) is governed by
 | `just serve` | Build release + run binary |
 | `just check` | Full validation: fmt + clippy + test |
 | `just db-reset` | Drop, create, migrate database |
-| `just prepare` | Generate sqlx offline query data |
+| `just prepare` | Generate sqlx offline query data (`cargo sqlx prepare --workspace -- --features ssr`) |
+| `just capture-isolated <suffix> [visual\|full]` | Capture screenshots using an isolated port + sibling DB (never touches :3000/samete) |
 | `bacon` | Continuous clippy. Keys: `s` SSR, `h` hydrate, `t` tests |
 
 **Environment:** `just e2e` requires `source .env.example` (or `.env`) for `DATABASE_URL`. Do not run `just` targets without it.
@@ -74,6 +75,7 @@ The `/qa-run` skill orchestrates E2E test execution and locator healing. The exi
 - **Serial cascade:** The main flow runs in one `test.describe.serial` block. Epic 6 (Account Management) and Session Management (Logout) are split into independent serial blocks to avoid cascade from main-flow failures.
 - **Pre-compressed WASM:** `end2end/precompress-and-test.sh` pre-compresses static assets (brotli + gzip) before every E2E run. `CompressionLayer` then serves `.br` files directly instead of re-compressing 14MB on the fly. Without this, SSR stalls under sustained load.
 - **Static asset caching:** `end2end/tests/fixtures/cached-context.ts` caches `.wasm`, `.js`, `.css`, `.woff2` responses to a temp dir on first download, serves from cache on subsequent tests. Import `test`/`expect` from this fixture, not `@playwright/test`. Eliminates 57 redundant 14MB WASM downloads per run.
+- **E2E shared constants:** `end2end/tests/fixtures/capture-constants.ts` exports `MOBILE_VIEWPORT`, `DESKTOP_VIEWPORT`, `LAYOUT_REFLOW_MS`, `ADMIN_PHONE`, `futureDeadline(daysFromNow)`, and `paintSettle(page)`. Import from there — do not redeclare these in spec files.
 
 ## Operational Notes
 

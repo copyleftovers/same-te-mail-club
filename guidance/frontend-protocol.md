@@ -19,8 +19,10 @@ Read `design-system.md` first. This document tells you how to build with it.
 
 ```
 style/
-  tailwind.css     ← @import "tailwindcss" + @theme + @source + @layer
-  main.css         ← DELETED or empty. All CSS moves into tailwind.css.
+  tailwind.css     ← 4-line orchestrator: @import "tailwindcss"; @source "../src"; @import "./tokens.css"; @import "./components.css";
+  tokens.css       ← @theme raw tokens + :root semantic aliases + @layer base (font-face, resets, focus ring, grain overlay)
+  components.css   ← @layer components (all component classes) + @utility
+  main.css         ← empty (kept for cargo-leptos style-file compatibility)
 public/
   fonts/
     CyGroteskGrandDark.woff2
@@ -31,7 +33,7 @@ public/
   logo-white.svg
 ```
 
-cargo-leptos concatenates `style-file` output before Tailwind output. Since all CSS now lives in `tailwind.css`, the `style-file` field can remain pointing at `style/main.css` (empty) or be removed. Either is fine — no CSS should live outside `tailwind.css`.
+cargo-leptos concatenates `style-file` output before Tailwind output. `style/main.css` is empty; the `style-file` field points to it for compatibility. All authored CSS lives in `tokens.css` and `components.css`.
 
 ### CSS Output
 
@@ -41,9 +43,9 @@ cargo-leptos concatenates `style-file` output before Tailwind output. Since all 
 
 ## CSS Architecture
 
-### Single File
+### Three-File Split
 
-All design tokens, base styles, component classes, and custom utilities live in `style/tailwind.css`. This is a ~15-screen app with one developer. Splitting into multiple CSS files adds indirection without reducing complexity. If the file exceeds ~500 lines, split by concern: `style/tokens.css`, `style/components.css`, imported via `@import` in `tailwind.css`.
+CSS is split into three files imported by `tailwind.css`: `tokens.css` holds all design tokens and base styles; `components.css` holds all component classes and utilities. The split happened when `tailwind.css` exceeded 1600 lines (FU-09). Add new tokens to `tokens.css`, new component classes to `components.css`. Do not create additional split files.
 
 ### Layer Order
 

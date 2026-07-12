@@ -30,15 +30,11 @@ These are CSS custom properties on `:root`, not `@theme` tokens. They do not gen
 ```
 --color-surface           → --color-brand-cream
 --color-surface-raised    → white
---color-surface-dark      → --color-brand-black
 --color-text              → --color-brand-black
 --color-text-muted        → --color-brand-gray
---color-text-on-dark      → --color-brand-cream
---color-text-on-dark-muted→ --color-brand-pink
 --color-accent            → --color-brand-orange
---color-accent-alt        → --color-brand-pink
 --color-focus             → --color-brand-blue
---color-error             → oklch(0.55 0.22 25)
+--color-error             → var(--color-badge-error)
 --color-success           → oklch(0.58 0.16 160)
 --color-border            → --color-brand-gray
 ```
@@ -227,6 +223,18 @@ Inline informational link (tel/address): `color: var(--color-text)`, `text-decor
 `max-width: 65ch; margin-inline: auto; padding-inline: var(--spacing-4)`
 
 Participant-facing pages: spacious. Admin pages: same container but tighter density (see below).
+
+### Page Frame
+
+`.page-frame` — viewport-height layout shell for participant pages only. `min-height: calc(100dvh - var(--header-height))`. Short and terminal participant states (NoSeason, Enrolled wait, Confirmed, etc.) center their `.empty-state` via `.page-frame > .prose-page > .empty-state { margin: auto }`. Never wraps admin.
+
+### Auth Card
+
+`.auth-card` — centered card container for all login/onboarding steps. Consumes `.page-frame` for viewport centering. Holds the logo mark, `<h1>`, form, and back-button. `max-width: 28rem`.
+
+### Admin Section
+
+`.admin-section` — raised-surface card class for admin `<section>` wrappers. Applies `--color-surface-raised` background, `--radius-lg` border-radius, padding via `--density-space-md`. Four peer `.admin-section` cards sit side by side inside the admin layout; no nesting. References `--density-space-*` tokens which compact automatically under `[data-layout="admin"]`.
 
 ---
 
