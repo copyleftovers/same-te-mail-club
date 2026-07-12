@@ -38,8 +38,8 @@ Changes in 2026-06-22: Component system elevation — 43 fixes across CSS + 5 Ru
 
 ## E2E Test Suite
 
-- **Total:** 117 tests (75 mail_club.spec.ts + 43 visual-audit.spec.ts; 2 by-design skips in full mode)
-- **Pass rate:** 117/117 — verified pre-push T-CAP session (mode=full on isolated harness)
+- **Total:** 119 tests (75 mail_club.spec.ts + 43 visual-audit.spec.ts + 1 visual-audit-cohort.spec.ts; 2 by-design skips in full mode)
+- **Pass rate:** 117/119 — verified pre-push T-CAP session (mode=full on isolated harness)
 - **Runtime:** ~55s (release, local); ~2m (dev, local — flaky, see deferred items)
 - **Structure:** mail_club.spec.ts — main lifecycle chain + Account Management + Session Management. visual-audit.spec.ts — 43 capture tests across 4 mode dirs (light-desktop, light-mobile, dark-desktop, dark-mobile) + sections/
 - **Pipeline:** `just e2e` → `just e2e-release` (release binary). `just e2e-dev` for dev mode. `just capture-isolated <suffix> [visual|full]` for isolated capture.
@@ -189,7 +189,7 @@ main @ **443efdd**, UNPUSHED, clean tree (except orchestration_log docs). No CI 
 18 commits over d06b4ba, full spec→quality→pixels chain. Screenshot capture is now the authoritative review artifact:
 - **`end2end/tests/visual-audit.spec.ts` rewritten:** stable `{area}-{state-slug}[__{variant}].png` naming (no execution-order coupling — filenames survive partial runs, diffable across runs); dirs `light-desktop|light-mobile|dark-desktop|dark-mobile` (+`sections/`, pruned 102→3 crops); atomic `recordScreenshot` primitive (sole `page.screenshot` site) appends MANIFEST → `screenshots/INDEX.md` (file|stateId|route) written in afterAll; beforeAll stale-png cleanup; error/focus variants captured in dark too; Pass B (revoked code, deactivated participant) + Pass C (existing-address enrollment, pre-submit not-received form `H7b`); no-season capture guarded via `season-cancelled` probe (honest in full-suite context). 43 tests.
 - **`end2end/tests/visual-audit-cohort.spec.ts` (NEW) + `end2end/tests/fixtures/cohort-seed.sql` (NEW):** 12-node cycle-viz pass, direct SQL seed (12 double-barrel-Ukrainian participants, ring assignments) into the harness sibling DB. Triple-guarded: file-scope `test.skip(COHORT_CAPTURE!=="1")` (blocks beforeAll under default discovery), `assertSiblingDatabaseUrl` (throws on unset/`samete`), harness exports the flag only for cohort VISUAL_SPEC. Seed + INDEX-row merge both idempotent. Invocation: `VISUAL_SPEC=tests/visual-audit-cohort.spec.ts bash scripts/isolated-capture.sh <suffix> visual`.
-- **`scripts/isolated-capture.sh`:** `"${VISUAL_SPEC:-tests/visual-audit.spec.ts}"` override + cohort case-block. `mode=full` + isolated port/DB = CI-way full-suite validation without touching :3000/samete (117 passed / 2 by-design skips verified pre-push).
+- **`scripts/isolated-capture.sh`:** `"${VISUAL_SPEC:-tests/visual-audit.spec.ts}"` override + cohort case-block. `mode=full` + isolated port/DB = CI-way full-suite validation without touching :3000/samete (117/119 passed / 2 by-design skips verified pre-push).
 - **5 designed captures removed as unreachable-by-design** (anti-enumeration silent-Ok paths, HTML5 required gating, no-op same-participant swap, always-seeded resend cooldown) — each with source-cited WHY comment. Gap-analysis lesson: DOM-element presence ≠ reachable state; trace server semantics.
 - **Artifact contract:** 174 pngs == 174 INDEX rows (two-direction verified); INDEX.md is the navigation manifest for review.
 - App-defect catalog (7 actionable + 1 design question) extracted to `orchestration_log/history/2026-07-09/app-defect-catalog.md`.

@@ -190,7 +190,7 @@ Admin-specific component classes (`.data-table`, `.invite-code-card`) live in th
 
 ## @font-face
 
-Declared in `@layer base` inside `style/tailwind.css`:
+Declared in `@layer base` inside `style/components.css`:
 
 ```css
 @layer base {
@@ -223,7 +223,7 @@ Font URLs use `/fonts/` (root-relative) because cargo-leptos serves `public/` as
 
 ## Grain Overlay
 
-Applied in `@layer base` as `body::after`:
+Applied in `@layer base` inside `style/components.css` as `body::after`:
 
 ```css
 @layer base {
