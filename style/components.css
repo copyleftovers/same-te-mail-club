@@ -285,6 +285,11 @@
     letter-spacing: 0.1em; /* inherent: spec-defined OTP/phone tracking */
   }
 
+  .field-input[data-otp] {
+    text-align: center;
+    font-size: var(--text-otp);
+  }
+
   select.field-input {
     appearance: none;
     /* SVG arrow uses %23565656 — hex approximation of --color-brand-gray (oklch 0.45 0.01 250).
@@ -307,11 +312,6 @@
   textarea.field-input {
     min-height: var(--size-textarea);
     resize: vertical;
-  }
-
-  .field-input[data-otp] {
-    text-align: center;
-    font-size: var(--text-otp);
   }
 
   .badge {
