@@ -87,3 +87,25 @@
 - main @ 6600644 pushed; CI in progress (babysit cron 94e0653e, flake-aware). Task #16 stays in_progress until CI green.
 - Wake crons: 15:48 + 16:18. User running live app on :3000 (do not disturb).
 - On CI green: complete #16, run session-close when user requests. If CI e2e flakes red: rerun that job once per the babysit logic.
+
+## Checkpoint — 11:45 (CAMPAIGN COMPLETE, CI fully green)
+
+### Final state
+- **main @ 6fc68ca, pushed, CI 29189498352 FULLY GREEN** (Check incl. cargo-audit gate + E2E release both success; OTP flake did not fire).
+- **28 backlog units + FU-19b (CVE remediation) = 29 units shipped**, every one through implementer→spec→quality→integrate. Campaign objective met: code-quality + idiomaticity + sustainability across Rust/Leptos/sqlx/CSS/tests/docs/deps/CI.
+- **Antifragility proof:** the FU-19 supply-chain gate, on its first CI run, surfaced 10 pre-existing transitive CVEs (rustls-stack name-constraint/CRL bypasses, quick-xml DoS ×2, quinn memory-exhaustion, rsa timing side-channel). FU-19b cleared 9 via real lockfile upgrades (aws-lc-sys 0.42, rustls-webpki 0.103.13, quinn-proto 0.11.16, quick-xml 0.41) + 1 justified `.cargo/audit.toml` ignore (rsa, no upstream fix, reachable only via sqlx-mysql unconditional bundling, postgres-only app). cargo audit now exit-0.
+
+### Headline outcomes (for inspection)
+- `just prepare` sqlx-cache-wipe BLOCKER fixed (the footgun was in the anti-footgun tool).
+- 41 hidden unit tests exposed to bare `cargo test` (9→55; CI-covered).
+- Phase/season semantics de-duplicated (typed Rust vs raw SQL drift eliminated).
+- Participant-facing English errors localized.
+- SMS N+1 writes batched (failure-semantics preserved), hot-path indexes added, deactivation transactionalized, silent stale-address enrollment closed (TDD).
+- 1626-line CSS monolith split by concern with proven output identity; dead rules/tokens/deps removed.
+- 10 shipping CVEs paid down.
+
+### LEAVE-readiness
+- Task board: #14/#15/#16/#17 all complete. No pending autonomous work; all agents idle.
+- Crons: babstops + CI babysit cleared. Token-session wake crons 8412f961(15:48)/aa9f9f20(16:18) LEFT as continuity insurance — they no-op if no work pending.
+- Full session-close ceremony (metrics, cost.md, session record finalization) awaits explicit user invocation of session-close.
+- Open follow-ups all in deferred_items.md 2026-07-12 (Leptos reactive-disposal flake investigation; component-eval A2 stale grep; orphan samete_rerun_* DBs; IP rate-limiting).
