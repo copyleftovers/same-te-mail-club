@@ -229,3 +229,8 @@ All 7 Wave-2 units integrated (admin markup, admin i18n, home, onboarding, login
 - **RESOLVED: UK copy proposals** — all 8 proposal keys native-reviewed with owner-delegated judgment; 4 strings improved (form-neutral resend cooldown "Повторно через {{ seconds }} с"; gender-neutral "Тебе запрошено"; de-bureaucratized enrolled-milestone; ти-form cancelled-season body), 4 confirmed as-is. Commits 83b1f85+80d1c70, CI green 29151064861.
 - **CLOSED: A10 unlaunched-season visibility** — NOT-PRESCRIBED (spec trace: story 4.2 "Enrollment opens immediately upon launch"; 4.3 recreate-not-cancel treats draft as admin-internal). User ruling 2026-07-11: create/launch stays as separate steps; no participant-facing pre-launch state. No code change.
 - Still open (carry-forward): cohort-seed.sql LIKE/UUID idempotency-guard nit; F4/F5 NOTEs (separator const ×2 modules, error-routing idiom undocumented — rule of three); intermittent Leptos SSR disposal 500; IP rate limiting absent.
+
+## Added 2026-07-12 (campaign checkpoint)
+
+- **Sustainability backlog is the live execution contract** — recon/2026-07-12/SUSTAINABILITY-BACKLOG.md (gitignored recon). 30 units, 3 waves. Do NOT clean recon/2026-07-12 until campaign closes; anything unexecuted at close must be re-homed here with unit IDs.
+- **SubagentStart oath hook still injects 0 elements** (recurring since 2026-07-03) — now mitigated by path-carrying dispatch lines; the hook itself remains unfixed (plugin-side investigation still owed).
