@@ -120,52 +120,56 @@ pub fn AdminPage() -> impl IntoView {
     // ── Toast feedback for successful actions ─────────────────────────────────
     Effect::new(move |_| {
         if let Some(Ok(())) = create_action.value().get() {
-            set_toast.set(Some("Сезон створено!".into()));
+            set_toast.set(Some(t_string!(i18n, admin_season_created_toast).into()));
         }
     });
     Effect::new(move |_| {
         if let Some(Ok(())) = launch_action.value().get() {
-            set_toast.set(Some("Сезон запущено!".into()));
+            set_toast.set(Some(t_string!(i18n, admin_season_launched_toast).into()));
         }
     });
     Effect::new(move |_| {
         if let Some(Ok(())) = advance_action.value().get() {
-            set_toast.set(Some("Фазу просунуто!".into()));
+            set_toast.set(Some(t_string!(i18n, admin_season_advanced_toast).into()));
         }
     });
     Effect::new(move |_| {
         if let Some(Ok(())) = cancel_action.value().get() {
-            set_toast.set(Some("Сезон скасовано!".into()));
+            set_toast.set(Some(t_string!(i18n, admin_season_cancelled_toast).into()));
         }
     });
     Effect::new(move |_| {
         if let Some(Ok(_)) = generate_action.value().get() {
-            set_toast.set(Some("Призначення згенеровано!".into()));
+            set_toast.set(Some(
+                t_string!(i18n, admin_assignments_generated_toast).into(),
+            ));
         }
     });
     Effect::new(move |_| {
         if let Some(Ok(_)) = season_open_action.value().get() {
-            set_toast.set(Some("SMS надіслано!".into()));
+            set_toast.set(Some(t_string!(i18n, admin_sms_sent_toast).into()));
         }
     });
     Effect::new(move |_| {
         if let Some(Ok(_)) = assignment_action.value().get() {
-            set_toast.set(Some("SMS надіслано!".into()));
+            set_toast.set(Some(t_string!(i18n, admin_sms_sent_toast).into()));
         }
     });
     Effect::new(move |_| {
         if let Some(Ok(_)) = confirm_nudge_action.value().get() {
-            set_toast.set(Some("SMS надіслано!".into()));
+            set_toast.set(Some(t_string!(i18n, admin_sms_sent_toast).into()));
         }
     });
     Effect::new(move |_| {
         if let Some(Ok(_)) = receipt_nudge_action.value().get() {
-            set_toast.set(Some("SMS надіслано!".into()));
+            set_toast.set(Some(t_string!(i18n, admin_sms_sent_toast).into()));
         }
     });
     Effect::new(move |_| {
         if let Some(Ok(())) = deactivate_action.value().get() {
-            set_toast.set(Some("Учасника деактивовано!".into()));
+            set_toast.set(Some(
+                t_string!(i18n, admin_participant_deactivated_toast).into(),
+            ));
         }
     });
     Effect::new(move |_| {
@@ -447,7 +451,7 @@ fn render_create_form(
                         attr:aria-busy=move || pending.get().then_some("true")
                     >
                         {move || if pending.get() {
-                            "Створюю...".into_any()
+                            t!(i18n, admin_season_creating_loading).into_any()
                         } else {
                             t!(i18n, season_create_button).into_any()
                         }}
@@ -607,7 +611,7 @@ fn render_active_season(
                                 attr:aria-busy=move || launch_pending.get().then_some("true")
                             >
                                 {move || if launch_pending.get() {
-                                    "Запускаю...".into_any()
+                                    t!(i18n, admin_season_launching_loading).into_any()
                                 } else {
                                     t!(i18n, season_launch_button).into_any()
                                 }}
@@ -637,7 +641,7 @@ fn render_active_season(
                                     attr:aria-busy=move || advance_pending.get().then_some("true")
                                 >
                                     {move || if advance_pending.get() {
-                                        "Просуваю...".into_any()
+                                        t!(i18n, admin_season_advancing_loading).into_any()
                                     } else {
                                         t!(i18n, season_advance_button).into_any()
                                     }}
@@ -685,7 +689,7 @@ fn render_active_season(
                                                     attr:aria-busy=move || cancel_pending.get().then_some("true")
                                                 >
                                                     {move || if cancel_pending.get() {
-                                                        "Скасовую...".into_any()
+                                                        t!(i18n, admin_season_cancelling_loading).into_any()
                                                     } else {
                                                         t!(i18n, season_cancel_confirm_yes).into_any()
                                                     }}
@@ -781,7 +785,7 @@ fn render_phase_sms(
                                     attr:aria-busy=move || season_open_pending.get().then_some("true")
                                 >
                                     {move || if season_open_pending.get() {
-                                        "Надсилаю...".into_any()
+                                        t!(i18n, admin_sms_sending_loading).into_any()
                                     } else {
                                         t!(i18n, sms_send_season_open_button).into_any()
                                     }}
@@ -819,7 +823,7 @@ fn render_phase_sms(
                                     attr:aria-busy=move || confirm_nudge_pending.get().then_some("true")
                                 >
                                     {move || if confirm_nudge_pending.get() {
-                                        "Надсилаю...".into_any()
+                                        t!(i18n, admin_sms_sending_loading).into_any()
                                     } else {
                                         t!(i18n, sms_send_confirm_nudge_button).into_any()
                                     }}
@@ -862,7 +866,7 @@ fn render_phase_sms(
                                     attr:aria-busy=move || assignment_pending.get().then_some("true")
                                 >
                                     {move || if assignment_pending.get() {
-                                        "Надсилаю...".into_any()
+                                        t!(i18n, admin_sms_sending_loading).into_any()
                                     } else {
                                         t!(i18n, sms_send_assignment_button).into_any()
                                     }}
@@ -896,7 +900,7 @@ fn render_phase_sms(
                                     attr:aria-busy=move || receipt_nudge_pending.get().then_some("true")
                                 >
                                     {move || if receipt_nudge_pending.get() {
-                                        "Надсилаю...".into_any()
+                                        t!(i18n, admin_sms_sending_loading).into_any()
                                     } else {
                                         t!(i18n, sms_send_receipt_nudge_button).into_any()
                                     }}
@@ -999,7 +1003,7 @@ fn render_assignment_section(
                             attr:aria-busy=move || generate_pending.get().then_some("true")
                         >
                             {move || if generate_pending.get() {
-                                "Генерую...".into_any()
+                                t!(i18n, admin_assignments_generating_loading).into_any()
                             } else if has_assignments {
                                 t!(i18n, assignments_regenerate_button).into_any()
                             } else {
@@ -1678,9 +1682,9 @@ fn ParticipantListSection(
                                 if list.is_empty() {
                                     view! {
                                         <div class="empty-state" data-testid="empty-state">
-                                            <p class="empty-state-headline">Ще немає учасників</p>
+                                            <p class="empty-state-headline">{t!(i18n, admin_participants_empty_state)}</p>
                                             <p class="empty-state-body">
-                                                Створіть код запрошення вище
+                                                {t!(i18n, admin_participants_empty_state_body)}
                                             </p>
                                         </div>
                                     }
@@ -1761,7 +1765,7 @@ fn ParticipantListSection(
                                                                                             attr:aria-busy=move || deactivate_pending.get().then_some("true")
                                                                                         >
                                                                                             {move || if deactivate_pending.get() {
-                                                                                                "Деактивую...".into_any()
+                                                                                                t!(i18n, admin_participant_deactivating_loading).into_any()
                                                                                             } else {
                                                                                                 t!(
                                                                                                     i18n,
