@@ -40,6 +40,99 @@ struct ConfirmNudgeTarget {
     phone: String,
 }
 
+// ── SMS target count helpers ──────────────────────────────────────────────────
+//
+// Each helper encodes the exact WHERE predicate shared between the corresponding
+// `send_*_sms` function's target query and the admin state count display.
+// `state.rs::query_sms_counts` calls these so the predicates have one home.
+
+/// Count active participants not yet notified of the season opening.
+///
+/// Matches the target predicate of [`send_season_open_sms`].
+#[cfg(feature = "ssr")]
+pub(super) async fn count_season_open_targets(
+    pool: &sqlx::PgPool,
+    season_id: uuid::Uuid,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) AS "count!: i64"
+        FROM users u
+        LEFT JOIN season_open_notifications son
+            ON son.user_id = u.id AND son.season_id = $1
+        WHERE u.status = 'active' AND u.role = 'participant'
+          AND son.user_id IS NULL
+        "#,
+        season_id,
+    )
+    .fetch_one(pool)
+    .await
+}
+
+/// Count assignments whose senders have not been notified yet.
+///
+/// Matches the target predicate of [`send_assignment_sms`].
+#[cfg(feature = "ssr")]
+pub(super) async fn count_unnotified_senders(
+    pool: &sqlx::PgPool,
+    season_id: uuid::Uuid,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) AS "count!: i64"
+        FROM assignments a
+        WHERE a.season_id = $1 AND a.notified_at IS NULL
+        "#,
+        season_id,
+    )
+    .fetch_one(pool)
+    .await
+}
+
+/// Count enrolled users not yet nudged to confirm readiness.
+///
+/// Matches the target predicate of [`send_confirm_nudge_sms`].
+#[cfg(feature = "ssr")]
+pub(super) async fn count_unconfirmed_enrolled(
+    pool: &sqlx::PgPool,
+    season_id: uuid::Uuid,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) AS "count!: i64"
+        FROM enrollments e
+        WHERE e.season_id = $1
+          AND e.confirmed_ready_at IS NULL
+          AND e.confirm_nudge_sent_at IS NULL
+        "#,
+        season_id,
+    )
+    .fetch_one(pool)
+    .await
+}
+
+/// Count recipients with no response who have not yet been nudged.
+///
+/// Matches the target predicate of [`send_receipt_nudge_sms`].
+#[cfg(feature = "ssr")]
+pub(super) async fn count_no_response_recipients(
+    pool: &sqlx::PgPool,
+    season_id: uuid::Uuid,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) AS "count!: i64"
+        FROM assignments a
+        WHERE a.season_id = $1
+          AND a.receipt_status = 'no_response'
+          AND a.receipt_nudge_sent_at IS NULL
+        "#,
+        season_id,
+    )
+    .fetch_one(pool)
+    .await
+}
+
 // ── Server functions ───────────────────────────────────────────────────────────
 
 /// Story 5.3: Season-open notification to all active participants.

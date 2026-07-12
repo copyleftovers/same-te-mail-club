@@ -74,8 +74,9 @@ async fn query_participant_count(pool: &sqlx::PgPool) -> Result<i64, ServerFnErr
 
 /// Query SMS-related counts for a season.
 ///
-/// Each count matches the corresponding `send_*_sms` function's target query,
-/// so the admin sees exactly how many recipients will receive the SMS.
+/// Delegates to the count helpers in `sms.rs` so each targeting predicate
+/// has exactly one home — the corresponding `send_*_sms` function and its
+/// matching `count_*` helper share the same WHERE clause.
 ///
 /// Returns `(season_open_target_count, unnotified_sender_count, unconfirmed_enrolled_count, no_response_count)`.
 #[cfg(feature = "ssr")]
@@ -83,60 +84,21 @@ async fn query_sms_counts(
     pool: &sqlx::PgPool,
     season_id: uuid::Uuid,
 ) -> Result<(i64, i64, i64, i64), ServerFnError> {
-    let season_open_target_count = sqlx::query_scalar!(
-        r#"
-        SELECT COUNT(*) AS "count!: i64"
-        FROM users u
-        LEFT JOIN season_open_notifications son
-            ON son.user_id = u.id AND son.season_id = $1
-        WHERE u.status = 'active' AND u.role = 'participant'
-          AND son.user_id IS NULL
-        "#,
-        season_id,
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(db_err)?;
+    let season_open_target_count = super::sms::count_season_open_targets(pool, season_id)
+        .await
+        .map_err(db_err)?;
 
-    let unnotified_sender_count = sqlx::query_scalar!(
-        r#"
-        SELECT COUNT(*) AS "count!: i64"
-        FROM assignments a
-        WHERE a.season_id = $1 AND a.notified_at IS NULL
-        "#,
-        season_id,
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(db_err)?;
+    let unnotified_sender_count = super::sms::count_unnotified_senders(pool, season_id)
+        .await
+        .map_err(db_err)?;
 
-    let unconfirmed_enrolled_count = sqlx::query_scalar!(
-        r#"
-        SELECT COUNT(*) AS "count!: i64"
-        FROM enrollments e
-        WHERE e.season_id = $1
-          AND e.confirmed_ready_at IS NULL
-          AND e.confirm_nudge_sent_at IS NULL
-        "#,
-        season_id,
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(db_err)?;
+    let unconfirmed_enrolled_count = super::sms::count_unconfirmed_enrolled(pool, season_id)
+        .await
+        .map_err(db_err)?;
 
-    let no_response_count = sqlx::query_scalar!(
-        r#"
-        SELECT COUNT(*) AS "count!: i64"
-        FROM assignments a
-        WHERE a.season_id = $1
-          AND a.receipt_status = 'no_response'
-          AND a.receipt_nudge_sent_at IS NULL
-        "#,
-        season_id,
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(db_err)?;
+    let no_response_count = super::sms::count_no_response_recipients(pool, season_id)
+        .await
+        .map_err(db_err)?;
 
     Ok((
         season_open_target_count,
