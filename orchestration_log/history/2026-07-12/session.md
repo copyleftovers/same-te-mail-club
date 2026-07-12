@@ -1,3 +1,39 @@
+# Session: 2026-07-12
+
+**Orchestrator:** Claude Fable 5 (switched to Opus 4.8 mid-session at the Fable per-model limit)
+**Session ID:** 96328b0b-ac13-41e9-a973-afc4ea2f3c2e
+**Branch:** main
+**Duration:** ~24h wall (2026-07-12 00:48 → 2026-07-13 00:36 EEST; heavy idle spans across token-session limits + user-away periods; API time not separately measured)
+**Cost:** not captured — /cost not invocable by the orchestrator this session; the JSONL estimate in session_metrics.md is out-of-scope (prior-session transcripts)
+**Code changes:** 42 commits, +2493/−2078 lines total (code-only src/style/migrations: +2044/−1883)
+**Outcome:** 28-unit sustainability campaign + FU-19b CVE remediation = 29 units shipped through full spec→quality→integrate chains; CI green on 6fc68ca; 10 pre-existing transitive CVEs cleared.
+
+## Quantitative Summary
+
+| Metric | Value |
+|--------|-------|
+| Commits | 42 |
+| Lines changed (total) | +2493/−2078 |
+| Lines changed (code) | +2044/−1883 |
+| Fix-units integrated | 29 |
+| Concern-audits dispatched | 13 |
+| Spec reviews | 32 |
+| Quality reviews | 30 |
+| Integration verifications | 2 |
+| Bare cargo test count | 55 |
+| SSR cargo test count | 62 |
+| Waves | 3 |
+| Context-overflow agent retries | ~2 |
+| Token/model-limit interruptions | 3 (all losslessly resumed) |
+
+## Next Session Priorities
+
+1. **Leptos reactive-disposal flake investigation** — intermittent tower_http 500s / OTP E2E failures traced to Leptos SSR reactive-disposal panic; root cause uninvestigated at Leptos-lifecycle level.
+2. **component-evaluation-framework.md A2 grep** — still references `style/tailwind.css`; CSS now lives in tokens.css/components.css after FU-09 split. One-line doc fix.
+3. **Orphan Postgres sibling DBs** — `samete_rerun_a` / `samete_rerun_b` (+ any capture siblings) left by isolated-harness reruns. `psql -l | grep samete_` then DROP.
+4. **IP-based OTP rate-limiting absent** — per-phone limits exist; no IP-level gate. Architectural addition.
+5. **implementation_plan.md dead-weight-candidate decision** — FU-16 gate-pattern WHY comment + cohort-seed.sql idempotency-guard nit + F4/F5 NOTEs (separator const, error-routing idiom) assessed as rule-of-three candidates; decide promote-to-backlog or close.
+
 # Session 2026-07-12 — Sustainability campaign (autonomous)
 
 ## Checkpoint — 01:12
@@ -109,3 +145,23 @@
 - Crons: babstops + CI babysit cleared. Token-session wake crons 8412f961(15:48)/aa9f9f20(16:18) LEFT as continuity insurance — they no-op if no work pending.
 - Full session-close ceremony (metrics, cost.md, session record finalization) awaits explicit user invocation of session-close.
 - Open follow-ups all in deferred_items.md 2026-07-12 (Leptos reactive-disposal flake investigation; component-eval A2 stale grep; orphan samete_rerun_* DBs; IP rate-limiting).
+
+## Artifacts
+
+### Committed (on main)
+- `orchestration_log/history/2026-07-12/session.md` — this file
+- `orchestration_log/reference/conventions.md` — campaign lessons appended
+- `orchestration_log/reference/codebase_state.md` — module inventory, test counts, CSS split, CVE state updated
+- `orchestration_log/reference/deferred_items.md` — 2026-07-12 section added
+
+### Recon (gitignored, regenerable from campaign artifacts)
+`orchestration_log/recon/2026-07-12/`:
+- `AUDIT-CONTRACT.md` — shared anti-rubber-stamp contract for 13 auditors
+- `SUSTAINABILITY-BACKLOG.md` — 30 fix-units, 3 waves, ROI-ranked (the execution contract)
+- `IMPLEMENTER-BRIEF.md` — routing table: unit ID / write-set / verification index
+- `audits/` — 13 concern-audit outputs (rust-core, rust-pages, rust-admin, sql-data, tests-unit, tests-e2e, css-style, docs-drift, devx-loop, deps-health, arch-friction, robustness, i18n-locale)
+- `reviews/` — 62 spec/quality verdicts across all 29 units
+- `verify-wave1.md` — Wave 1 post-integration verification report
+- `verify-wave23.md` — Wave 2+3 post-integration verification report
+- `git_history.md` — commit log + diffstat for this session
+- `session_metrics.md` — artifact counts + scope caveat on JSONL token figures
