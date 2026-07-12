@@ -6,7 +6,6 @@ import {
   ADMIN_PHONE,
   MOBILE_VIEWPORT,
   DESKTOP_VIEWPORT,
-  LAYOUT_REFLOW_MS,
   paintSettle,
   futureDeadline,
 } from "./fixtures/capture-constants";
@@ -102,7 +101,7 @@ const SCREENSHOT_DIRS = [
 ] as const;
 
 // ── Viewport + timing constants ────────────────────────────────────────────────
-// MOBILE_VIEWPORT, DESKTOP_VIEWPORT, LAYOUT_REFLOW_MS, and paintSettle are
+// MOBILE_VIEWPORT, DESKTOP_VIEWPORT, and paintSettle are
 // imported from capture-constants (shared with visual-audit-cohort.spec.ts).
 
 // ── Core capture helpers ───────────────────────────────────────────────────────

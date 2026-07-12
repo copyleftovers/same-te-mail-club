@@ -28,7 +28,6 @@ import {
   ADMIN_PHONE,
   MOBILE_VIEWPORT,
   DESKTOP_VIEWPORT,
-  LAYOUT_REFLOW_MS,
   paintSettle,
 } from "./fixtures/capture-constants";
 
