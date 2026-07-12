@@ -1,3 +1,4 @@
+/* @layer base + @layer components rules. Design tokens live in tokens.css. */
 
 @layer base {
   @font-face {

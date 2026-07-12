@@ -1,3 +1,6 @@
+/* Design tokens: @theme raw tokens, :root semantic aliases,
+   [data-layout="admin"] density layer, and dark-mode :root reassignments.
+   Component and base rules live in components.css. */
 
 /* ── Tier 1: Raw tokens (generate utility classes) ─────────────── */
 @theme {
