@@ -46,6 +46,12 @@ jobs:
       - name: cargo test
         run: cargo test
 
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.18.1
+
+      - name: Supply-chain audit
+        run: cargo binstall --no-confirm cargo-audit && cargo audit
+
   e2e:
     name: E2E (Playwright — release)
     runs-on: ubuntu-latest
