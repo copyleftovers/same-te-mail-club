@@ -1,0 +1,7 @@
+[advisories]
+# RUSTSEC-2023-0071: Marvin timing side-channel in the `rsa` crate.
+# This project uses sqlx with postgres-only features. `sqlx-mysql` bundles
+# `rsa` unconditionally regardless of the active feature set, but no RSA
+# operation is ever invoked at runtime. No upstream fix exists; the advisory
+# has been open since 2023-11-22 with no resolution from the rsa maintainers.
+ignore = ["RUSTSEC-2023-0071"]
