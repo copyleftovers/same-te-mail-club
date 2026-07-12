@@ -41,13 +41,9 @@
 :root {
   --color-surface: var(--color-brand-cream);
   --color-surface-raised: white;
-  --color-surface-dark: var(--color-brand-black);
   --color-text: var(--color-brand-black);
   --color-text-muted: var(--color-brand-gray);
-  --color-text-on-dark: var(--color-brand-cream);
-  --color-text-on-dark-muted: var(--color-brand-pink);
   --color-accent: var(--color-brand-orange);
-  --color-accent-alt: var(--color-brand-pink);
   --color-focus: var(--color-brand-blue);
   --color-error: oklch(0.55 0.22 25);
   --color-success: oklch(0.58 0.16 160);
@@ -206,8 +202,8 @@
   /* z-index layer map:
      1  — grain overlay (body::after)
      40 — mobile menu overlay, dropdowns
-     50 — mobile menu panel, modals
-     60 — confetti burst (above modals during delivery phase) */
+     50 — mobile menu panel
+     60 — confetti burst (above mobile menu during delivery phase) */
   body::after {
     content: '';
     position: fixed;
@@ -846,14 +842,6 @@
     margin: 0 0 calc(var(--spacing) * 1) 0;
   }
 
-  /* body secondary — step descriptions, captions */
-  .body-secondary {
-    font-family: var(--font-body);
-    font-weight: 400;
-    font-size: var(--text-sm);
-    line-height: 1.5;
-  }
-
   /* ── Field enhancements ───────────────────────────────────────── */
   .field-input {
     min-height: var(--size-touch-target);
@@ -1419,44 +1407,6 @@
     }
   }
 
-  /* ── Modal ────────────────────────────────────────────────────── */
-  /* z-index: 50 — above dropdowns (40) and mobile menu overlay (40) */
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: oklch(from var(--color-brand-black) l c h / 0.6);
-    z-index: 50;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--density-space-md);
-  }
-
-  .modal {
-    background: var(--color-surface-raised);
-    border: none;
-    border-radius: var(--radius-lg);
-    padding: var(--density-space-lg);
-    max-width: var(--size-content-max);
-    width: 100%;
-    box-shadow: 0 8px 24px oklch(from var(--color-brand-black) l c h / 0.2); /* structural: elevation shadow */
-  }
-
-  .modal-title {
-    font-family: var(--font-display);
-    font-weight: 900;
-    font-size: var(--text-section);
-    line-height: 1.15;
-    margin-bottom: var(--density-space-sm);
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: var(--density-space-sm);
-    justify-content: flex-end;
-    margin-top: var(--density-space-md);
-  }
-
   /* ── Menu ─────────────────────────────────────────────────────── */
   .menu-toggle {
     display: flex;
@@ -1490,7 +1440,7 @@
     z-index: 40; /* below menu panel (50), above page content */
   }
 
-  /* z-index: 50 — same layer as modals; menu closes before modal can open */
+  /* z-index: 50 — top interactive layer; menu closes before any future overlay can open */
   .mobile-menu {
     position: fixed;
     top: 0;
