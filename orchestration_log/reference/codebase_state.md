@@ -22,7 +22,7 @@ Last updated: 2026-07-12
 | Admin: DB Helpers | `src/admin/db_helpers.rs` | ActiveSeasonRow struct; fetch_active_launched_season() shared predicate (SSR-only) | Unit (via callers) | Stable |
 | Assignment | `src/assignment.rs` | Assignment algorithm: cycle validity, social-weight minimization, cohort splitting | Unit | Stable |
 | Error | `src/error.rs` | strip_server_error_prefix() — strips framework prefix from ServerFnError display | — | Stable |
-| Hooks | `src/hooks.rs` | hydrated() signal — false during SSR/hydration gap, true after WASM init | — | Stable |
+| Hooks | `src/hooks.rs` | use_hydrated() -> ReadSignal<bool> — false during SSR/hydration gap, true after WASM init | — | Stable |
 | I18n | `src/i18n.rs` | load_locales!() macro; i18n context available to all components | — | Stable |
 | SMS | `src/sms.rs` | TurboSMS HTTP client (SSR-only; dry-run via SAMETE_SMS_DRY_RUN) | — | Stable |
 | Date Format | `src/date_format.rs` | format_date_uk() — UTC OffsetDateTime → Ukrainian locale string | — | Stable |
