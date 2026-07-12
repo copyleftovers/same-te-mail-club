@@ -255,14 +255,13 @@ fn is_past_deadline(deadline: time::OffsetDateTime, test_mode: bool) -> bool {
     !test_mode && deadline < time::OffsetDateTime::now_utc()
 }
 
-/// Returns `true` when the address fields form a complete delivery address.
+/// Returns `true` when a newly supplied address forms a complete delivery address.
 ///
 /// `city` must be non-empty and `number` must be positive.
-/// When `use_existing` is `true`, the existing address is reused and
-/// the supplied fields are irrelevant — the check is bypassed.
+/// Only consulted when the participant is NOT reusing their existing address.
 #[cfg(feature = "ssr")]
-fn enrollment_address_is_valid(city: &str, number: i32, use_existing: bool) -> bool {
-    use_existing || (!city.is_empty() && number > 0)
+fn enrollment_new_address_is_complete(city: &str, number: i32) -> bool {
+    !city.is_empty() && number > 0
 }
 
 // ── Server functions ───────────────────────────────────────────────────────────
@@ -390,7 +389,7 @@ pub async fn enroll_in_season(
             })?
         };
 
-        if !enrollment_address_is_valid(&city, number, false) {
+        if !enrollment_new_address_is_complete(&city, number) {
             return Err(ServerFnError::new(td_string!(
                 Locale::uk,
                 home_error_incomplete_address
@@ -1073,7 +1072,7 @@ fn render_home_state(
 
 #[cfg(all(test, feature = "ssr"))]
 mod tests {
-    use super::{enrollment_address_is_valid, is_past_deadline};
+    use super::{enrollment_new_address_is_complete, is_past_deadline};
 
     #[test]
     fn past_deadline_blocks_when_not_test_mode() {
@@ -1103,37 +1102,30 @@ mod tests {
         assert!(!is_past_deadline(near_future, false));
     }
 
-    // ── enrollment_address_is_valid ────────────────────────────────────────────
+    // ── enrollment_new_address_is_complete ─────────────────────────────────────
 
     #[test]
-    fn valid_address_accepted() {
-        assert!(enrollment_address_is_valid("Київ", 42, false));
+    fn complete_address_accepted() {
+        assert!(enrollment_new_address_is_complete("Київ", 42));
     }
 
     #[test]
-    fn empty_city_rejected_when_not_using_existing() {
-        assert!(!enrollment_address_is_valid("", 42, false));
+    fn empty_city_rejected() {
+        assert!(!enrollment_new_address_is_complete("", 42));
     }
 
     #[test]
-    fn zero_branch_number_rejected_when_not_using_existing() {
-        assert!(!enrollment_address_is_valid("Київ", 0, false));
+    fn zero_branch_number_rejected() {
+        assert!(!enrollment_new_address_is_complete("Київ", 0));
     }
 
     #[test]
-    fn negative_branch_number_rejected_when_not_using_existing() {
-        assert!(!enrollment_address_is_valid("Київ", -5, false));
+    fn negative_branch_number_rejected() {
+        assert!(!enrollment_new_address_is_complete("Київ", -5));
     }
 
     #[test]
-    fn both_empty_rejected_when_not_using_existing() {
-        assert!(!enrollment_address_is_valid("", 0, false));
-    }
-
-    #[test]
-    fn use_existing_bypasses_field_validation() {
-        // When use_existing is true, field content is irrelevant.
-        assert!(enrollment_address_is_valid("", 0, true));
-        assert!(enrollment_address_is_valid("Київ", -99, true));
+    fn both_fields_empty_rejected() {
+        assert!(!enrollment_new_address_is_complete("", 0));
     }
 }
