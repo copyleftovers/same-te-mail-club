@@ -45,7 +45,7 @@
   --color-text-muted: var(--color-brand-gray);
   --color-accent: var(--color-brand-orange);
   --color-focus: var(--color-brand-blue);
-  --color-error: oklch(0.55 0.22 25);
+  --color-error: var(--color-badge-error);
   --color-success: oklch(0.58 0.16 160);
 
   /* Border color — semantic alias so UI-component boundaries can reassign in
