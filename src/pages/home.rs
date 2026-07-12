@@ -2,6 +2,7 @@ use crate::components::skeleton::SkeletonFallback;
 use crate::components::toast::use_toast;
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
+use crate::pages::login::strip_server_error_prefix;
 use leptos::prelude::*;
 
 #[cfg(feature = "ssr")]
@@ -339,7 +340,10 @@ pub async fn enroll_in_season(
     city: String,
     np_number: String,
 ) -> Result<(), ServerFnError> {
-    use crate::auth;
+    use crate::{
+        auth,
+        i18n::i18n::{Locale, td_string},
+    };
 
     let (pool, user) = auth::require_auth().await?;
 
@@ -355,12 +359,15 @@ pub async fn enroll_in_season(
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("enrollment is not open"))?;
+    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_enrollment_not_open)))?;
 
     // Deadline check — bypassed in test mode
     let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
     if is_past_deadline(season.signup_deadline, test_mode) {
-        return Err(ServerFnError::new("enrollment deadline has passed"));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            home_error_enrollment_deadline_passed
+        )));
     }
 
     if !use_existing_address {
@@ -368,10 +375,9 @@ pub async fn enroll_in_season(
         let number: i32 = if np_number.trim().is_empty() {
             0
         } else {
-            np_number
-                .trim()
-                .parse()
-                .map_err(|_| ServerFnError::new("invalid branch number"))?
+            np_number.trim().parse().map_err(|_| {
+                ServerFnError::new(td_string!(Locale::uk, home_error_invalid_branch_number))
+            })?
         };
         if !city.is_empty() && number > 0 {
             sqlx::query!(
@@ -407,9 +413,10 @@ pub async fn enroll_in_season(
     .map_err(db_err)?;
 
     if !has_address {
-        return Err(ServerFnError::new(
-            "complete onboarding first to set your delivery address",
-        ));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            home_error_no_delivery_address
+        )));
     }
 
     sqlx::query!(
@@ -438,7 +445,10 @@ pub async fn enroll_in_season(
 /// Returns `Err` if not in Preparation phase, deadline passed, or not enrolled.
 #[server]
 pub async fn confirm_ready() -> Result<(), ServerFnError> {
-    use crate::auth;
+    use crate::{
+        auth,
+        i18n::i18n::{Locale, td_string},
+    };
 
     let (pool, user) = auth::require_auth().await?;
 
@@ -454,12 +464,15 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("confirmation is not open"))?;
+    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_confirmation_not_open)))?;
 
     // Deadline check — bypassed in test mode
     let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
     if is_past_deadline(season.confirm_deadline, test_mode) {
-        return Err(ServerFnError::new("confirmation deadline has passed"));
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            home_error_confirmation_deadline_passed
+        )));
     }
 
     // Idempotent — if already confirmed, rows_affected == 0, that's fine
@@ -491,7 +504,11 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
 /// Returns `Err` if not logged in, season not in Delivery phase, or already confirmed.
 #[server]
 pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(), ServerFnError> {
-    use crate::{auth, types::ReceiptStatus};
+    use crate::{
+        auth,
+        i18n::i18n::{Locale, td_string},
+        types::ReceiptStatus,
+    };
 
     let (pool, user) = auth::require_auth().await?;
 
@@ -518,7 +535,7 @@ pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("no active delivery season"))?;
+    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_no_delivery_season)))?;
 
     // Find assignment where this user is the RECIPIENT
     let assignment_id = sqlx::query_scalar!(
@@ -534,7 +551,7 @@ pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(
     .fetch_optional(&pool)
     .await
     .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new("already confirmed or no assignment found"))?;
+    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_already_confirmed)))?;
 
     let new_status = if received_bool {
         ReceiptStatus::Received
@@ -595,13 +612,15 @@ pub fn HomePage() -> impl IntoView {
     // Toast feedback for successful actions
     Effect::new(move |_| {
         if let Some(Ok(())) = enroll_action.value().get() {
-            set_toast.set(Some("Записано на сезон!".into()));
+            set_toast.set(Some(t_string!(i18n, home_toast_enrolled).to_string()));
         }
     });
 
     Effect::new(move |_| {
         if let Some(Ok(())) = confirm_action.value().get() {
-            set_toast.set(Some("Готовність підтверджено!".into()));
+            set_toast.set(Some(
+                t_string!(i18n, home_toast_confirmed_ready).to_string(),
+            ));
         }
     });
 
@@ -620,7 +639,7 @@ pub fn HomePage() -> impl IntoView {
                             .and_then(Result::err)
                             .or_else(|| confirm_action.value().get().and_then(Result::err))
                             .or_else(|| receipt_action.value().get().and_then(Result::err));
-                        err.map(|e| view! { <p class="alert">{e.to_string()}</p> })
+                        err.map(|e| view! { <p class="alert">{strip_server_error_prefix(&e)}</p> })
                     }}
                 </div>
 
@@ -629,7 +648,7 @@ pub fn HomePage() -> impl IntoView {
                         home_state
                             .get()
                             .map(|result| match result {
-                                Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
+                                Err(e) => view! { <p class="alert">{strip_server_error_prefix(&e)}</p> }.into_any(),
                                 Ok(state) => {
                                     render_home_state(
                                         state,
@@ -747,7 +766,7 @@ fn render_enrollment_open(
                 disabled=move || pending.get() || !hydrated.get()
             >
                 {move || if pending.get() {
-                    "Записуюсь...".into_any()
+                    t!(i18n, home_pending_enrolling).into_any()
                 } else {
                     t!(i18n, home_enroll_button).into_any()
                 }}
@@ -799,7 +818,7 @@ fn render_preparing(
                 disabled=move || confirm_pending.get() || !hydrated.get()
             >
                 {move || if confirm_pending.get() {
-                    "Підтверджую...".into_any()
+                    t!(i18n, home_pending_confirming).into_any()
                 } else {
                     t!(i18n, home_confirm_ready_button).into_any()
                 }}
@@ -846,7 +865,7 @@ fn render_receipt_form(
                         disabled=move || receipt_pending.get() || !hydrated.get()
                     >
                         {move || if receipt_pending.get() {
-                            "Надсилаю...".into_any()
+                            t!(i18n, home_pending_sending).into_any()
                         } else {
                             t!(i18n, home_received_button).into_any()
                         }}
@@ -861,7 +880,7 @@ fn render_receipt_form(
                         disabled=move || receipt_pending.get() || !hydrated.get()
                     >
                         {move || if receipt_pending.get() {
-                            "Надсилаю...".into_any()
+                            t!(i18n, home_pending_sending).into_any()
                         } else {
                             t!(i18n, home_not_received_button).into_any()
                         }}
