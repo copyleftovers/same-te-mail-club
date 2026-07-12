@@ -122,6 +122,7 @@
   "home_error_enrollment_not_open": "Реєстрація на сезон зараз закрита.",
   "home_error_enrollment_deadline_passed": "Термін реєстрації вже минув.",
   "home_error_invalid_branch_number": "Номер відділення має бути числом.",
+  "home_error_incomplete_address": "Вкажи місто і номер відділення Нової Пошти.",
   "home_error_no_delivery_address": "Спочатку заповни адресу доставки в налаштуваннях акаунту.",
   "home_error_confirmation_not_open": "Підтвердження готовності зараз недоступне.",
   "home_error_confirmation_deadline_passed": "Термін підтвердження вже минув.",

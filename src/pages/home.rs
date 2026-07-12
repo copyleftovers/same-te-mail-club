@@ -255,6 +255,16 @@ fn is_past_deadline(deadline: time::OffsetDateTime, test_mode: bool) -> bool {
     !test_mode && deadline < time::OffsetDateTime::now_utc()
 }
 
+/// Returns `true` when the address fields form a complete delivery address.
+///
+/// `city` must be non-empty and `number` must be positive.
+/// When `use_existing` is `true`, the existing address is reused and
+/// the supplied fields are irrelevant — the check is bypassed.
+#[cfg(feature = "ssr")]
+fn enrollment_address_is_valid(city: &str, number: i32, use_existing: bool) -> bool {
+    use_existing || (!city.is_empty() && number > 0)
+}
+
 // ── Server functions ───────────────────────────────────────────────────────────
 
 /// Compute the home page state for the authenticated participant.
@@ -379,24 +389,30 @@ pub async fn enroll_in_season(
                 ServerFnError::new(td_string!(Locale::uk, home_error_invalid_branch_number))
             })?
         };
-        if !city.is_empty() && number > 0 {
-            sqlx::query!(
-                r#"
-                INSERT INTO delivery_addresses (user_id, nova_poshta_city, nova_poshta_number)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (user_id) DO UPDATE
-                    SET nova_poshta_city = EXCLUDED.nova_poshta_city,
-                    nova_poshta_number = EXCLUDED.nova_poshta_number,
-                    updated_at = now()
-                "#,
-                user.id,
-                city,
-                number,
-            )
-            .execute(&pool)
-            .await
-            .map_err(db_err)?;
+
+        if !enrollment_address_is_valid(&city, number, false) {
+            return Err(ServerFnError::new(td_string!(
+                Locale::uk,
+                home_error_incomplete_address
+            )));
         }
+
+        sqlx::query!(
+            r#"
+            INSERT INTO delivery_addresses (user_id, nova_poshta_city, nova_poshta_number)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id) DO UPDATE
+                SET nova_poshta_city = EXCLUDED.nova_poshta_city,
+                nova_poshta_number = EXCLUDED.nova_poshta_number,
+                updated_at = now()
+            "#,
+            user.id,
+            city,
+            number,
+        )
+        .execute(&pool)
+        .await
+        .map_err(db_err)?;
     }
 
     // Verify user has a delivery address
@@ -1057,7 +1073,7 @@ fn render_home_state(
 
 #[cfg(all(test, feature = "ssr"))]
 mod tests {
-    use super::is_past_deadline;
+    use super::{enrollment_address_is_valid, is_past_deadline};
 
     #[test]
     fn past_deadline_blocks_when_not_test_mode() {
@@ -1085,5 +1101,39 @@ mod tests {
         // is_past_deadline() advances by nanoseconds between capture and compare).
         let near_future = time::OffsetDateTime::now_utc() + time::Duration::milliseconds(1);
         assert!(!is_past_deadline(near_future, false));
+    }
+
+    // ── enrollment_address_is_valid ────────────────────────────────────────────
+
+    #[test]
+    fn valid_address_accepted() {
+        assert!(enrollment_address_is_valid("Київ", 42, false));
+    }
+
+    #[test]
+    fn empty_city_rejected_when_not_using_existing() {
+        assert!(!enrollment_address_is_valid("", 42, false));
+    }
+
+    #[test]
+    fn zero_branch_number_rejected_when_not_using_existing() {
+        assert!(!enrollment_address_is_valid("Київ", 0, false));
+    }
+
+    #[test]
+    fn negative_branch_number_rejected_when_not_using_existing() {
+        assert!(!enrollment_address_is_valid("Київ", -5, false));
+    }
+
+    #[test]
+    fn both_empty_rejected_when_not_using_existing() {
+        assert!(!enrollment_address_is_valid("", 0, false));
+    }
+
+    #[test]
+    fn use_existing_bypasses_field_validation() {
+        // When use_existing is true, field content is irrelevant.
+        assert!(enrollment_address_is_valid("", 0, true));
+        assert!(enrollment_address_is_valid("Київ", -99, true));
     }
 }
