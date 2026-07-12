@@ -67,13 +67,11 @@ pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
     let http_client = leptos::context::use_context::<reqwest::Client>()
         .ok_or_else(|| ServerFnError::new("no HTTP client in context"))?;
 
-    let season_id = sqlx::query_scalar!(
-        r#"SELECT id FROM seasons WHERE phase NOT IN ('complete', 'cancelled') AND launched_at IS NOT NULL"#,
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, season_error_no_launched_season)))?;
+    let season_id = super::db_helpers::fetch_active_launched_season(&pool)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, season_error_no_launched_season)))?
+        .id;
 
     let targets = sqlx::query_as!(
         SeasonOpenTarget,
@@ -146,7 +144,9 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
     let http_client = leptos::context::use_context::<reqwest::Client>()
         .ok_or_else(|| ServerFnError::new("no HTTP client in context"))?;
 
-    // Assignment season required (assignment or delivery phase — both have assignments)
+    // Intentionally narrower than the canonical active-launched predicate: requires
+    // phase IN ('assignment','delivery') so a season without assignments yet (e.g.
+    // 'preparation') produces a clear error instead of an empty send loop.
     let season_id = sqlx::query_scalar!(
         r#"SELECT id FROM seasons WHERE phase IN ('assignment', 'delivery') AND launched_at IS NOT NULL"#,
     )
@@ -232,7 +232,8 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     let http_client = leptos::context::use_context::<reqwest::Client>()
         .ok_or_else(|| ServerFnError::new("no HTTP client in context"))?;
 
-    // Active preparation season required
+    // Phase-specific: pre-deadline SMS is only valid during 'preparation'.
+    // Intentionally narrower than the canonical active-launched predicate.
     let season_id = sqlx::query_scalar!(
         r#"SELECT id FROM seasons WHERE phase = 'preparation' AND launched_at IS NOT NULL"#,
     )
@@ -325,7 +326,8 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
     let http_client = leptos::context::use_context::<reqwest::Client>()
         .ok_or_else(|| ServerFnError::new("no HTTP client in context"))?;
 
-    // Active delivery season required
+    // Phase-specific: receipt nudge SMS is only valid during 'delivery'.
+    // Intentionally narrower than the canonical active-launched predicate.
     let season_id = sqlx::query_scalar!(
         r#"SELECT id FROM seasons WHERE phase = 'delivery' AND launched_at IS NOT NULL"#,
     )

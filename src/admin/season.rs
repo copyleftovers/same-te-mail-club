@@ -11,14 +11,6 @@ use crate::error::db_err;
 /// validation errors. Infra/DB/auth errors carry no separator.
 pub(super) const FIELD_DISCRIMINANT_SEPARATOR: char = '\u{1f}';
 
-// ── SSR-only row types ─────────────────────────────────────────────────────────
-
-#[cfg(feature = "ssr")]
-struct ActiveSeasonRow {
-    id: uuid::Uuid,
-    phase: crate::types::Phase,
-}
-
 // ── Server functions ───────────────────────────────────────────────────────────
 
 /// Create a new season (admin only).
@@ -163,19 +155,12 @@ pub async fn advance_season() -> Result<(), ServerFnError> {
 
     let (pool, _user) = auth::require_admin().await?;
 
-    let season = sqlx::query_as!(
-        ActiveSeasonRow,
-        r#"
-        SELECT id, phase AS "phase: Phase"
-        FROM seasons
-        WHERE phase NOT IN ('complete', 'cancelled')
-          AND launched_at IS NOT NULL
-        "#,
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, season_error_no_launched_season)))?;
+    let season = super::db_helpers::fetch_active_launched_season(&pool)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| {
+            ServerFnError::new(td_string!(Locale::uk, season_error_no_launched_season))
+        })?;
 
     let next_phase = season
         .phase
@@ -205,15 +190,16 @@ pub async fn cancel_season() -> Result<(), ServerFnError> {
         auth,
         error::AppError,
         i18n::i18n::{Locale, td_string},
-        types::Phase,
     };
 
     let (pool, _user) = auth::require_admin().await?;
 
+    // Cancel targets any non-terminal season, launched or not — distinct from
+    // fetch_active_launched_season which requires launched_at IS NOT NULL.
     let season = sqlx::query_as!(
-        ActiveSeasonRow,
+        super::db_helpers::ActiveSeasonRow,
         r#"
-        SELECT id, phase AS "phase: Phase"
+        SELECT id, phase AS "phase: crate::types::Phase"
         FROM seasons
         WHERE phase NOT IN ('complete', 'cancelled')
         "#,

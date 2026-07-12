@@ -1,4 +1,5 @@
 pub mod assignments;
+pub(crate) mod db_helpers;
 pub mod invite_codes;
 pub mod page;
 pub mod participants;

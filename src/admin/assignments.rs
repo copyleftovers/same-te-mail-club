@@ -56,12 +56,6 @@ struct AssignmentRow {
     recipient_name: String,
 }
 
-#[cfg(feature = "ssr")]
-struct ActiveSeasonRow {
-    id: uuid::Uuid,
-    phase: crate::types::Phase,
-}
-
 // ── SSR-only helper functions ────────────────────────────────────────────────
 
 /// Fetch social weights matrix for assignment generation.
@@ -121,7 +115,7 @@ async fn fetch_social_weights(
 #[cfg(feature = "ssr")]
 async fn store_and_build_preview(
     pool: &sqlx::PgPool,
-    season: &ActiveSeasonRow,
+    season: &super::db_helpers::ActiveSeasonRow,
     result: &crate::assignment::AssignmentResult,
     participants: &[uuid::Uuid],
 ) -> Result<AssignmentPreview, ServerFnError> {
@@ -252,19 +246,12 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     let (pool, _user) = auth::require_admin().await?;
 
     // Get active season in Assignment phase.
-    let season = sqlx::query_as!(
-        ActiveSeasonRow,
-        r#"
-        SELECT id, phase AS "phase: Phase"
-        FROM seasons
-        WHERE phase NOT IN ('complete', 'cancelled')
-          AND launched_at IS NOT NULL
-        "#,
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(db_err)?
-    .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, season_error_no_launched_season)))?;
+    let season = super::db_helpers::fetch_active_launched_season(&pool)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| {
+            ServerFnError::new(td_string!(Locale::uk, season_error_no_launched_season))
+        })?;
 
     if season.phase != Phase::Assignment {
         return Err(ServerFnError::new(td_string!(
@@ -431,22 +418,13 @@ pub async fn swap_assignment(
 /// Returns `Err` if caller is not admin or DB fails.
 #[server(GetAssignmentPreview)]
 pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, ServerFnError> {
-    use crate::{auth, types::Phase};
+    use crate::auth;
 
     let (pool, _user) = auth::require_admin().await?;
 
-    let season = sqlx::query_as!(
-        ActiveSeasonRow,
-        r#"
-        SELECT id, phase AS "phase: Phase"
-        FROM seasons
-        WHERE phase NOT IN ('complete', 'cancelled')
-          AND launched_at IS NOT NULL
-        "#,
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(db_err)?;
+    let season = super::db_helpers::fetch_active_launched_season(&pool)
+        .await
+        .map_err(db_err)?;
 
     let Some(season) = season else {
         return Ok(None);
