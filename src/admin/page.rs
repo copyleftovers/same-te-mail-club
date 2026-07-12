@@ -390,7 +390,7 @@ fn render_create_form(
 
     view! {
         <div data-testid="create-season-form">
-            <p class="text-sm text-(--color-text-muted) mb-(--density-space-sm)">{t!(i18n, dashboard_no_season)}</p>
+            <p class="text-sm text-(--color-text-muted) mb-(--density-space-sm)">{t!(i18n, home_no_season_heading)}</p>
             <section>
                 <h2>{t!(i18n, season_create_form_title)}</h2>
                 <leptos::form::ActionForm action=create_action>
@@ -568,7 +568,7 @@ fn render_active_season(
                 view! {
                     <div class="alert" data-testid="not-received-alert">
                         <strong>
-                            {t!(i18n, dashboard_not_received_label)}
+                            {t!(i18n, admin_not_received_label)}
                             {not_received_count}
                         </strong>
                     </div>
