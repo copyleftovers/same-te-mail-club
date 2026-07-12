@@ -253,6 +253,7 @@
     border: 1.5px solid transparent;
     border-radius: var(--radius-pill);
     padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 5);
+    min-height: var(--size-touch-target);
     cursor: pointer;
     transition: filter 120ms ease, opacity 120ms ease;
     text-decoration: none;
@@ -308,11 +309,41 @@
   .btn[data-size="sm"] {
     padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 3);
     font-size: var(--text-xs);
+    min-height: var(--size-touch-target);
   }
 
   .btn[data-size="lg"] {
     padding: calc(var(--spacing) * 3) calc(var(--spacing) * 7);
     font-size: var(--text-base);
+    min-height: var(--size-touch-target-lg);
+  }
+
+  a.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Peer-action button row — the form-first container for adjacent buttons
+     (e.g. the home "Так/Ні отримав(ла)" receipt pair). Wrap two buttons in
+     <div class="btn-group"> to lay them out with a consistent gap. */
+  .btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--density-space-sm);
+  }
+
+  /* Flow fallback: adjacent buttons left as stacked siblings (no .btn-group
+     wrapper) were flush — the old CSS had a .field+.btn rule but no .btn+.btn.
+     This guarantees breathing room between consecutive buttons anywhere.
+     Nulled inside .btn-group so the flex `gap` is the sole spacing there
+     (a margin-top would otherwise add to the gap). */
+  .btn + .btn {
+    margin-top: var(--density-space-sm);
+  }
+
+  .btn-group .btn + .btn {
+    margin-top: 0;
   }
 
   .field {
@@ -349,6 +380,7 @@
     border: 1.5px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 3);
+    min-height: var(--size-touch-target);
     transition: border-color 120ms ease, box-shadow 120ms ease;
   }
 
@@ -391,6 +423,35 @@
   .field-input[data-otp] {
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.1em; /* inherent: spec-defined OTP/phone tracking */
+  }
+
+  select.field-input {
+    appearance: none;
+    /* SVG arrow uses %23565656 — hex approximation of --color-brand-gray (oklch 0.45 0.01 250).
+       CSS custom properties cannot be interpolated into data URIs; this is a documented exception. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23565656' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right calc(var(--spacing) * 3) center;
+    padding-right: calc(var(--spacing) * 10);
+  }
+
+  /* Dark mode: the gray arrow (%23565656) is ~2.5:1 on the dark input — invisible.
+     Swap to a cream-stroked (%23FAF9F6) arrow = 16.3:1 on raised(0.22). Same
+     documented data-URI exception (custom props can't be interpolated into URIs). */
+  @media (prefers-color-scheme: dark) {
+    select.field-input {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23FAF9F6' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    }
+  }
+
+  textarea.field-input {
+    min-height: var(--size-textarea);
+    resize: vertical;
+  }
+
+  .field-input[data-otp] {
+    text-align: center;
+    font-size: var(--text-otp);
   }
 
   .badge {
@@ -840,81 +901,6 @@
   h2.overline-label,
   h3.overline-label {
     margin: 0 0 calc(var(--spacing) * 1) 0;
-  }
-
-  /* ── Field enhancements ───────────────────────────────────────── */
-  .field-input {
-    min-height: var(--size-touch-target);
-  }
-
-  select.field-input {
-    appearance: none;
-    /* SVG arrow uses %23565656 — hex approximation of --color-brand-gray (oklch 0.45 0.01 250).
-       CSS custom properties cannot be interpolated into data URIs; this is a documented exception. */
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23565656' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right calc(var(--spacing) * 3) center;
-    padding-right: calc(var(--spacing) * 10);
-  }
-
-  /* Dark mode: the gray arrow (%23565656) is ~2.5:1 on the dark input — invisible.
-     Swap to a cream-stroked (%23FAF9F6) arrow = 16.3:1 on raised(0.22). Same
-     documented data-URI exception (custom props can't be interpolated into URIs). */
-  @media (prefers-color-scheme: dark) {
-    select.field-input {
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23FAF9F6' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
-    }
-  }
-
-  textarea.field-input {
-    min-height: var(--size-textarea);
-    resize: vertical;
-  }
-
-  .field-input[data-otp] {
-    text-align: center;
-    font-size: var(--text-otp);
-  }
-
-  /* ── Button enhancements ──────────────────────────────────────── */
-  .btn {
-    min-height: var(--size-touch-target);
-  }
-
-  .btn[data-size="sm"] {
-    min-height: var(--size-touch-target);
-  }
-
-  .btn[data-size="lg"] {
-    min-height: var(--size-touch-target-lg);
-  }
-
-  a.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* Peer-action button row — the form-first container for adjacent buttons
-     (e.g. the home "Так/Ні отримав(ла)" receipt pair). Wrap two buttons in
-     <div class="btn-group"> to lay them out with a consistent gap. */
-  .btn-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--density-space-sm);
-  }
-
-  /* Flow fallback: adjacent buttons left as stacked siblings (no .btn-group
-     wrapper) were flush — the old CSS had a .field+.btn rule but no .btn+.btn.
-     This guarantees breathing room between consecutive buttons anywhere.
-     Nulled inside .btn-group so the flex `gap` is the sole spacing there
-     (a margin-top would otherwise add to the gap). */
-  .btn + .btn {
-    margin-top: var(--density-space-sm);
-  }
-
-  .btn-group .btn + .btn {
-    margin-top: 0;
   }
 
   /* ── Card ─────────────────────────────────────────────────────── */
