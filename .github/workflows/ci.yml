@@ -43,14 +43,14 @@ jobs:
       - name: cargo clippy (hydrate / WASM)
         run: cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings
 
-      - name: cargo test
-        run: cargo test
-
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@v1.18.1
 
       - name: Supply-chain audit
         run: cargo binstall --no-confirm cargo-audit && cargo audit
+
+      - name: cargo test
+        run: cargo test
 
   e2e:
     name: E2E (Playwright — release)
