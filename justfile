@@ -97,4 +97,6 @@ fmt-check:
     cargo fmt --all -- --check
 
 # Full validation (what CI runs)
+# Two clippy passes: interactive (live DB) + offline (matches CI SQLX_OFFLINE=true).
 check: fmt-check clippy test
+    SQLX_OFFLINE=true cargo clippy --no-default-features --features ssr -- -D warnings

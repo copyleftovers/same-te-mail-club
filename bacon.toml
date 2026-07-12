@@ -2,7 +2,7 @@
 job = "clippy-ssr"
 
 [jobs.clippy-ssr]
-command = ["cargo", "clippy", "--features", "ssr", "--", "-D", "warnings"]
+command = ["cargo", "clippy", "--no-default-features", "--features", "ssr", "--", "-D", "warnings"]
 need_stdout = false
 
 [jobs.clippy-hydrate]
