@@ -168,11 +168,13 @@ fn find_partition_in_range(n: usize, min_size: usize, max_size: usize) -> Option
 }
 
 /// Look up the social weight between two participants.
+#[cfg(any(feature = "ssr", test))]
 fn edge_weight(a: Uuid, b: Uuid, social_weights: &HashMap<(Uuid, Uuid), u32>) -> u32 {
     social_weights.get(&weight_key(a, b)).copied().unwrap_or(0)
 }
 
 /// Score a complete cycle: sum of social weights of all edges.
+#[cfg(any(feature = "ssr", test))]
 fn score_cycle(cycle: &[Uuid], social_weights: &HashMap<(Uuid, Uuid), u32>) -> u32 {
     let n = cycle.len();
     let mut total: u32 = 0;
@@ -190,6 +192,7 @@ fn score_cycle(cycle: &[Uuid], social_weights: &HashMap<(Uuid, Uuid), u32>) -> u
 /// # Panics
 ///
 /// Panics if `participants` has fewer than 3 elements.
+#[cfg(any(feature = "ssr", test))]
 #[must_use]
 pub fn generate_cycle(
     participants: &[Uuid],
@@ -233,6 +236,7 @@ pub fn generate_cycle(
 ///
 /// Greedy DFS: at each step, pick the unvisited neighbor with the lowest
 /// social weight to the current node. Backtrack if stuck.
+#[cfg(any(feature = "ssr", test))]
 fn try_build_cycle(
     start_order: &[Uuid],
     social_weights: &HashMap<(Uuid, Uuid), u32>,
@@ -249,6 +253,7 @@ fn try_build_cycle(
     }
 }
 
+#[cfg(any(feature = "ssr", test))]
 fn backtrack(
     path: &mut Vec<Uuid>,
     visited: &mut [bool],
@@ -289,6 +294,7 @@ fn backtrack(
 }
 
 /// Top-level: split into cohorts, generate cycle for each.
+#[cfg(any(feature = "ssr", test))]
 #[must_use]
 pub fn generate_assignments(input: &AssignmentInput) -> AssignmentResult {
     let cohorts = split_cohorts(&input.participants);

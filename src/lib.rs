@@ -15,18 +15,15 @@ pub mod config;
 #[cfg(feature = "ssr")]
 pub mod db;
 pub mod error;
-#[cfg(feature = "ssr")]
 pub mod phone;
 #[cfg(feature = "ssr")]
 pub mod sms;
 
-#[cfg(feature = "ssr")]
 pub mod assignment;
 
 #[cfg(feature = "ssr")]
 pub mod date_format;
 
-#[cfg(feature = "ssr")]
 pub mod invite_codes;
 
 pub mod admin;

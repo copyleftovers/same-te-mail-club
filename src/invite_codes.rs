@@ -247,6 +247,7 @@ pub const WORD_LIST: &[&str] = &[
 /// # Panics
 ///
 /// Panics if `WORD_LIST` has fewer than 2 entries (compile-time guarantee violated).
+#[cfg(any(feature = "ssr", test))]
 #[must_use]
 pub fn pick_two_words(rng: &mut impl rand::Rng) -> (&'static str, &'static str) {
     use rand::seq::IndexedRandom as _;

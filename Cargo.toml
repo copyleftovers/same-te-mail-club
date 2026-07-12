@@ -82,6 +82,8 @@ ssr = [
 
 [dev-dependencies]
 rand_chacha = "0.9"
+phonenumber = "0.3"
+rand = "0.9"
 
 [lints.rust]
 unsafe_code = "forbid"

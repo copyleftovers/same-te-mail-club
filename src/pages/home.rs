@@ -250,7 +250,7 @@ async fn resolve_delivery_state(
 ///
 /// Used by [`enroll_in_season`] and [`confirm_ready`] to gate deadline enforcement.
 /// Extracted so unit tests can exercise it without a server context.
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", test))]
 fn is_past_deadline(deadline: time::OffsetDateTime, test_mode: bool) -> bool {
     !test_mode && deadline < time::OffsetDateTime::now_utc()
 }
@@ -259,7 +259,7 @@ fn is_past_deadline(deadline: time::OffsetDateTime, test_mode: bool) -> bool {
 ///
 /// `city` must be non-empty and `number` must be positive.
 /// Only consulted when the participant is NOT reusing their existing address.
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", test))]
 fn enrollment_new_address_is_complete(city: &str, number: i32) -> bool {
     !city.is_empty() && number > 0
 }
@@ -1070,7 +1070,7 @@ fn render_home_state(
     }
 }
 
-#[cfg(all(test, feature = "ssr"))]
+#[cfg(test)]
 mod tests {
     use super::{enrollment_new_address_is_complete, is_past_deadline};
 

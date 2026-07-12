@@ -1,3 +1,4 @@
+#[cfg(any(feature = "ssr", test))]
 use phonenumber::country;
 
 /// Normalize a phone input to E.164 (`+380XXXXXXXXX`).
@@ -10,6 +11,7 @@ use phonenumber::country;
 ///
 /// Returns `Err(InvalidFormat)` for structurally invalid numbers and
 /// `Err(NotUkrainian)` for valid numbers outside the +380 country code.
+#[cfg(any(feature = "ssr", test))]
 pub fn normalize(raw: &str) -> Result<String, PhoneError> {
     // Strip whitespace, hyphens, parentheses, dots
     let cleaned: String = raw
@@ -49,6 +51,7 @@ pub fn normalize(raw: &str) -> Result<String, PhoneError> {
     Ok(phonenumber::format(&parsed).to_string())
 }
 
+#[cfg(any(feature = "ssr", test))]
 #[derive(Debug, thiserror::Error)]
 pub enum PhoneError {
     #[error("invalid phone number format")]
