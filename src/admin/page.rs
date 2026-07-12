@@ -17,9 +17,9 @@ use crate::admin::state::{AdminSeason, AdminState, get_admin_state};
 use crate::components::skeleton::SkeletonFallback;
 use crate::components::stepper::PhaseStepper;
 use crate::components::toast::use_toast;
+use crate::error::strip_server_error_prefix;
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
-use crate::pages::login::strip_server_error_prefix;
 use crate::types::InviteCodeStatus;
 use leptos::prelude::*;
 

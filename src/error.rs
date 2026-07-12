@@ -1,5 +1,16 @@
+/// Extract the user-facing message from a `ServerFnError`, stripping
+/// the framework-added "error running server function: " prefix.
+pub(crate) fn strip_server_error_prefix(e: &leptos::prelude::ServerFnError) -> String {
+    let msg = e.to_string();
+    msg.strip_prefix("error running server function: ")
+        .unwrap_or(&msg)
+        .to_string()
+}
+
+#[cfg(feature = "ssr")]
 use crate::types::{InvalidTransition, Phase};
 
+#[cfg(feature = "ssr")]
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error("not found")]
@@ -34,6 +45,7 @@ pub enum AppError {
     Internal(#[from] anyhow::Error),
 }
 
+#[cfg(feature = "ssr")]
 impl From<InvalidTransition> for AppError {
     fn from(t: InvalidTransition) -> Self {
         Self::InvalidTransition {
@@ -43,6 +55,7 @@ impl From<InvalidTransition> for AppError {
     }
 }
 
+#[cfg(feature = "ssr")]
 impl axum::response::IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         use axum::http::StatusCode;
@@ -60,6 +73,7 @@ impl axum::response::IntoResponse for AppError {
     }
 }
 
+#[cfg(feature = "ssr")]
 impl AppError {
     /// Convert to a `ServerFnError` for use in Leptos server functions.
     /// Cannot be a `From` impl because `ServerFnError` has a blanket
@@ -73,6 +87,7 @@ impl AppError {
 ///
 /// Usage: `.map_err(db_err)?` instead of
 /// `.map_err(|e| ServerFnError::new(format!("database error: {e}")))?`
+#[cfg(feature = "ssr")]
 pub fn db_err(e: sqlx::Error) -> leptos::prelude::ServerFnError {
     AppError::from(e).into_server_fn_error()
 }

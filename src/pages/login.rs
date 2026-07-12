@@ -1,16 +1,8 @@
+use crate::error::strip_server_error_prefix;
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 use leptos::server_fn::ServerFn;
-
-/// Extract the user-facing message from a `ServerFnError`, stripping
-/// the framework-added "error running server function: " prefix.
-pub(crate) fn strip_server_error_prefix(e: &ServerFnError) -> String {
-    let msg = e.to_string();
-    msg.strip_prefix("error running server function: ")
-        .unwrap_or(&msg)
-        .to_string()
-}
 
 // ── DTOs ─────────────────────────────────────────────────────────────────────
 
