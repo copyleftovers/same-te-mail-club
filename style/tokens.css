@@ -1,0 +1,141 @@
+
+/* ── Tier 1: Raw tokens (generate utility classes) ─────────────── */
+@theme {
+  --color-brand-orange: oklch(0.63 0.22 31);
+  --color-brand-pink: oklch(0.88 0.04 15);
+  --color-brand-gray: oklch(0.45 0.01 250);
+  --color-brand-blue: oklch(0.78 0.11 240);
+  --color-brand-black: oklch(0.15 0.00 0);
+  --color-brand-cream: oklch(0.98 0.01 90);
+
+  /* Badge fill tokens — mode-INVARIANT by design (they do NOT reassign in the
+     dark :root). A badge must keep the same fill in both modes so its chosen
+     text colour stays AA in both; reassigning the fill in dark would break the
+     text pairing. Values tuned so text-on-fill ≥ 4.5:1 (WCAG AA, computed
+     oklch→sRGB→WCAG):
+       success 0.50/white = 5.25:1  (was --color-success 0.58 = 3.84:1, FAILED)
+       amber   0.82/black = 11.15:1 (attention/open — breaks the blue collision)
+       info    0.70/black = 7.46:1  (muted blue; Lrel 0.348 vs brand-blue 0.482 —
+                                     not jarring on the dark surface) */
+  --color-badge-success: oklch(0.50 0.16 160);
+  --color-badge-amber: oklch(0.82 0.16 85);
+  --color-badge-info: oklch(0.70 0.09 240);
+  /* Error BADGE fill — mode-invariant, distinct from the semantic --color-error
+     which reassigns lighter in dark (0.68) for text legibility. As a badge FILL
+     that lighter dark value would drop white-on-fill to 3.28:1 (FAIL); pinned at
+     0.55 it is 5.44:1 white in both modes. */
+  --color-badge-error: oklch(0.55 0.22 25);
+
+  --font-display: 'CyGrotesk', 'Arial Black', sans-serif;
+  --font-body: 'Mont', 'Inter', system-ui, sans-serif;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-pill: calc(infinity * 1px);
+}
+
+/* ── Tier 2: Semantic aliases (CSS variables only) ─────────────── */
+:root {
+  --color-surface: var(--color-brand-cream);
+  --color-surface-raised: white;
+  --color-text: var(--color-brand-black);
+  --color-text-muted: var(--color-brand-gray);
+  --color-accent: var(--color-brand-orange);
+  --color-focus: var(--color-brand-blue);
+  /* Derives from the mode-invariant badge fill so both share the same light
+     value; dark overrides this with a lifted literal (0.68) for text
+     legibility. */
+  --color-error: var(--color-badge-error);
+  --color-success: oklch(0.58 0.16 160);
+
+  /* Border color — semantic alias so UI-component boundaries can reassign in
+     dark. Light: brand-gray (matches the historical hardcoded value; the border
+     consumers below now route through this instead of --color-brand-gray raw).
+     Dark override lifts it to meet WCAG 2.1 §1.4.11 (≥3:1 non-text) — see the
+     dark :root block. */
+  --color-border: var(--color-brand-gray);
+
+  /* Dark-mode helper tokens — reassigned to lifted solids in the dark :root
+     block (that is the only place they are consumed today). These base
+     definitions are safe fallbacks: if either is ever referenced outside the
+     dark context they resolve to a sensible light value instead of the empty
+     initial value. --color-panel-dark → the raised surface (solid informational
+     panel fill); --color-step-idle → the light-mode idle-marker tint. */
+  --color-panel-dark: var(--color-surface-raised);
+  --color-step-idle: oklch(from var(--color-brand-gray) l c h / 0.2);
+
+  --density-space-sm: calc(var(--spacing) * 3);
+  --density-space-md: calc(var(--spacing) * 5);
+  --density-space-lg: calc(var(--spacing) * 8);
+
+  /* Font sizes — component-specific, consumed via var() only */
+  --text-page-title: clamp(1.8rem, 5vw, 2.8rem);
+  --text-section: 1.3rem;
+  --text-body: 1.05rem;
+  --text-overline: 0.8rem;
+  --text-secondary: 0.8125rem;
+  --text-otp: 1.25rem;
+  --text-icon: 1.25rem;
+  --text-stat: 2rem;
+
+  /* Component sizes — fixed dimensions, consumed via var() only */
+  --size-touch-target: 2.75rem;
+  --size-touch-target-lg: 3rem;
+  --size-step-marker: 2.5rem;
+  --size-logo-height-header: 2.5rem;
+  --size-textarea: 5.5rem;
+  --size-empty-state: 12rem;
+  --size-content-max: 28rem;
+  --size-mobile-menu: 16rem;
+  --size-cycle-viz: 480px;
+  --size-auth-logo: 5rem;   /* auth hero mark: relates to the section-scale heading, not a page-title hero */
+
+  /* Header height: logo (2.5rem) + top+bottom padding (3*spacing each side = 6*spacing total) + 1px border.
+     Used by .page-frame for full-viewport-height participant layouts. */
+  --header-height: calc(var(--size-logo-height-header) + calc(var(--spacing) * 6) + 1px);
+}
+
+/* Admin density override — in @layer base so Tailwind utilities can override via higher layers */
+@layer base {
+  [data-layout="admin"] {
+    --density-space-sm: calc(var(--spacing) * 1.5);
+    --density-space-md: calc(var(--spacing) * 3);
+    --density-space-lg: calc(var(--spacing) * 5);
+    --text-section: 1.1rem; /* admin section headings one step above body, not page-title scale */
+  }
+}
+
+/* Dark mode (system only, no toggle).
+   Contrast targets below computed against oklch→sRGB→WCAG (not eyeballed):
+   - surface-raised 0.22 vs base 0.15 = +0.07 OKLCH-L perceptual step (was +0.03,
+     imperceptible). WCAG contrast is the wrong metric for two near-black surfaces;
+     OKLCH L is perceptually uniform, so the L delta is the correct measure.
+   - --color-border 0.58 = 4.04:1 on raised(0.22), 4.60:1 on base(0.15) — ≥3:1 non-text.
+   - --color-error 0.68 error text on the solid dark alert panel(0.27) = 4.59:1 — AA.
+   - --color-success 0.72 success text on the solid dark report panel(0.27) = 6.51:1 — AA.
+   Raw tokens (brand-*) never change; only semantic aliases do. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-surface: var(--color-brand-black);
+    --color-surface-raised: oklch(0.22 0.01 250);
+    --color-text: var(--color-brand-cream);
+    --color-text-muted: oklch(0.65 0.01 250);
+    --color-border: oklch(0.58 0.01 250);
+    --color-error: oklch(0.68 0.22 25);
+    --color-success: oklch(0.72 0.16 160);
+
+    /* Solid dark container fill for informational panels (.alert /
+       .sms-report-result) and stepper markers. A colour-alpha wash over
+       near-black tops out at ~1.6:1 vs the page (invisible as a panel), so dark
+       mode uses a solid raised-tinted fill instead. Value 0.27: +0.12L above base
+       (0.15) for page-level use, and +0.05L above raised cards (0.22) so the panel
+       remains a perceptible container when nested inside .admin-section. 0.27 is
+       the AA ceiling: error text (0.68) on 0.27 = 4.59:1; on 0.28 it drops to
+       4.44:1 — below the 4.5:1 normal-text minimum. */
+    --color-panel-dark: oklch(0.27 0.01 250);
+    /* Stepper pending/locked marker + connector fill: +0.15 L solid step above
+       base so the sequence structure stays visible (alpha 0.2 gray was invisible). */
+    --color-step-idle: oklch(0.30 0.01 250);
+  }
+}
