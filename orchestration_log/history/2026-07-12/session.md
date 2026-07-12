@@ -32,7 +32,8 @@
 2. **component-evaluation-framework.md A2 grep** — still references `style/tailwind.css`; CSS now lives in tokens.css/components.css after FU-09 split. One-line doc fix.
 3. **Orphan Postgres sibling DBs** — `samete_rerun_a` / `samete_rerun_b` (+ any capture siblings) left by isolated-harness reruns. `psql -l | grep samete_` then DROP.
 4. **IP-based OTP rate-limiting absent** — per-phone limits exist; no IP-level gate. Architectural addition.
-5. **implementation_plan.md dead-weight-candidate decision** — FU-16 gate-pattern WHY comment + cohort-seed.sql idempotency-guard nit + F4/F5 NOTEs (separator const, error-routing idiom) assessed as rule-of-three candidates; decide promote-to-backlog or close.
+5. **`reference/implementation_plan.md` dead-weight decision** — 22KB, dated April, unreferenced from CLAUDE.md/session records all session; flagged as a consolidation candidate but NOT deleted (I didn't author it — surfaced for the user's keep/archive/delete call).
+6. **FU-16 gate-pattern WHY comment** (qual-fu16 Minor, non-blocking) — the recurring `#[cfg(any(feature="ssr", test))]` formula could carry one orienting comment for future module authors. Cosmetic.
 
 # Session 2026-07-12 — Sustainability campaign (autonomous)
 
@@ -145,6 +146,22 @@
 - Crons: babstops + CI babysit cleared. Token-session wake crons 8412f961(15:48)/aa9f9f20(16:18) LEFT as continuity insurance — they no-op if no work pending.
 - Full session-close ceremony (metrics, cost.md, session record finalization) awaits explicit user invocation of session-close.
 - Open follow-ups all in deferred_items.md 2026-07-12 (Leptos reactive-disposal flake investigation; component-eval A2 stale grep; orphan samete_rerun_* DBs; IP rate-limiting).
+
+## Checkpoint — LEAVE (session-close, hand-written)
+
+### Model switch
+- Mid-session the per-model **Fable 5 budget exhausted** (agents returned "reached your Fable 5 limit" — distinct from the token-session 5h cap). User switched the orchestrator to **Opus 4.8** and said carry on; the FU-27/FU-28 tail finishers + all subsequent close work ran on Opus. Two distinct limit classes hit this session: token-session (01:37→05:30 reset) and per-model Fable (→Opus switch). Both losslessly resumed.
+
+### Close-phase failure (the valuable one)
+| Failure | Root cause | Correction |
+|---------|-----------|------------|
+| Delegated MEMORY WORK during session-close — dispatched haiku for metrics + git-history and a sonnet SCRIBE to formalize the session record | Ran session-close like normal WORK (delegate-first) instead of as checkpoint-extended. Violated my own bound 2026-07-10 doctrine: "CHECKPOINT phase = MEMORY WORK → orchestrator writes DIRECTLY, NEVER delegates." | User corrected ("session close IS session checkpoint, just extended — write everything yourself"). Took the record back by hand: both haiku agents had idled without producing (did metrics+git myself anyway); the sonnet scribe had introduced **fidelity drift** — fabricated priority #5 items (`cohort-seed.sql idempotency`, `F4/F5 NOTEs`) pulled from a PRIOR session's deferred list, never touched 2026-07-12. Corrected line 35 by hand; wrote this record by hand. |
+
+**Lesson (→ conventions):** session-close's Steps 1/2/3 LOOK delegable (metrics parse, git extract, record draft) but the RECORD is durable memory that must survive compaction — a scribe transcribes+interprets and drifts. The mechanical extractions (metrics/git) MAY be delegated for token-absorption, but their output MUST be orchestrator-verified, and the session record + reference corrections are hand-written. The file-op prohibition suspends during close precisely so the orchestrator writes with its own hands.
+
+### Deviations recorded honestly (not papered over)
+- **Cost:** `/cost` is a REPL slash-command, not in the orchestrator toolset — genuinely not invocable. The JSONL `extract_metrics.py` estimate ($494.71) is out-of-scope: the subagents/ dir it scans holds transcripts timestamped 2026-07-09..07-11 (prior sessions), NOT this session. Recorded as "not captured" with reason; no fabricated number; no cost.md written.
+- **Metrics scope:** quantitative summary anchored on git_history (42 commits, clearly this-session) + on-disk review-artifact counts (13 audits / 32 spec / 30 quality / 2 verify), NOT the wrong-scope JSONL aggregates.
 
 ## Artifacts
 
