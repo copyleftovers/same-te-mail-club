@@ -57,3 +57,33 @@
 ### Working State
 - IN FLIGHT: CI on 36e62e5 (babysit cron). Wave 2 dispatching now: parallel-safe set FU-07 (CSS chain start), FU-15 (i18n foundation), FU-12, FU-28, FU-06, FU-16, FU-19; then FU-08→FU-10→FU-09 (CSS chain), FU-13+FU-14 after FU-15, FU-22 after FU-13. Wave 3 (SQL: FU-25→26→27) after Wave 2.
 - Wake crons: 10:48 + 11:18. Manifesto paths carried in every dispatch.
+
+## Checkpoint — 11:15 (campaign complete, pushed)
+
+### Narrative — full sustainability campaign
+- **28-unit backlog fully executed.** main d8ef2ab → 6600644, PUSHED (origin 36e62e5..6600644). Every unit through implementer(worktree)→spec-reviewer→code-quality-reviewer→integrate; ~15 fix-cycles/folds; zero merge conflicts (disjoint write-sets held across all 3 waves).
+- **Discovery:** 13 concern-audits under one shared AUDIT-CONTRACT.md (anti-rubber-stamp). All 13 FAIL, 2 BLOCKER + ~30 MAJOR → synthesized to 28 fix-units (+ ~17 rejected findings) in SUSTAINABILITY-BACKLOG.md.
+- **Wave 1 (12 units):** just-prepare BLOCKER, db-seed guard, clippy offline parity, banned-wait docs, dep prune, stepper aria-current, auth hash TDD tests, E2E constants fixture, deactivate transaction, missing indexes, csrf removal, cookie unwraps. CI GREEN (36e62e5).
+- **Wave 2 (13 units):** playwright range, dead-CSS deletion, .btn/.field-input consolidation, tailwind.css→tokens.css+components.css split, --color-error DRY, error-helper→error.rs, home+admin i18n localization, dashboard_ key rename, FU-16 test-unhide (bare cargo test 9→55), cargo-audit CI gate, enrollment address validation TDD, docs sync.
+- **Wave 3 (3 units):** ActiveSeasonRow+predicate dedup (sms.rs line-71 drift ruled genuine, unified; 3 narrower predicates kept w/ WHY comments), SMS count/send predicate one-home, SMS N+1 batching (collect-succeeded-IDs → one batched write, failure semantics preserved).
+- **Final verification:** bare test 55, ssr 62, hydrate clean, CI-clippy clean, CSS-split build 52KB working, sqlx 0-drift GREEN. E2E showed 3 invite-code failures on ONE run → diagnosed FLAKY (2 clean isolated full-suite reruns 117/0 each + static hunt found no deterministic mechanism across 24 commits; = the documented OTP/reactive-disposal intermittent). Pushed; CI babysit armed (flake-aware).
+
+### Decisions
+| Decision | Rationale |
+|----------|-----------|
+| Isolated harness (full mode) for re-verify, not e2e-release | User's live dev server on :3000 — must not stomp :3000/samete; sibling DB + free port is parallel-safe |
+| Push on FLAKY verdict (2 clean isolated reruns + no mechanism) | CI e2e is final tiebreaker; same flake was present when Wave-1 CI ran green; flaky ≠ blocking |
+| In-place general-bound finishers for FU-27/FU-28 tail | Fable budget exhausted mid-wrap; work was in the worktrees; salvage-in-place preserved it, then normal review gated it |
+| Context-budget protocol (grep-windows, output-to-file) for CSS-split + SQL-dedup units | 2 units (FU-09, FU-25) overflowed sonnet windows on first try mixing sqlx-prepare noise + multi-module reads; protocol fixed the retries |
+
+### Failures & corrections
+| Failure | Correction |
+|---------|-----------|
+| FU-09 & FU-25 first attempts overflowed context ("Prompt is too long") | Discarded partial worktrees, relaunched with strict grep-window/output-to-file protocol + hash-based verification |
+| e2e-rerun BLOCKED on :3000 (live dev server appeared mid-campaign) | Recycled onto isolated-capture.sh full mode — never touched user's server |
+| FU-28 spec FAIL ×2 (misnamed use_hydrated, count arithmetic 75+43≠117, stale CSS file refs) | 3 fix rounds; agent-facing docs demand exact re-verification — the review caught precisely the false-claim class the unit exists to prevent |
+
+### Working state
+- main @ 6600644 pushed; CI in progress (babysit cron 94e0653e, flake-aware). Task #16 stays in_progress until CI green.
+- Wake crons: 15:48 + 16:18. User running live app on :3000 (do not disturb).
+- On CI green: complete #16, run session-close when user requests. If CI e2e flakes red: rerun that job once per the babysit logic.

@@ -234,3 +234,15 @@ All 7 Wave-2 units integrated (admin markup, admin i18n, home, onboarding, login
 
 - **Sustainability backlog is the live execution contract** — recon/2026-07-12/SUSTAINABILITY-BACKLOG.md (gitignored recon). 30 units, 3 waves. Do NOT clean recon/2026-07-12 until campaign closes; anything unexecuted at close must be re-homed here with unit IDs.
 - **SubagentStart oath hook still injects 0 elements** (recurring since 2026-07-03) — now mitigated by path-carrying dispatch lines; the hook itself remains unfixed (plugin-side investigation still owed).
+
+## Added 2026-07-12 (sustainability campaign close)
+
+### RESOLVED this campaign (28 units shipped, main @ 6600644 pushed)
+- `just prepare` sqlx-cache-wipe BLOCKER; db-seed env guard; local↔CI clippy offline parity; banned-wait-pattern docs; unused blake2 + over-broad tokio; stepper attr:aria-current leak; missing OTP/user indexes; untransacted deactivate; dead csrf_secret; cookie .unwrap()s; **41 hidden unit tests exposed to bare cargo test** (was 9→55); participant-facing English errors localized; silent stale-address enrollment closed (TDD); tailwind.css split (tokens+components); dead CSS/tokens removed; ActiveSeasonRow + SMS predicate dedup; SMS N+1 batching; cargo-audit CI gate; docs drift synced.
+
+### Still open (carry-forward)
+- **Known intermittent OTP/reactive-disposal E2E flake** — 3 invite-code tests failed on one verification run, verified FLAKY (2 clean isolated reruns 117/0 + no static mechanism across the 24-commit range). The underlying Leptos SSR reactive-disposal panic (intermittent tower_http 500, ~1-8/run, zero deterministic test impact) remains the root cause — a Leptos-lifecycle investigation still owed. THE mechanical-visual/geometric Playwright assertions remain unbuilt (would not help here; separate priority).
+- **component-evaluation-framework.md A2 grep test** still references `style/tailwind.css` — after the FU-09 split, CSS lives in tokens.css/components.css. Outside FU-28's write-set (flagged by qual-fu28). One-line doc follow-up.
+- **FU-16 gate-pattern WHY comment** (qual-fu16 Minor) — the recurring `#[cfg(any(feature="ssr", test))]` formula could carry one orienting comment for future module authors. Cosmetic.
+- **Orphan Postgres sibling DBs** — isolated-harness reruns created samete_rerun_a / samete_rerun_b (+ any capture siblings). Drop at convenience: `psql -l | grep samete_` then DROP.
+- Pre-existing carry-forwards unchanged: IP-based OTP rate-limiting absent; cycle-viz label collision uncaptured at scale; page-09 terminal create-form capture gap.
