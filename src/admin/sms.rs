@@ -134,6 +134,12 @@ pub(super) async fn count_no_response_recipients(
 }
 
 // ── Server functions ───────────────────────────────────────────────────────────
+//
+// Each send loop collects the IDs of successful sends and marks them in ONE
+// statement after the loop (no per-target write). Failed sends stay unmarked so
+// the admin can re-trigger for the missed recipients. Trade-off: a crash
+// mid-loop leaves already-sent messages unmarked (they would be re-sent on
+// re-trigger) — accepted at this cohort scale (~15 participants).
 
 /// Story 5.3: Season-open notification to all active participants.
 ///
@@ -184,21 +190,12 @@ pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
 
     let message = td_string!(Locale::uk, sms_season_open_body);
 
-    let mut sent: u32 = 0;
+    let mut notified_user_ids: Vec<uuid::Uuid> = Vec::new();
     let mut failed_phones: Vec<String> = Vec::new();
 
     for target in targets {
         match sms::send_sms(&config, &http_client, &target.phone, message).await {
-            Ok(()) => {
-                let _ = sqlx::query!(
-                    r#"INSERT INTO season_open_notifications (user_id, season_id) VALUES ($1, $2) ON CONFLICT (user_id, season_id) DO NOTHING"#,
-                    target.user_id,
-                    season_id,
-                )
-                .execute(&pool)
-                .await;
-                sent += 1;
-            }
+            Ok(()) => notified_user_ids.push(target.user_id),
             Err(e) => {
                 tracing::warn!(phone = %target.phone, error = %e, "SMS send failed");
                 failed_phones.push(target.phone);
@@ -206,6 +203,21 @@ pub async fn send_season_open_sms() -> Result<SmsReport, ServerFnError> {
         }
     }
 
+    if !notified_user_ids.is_empty() {
+        let _ = sqlx::query!(
+            r#"
+            INSERT INTO season_open_notifications (user_id, season_id)
+            SELECT unnest($1::uuid[]), $2
+            ON CONFLICT (user_id, season_id) DO NOTHING
+            "#,
+            &notified_user_ids,
+            season_id,
+        )
+        .execute(&pool)
+        .await;
+    }
+
+    let sent = u32::try_from(notified_user_ids.len()).unwrap_or(u32::MAX);
     let failed = u32::try_from(failed_phones.len()).unwrap_or(u32::MAX);
     Ok(SmsReport {
         sent,
@@ -270,21 +282,12 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
 
     let message = td_string!(Locale::uk, sms_assignment_body);
 
-    let mut sent: u32 = 0;
+    let mut notified_assignment_ids: Vec<uuid::Uuid> = Vec::new();
     let mut failed_phones: Vec<String> = Vec::new();
 
     for target in targets {
         match sms::send_sms(&config, &http_client, &target.phone, message).await {
-            Ok(()) => {
-                // Mark notified_at on success; leave NULL on failure
-                let _ = sqlx::query!(
-                    r#"UPDATE assignments SET notified_at = now() WHERE id = $1"#,
-                    target.id,
-                )
-                .execute(&pool)
-                .await;
-                sent += 1;
-            }
+            Ok(()) => notified_assignment_ids.push(target.id),
             Err(e) => {
                 tracing::warn!(phone = %target.phone, error = %e, "SMS send failed");
                 failed_phones.push(target.phone);
@@ -292,6 +295,16 @@ pub async fn send_assignment_sms() -> Result<SmsReport, ServerFnError> {
         }
     }
 
+    if !notified_assignment_ids.is_empty() {
+        let _ = sqlx::query!(
+            r#"UPDATE assignments SET notified_at = now() WHERE id = ANY($1)"#,
+            &notified_assignment_ids,
+        )
+        .execute(&pool)
+        .await;
+    }
+
+    let sent = u32::try_from(notified_assignment_ids.len()).unwrap_or(u32::MAX);
     let failed = u32::try_from(failed_phones.len()).unwrap_or(u32::MAX);
     Ok(SmsReport {
         sent,
@@ -364,21 +377,12 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
     let prefix = td_string!(Locale::uk, sms_confirm_nudge_body_prefix);
     let message = format!("{prefix}{deadline_str}.");
 
-    let mut sent: u32 = 0;
+    let mut nudged_user_ids: Vec<uuid::Uuid> = Vec::new();
     let mut failed_phones: Vec<String> = Vec::new();
 
     for target in targets {
         match sms::send_sms(&config, &http_client, &target.phone, &message).await {
-            Ok(()) => {
-                let _ = sqlx::query!(
-                    r#"UPDATE enrollments SET confirm_nudge_sent_at = now() WHERE user_id = $1 AND season_id = $2"#,
-                    target.user_id,
-                    season_id,
-                )
-                .execute(&pool)
-                .await;
-                sent += 1;
-            }
+            Ok(()) => nudged_user_ids.push(target.user_id),
             Err(e) => {
                 tracing::warn!(phone = %target.phone, error = %e, "SMS send failed");
                 failed_phones.push(target.phone);
@@ -386,6 +390,19 @@ pub async fn send_confirm_nudge_sms() -> Result<SmsReport, ServerFnError> {
         }
     }
 
+    // season_id scopes the predicate so `user_id = ANY(...)` cannot touch a
+    // different season's enrollments.
+    if !nudged_user_ids.is_empty() {
+        let _ = sqlx::query!(
+            r#"UPDATE enrollments SET confirm_nudge_sent_at = now() WHERE user_id = ANY($1) AND season_id = $2"#,
+            &nudged_user_ids,
+            season_id,
+        )
+        .execute(&pool)
+        .await;
+    }
+
+    let sent = u32::try_from(nudged_user_ids.len()).unwrap_or(u32::MAX);
     let failed = u32::try_from(failed_phones.len()).unwrap_or(u32::MAX);
     Ok(SmsReport {
         sent,
@@ -447,20 +464,12 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
 
     let message = td_string!(Locale::uk, sms_receipt_nudge_body);
 
-    let mut sent: u32 = 0;
+    let mut nudged_assignment_ids: Vec<uuid::Uuid> = Vec::new();
     let mut failed_phones: Vec<String> = Vec::new();
 
     for target in targets {
         match sms::send_sms(&config, &http_client, &target.phone, message).await {
-            Ok(()) => {
-                let _ = sqlx::query!(
-                    r#"UPDATE assignments SET receipt_nudge_sent_at = now() WHERE id = $1"#,
-                    target.id,
-                )
-                .execute(&pool)
-                .await;
-                sent += 1;
-            }
+            Ok(()) => nudged_assignment_ids.push(target.id),
             Err(e) => {
                 tracing::warn!(phone = %target.phone, error = %e, "SMS send failed");
                 failed_phones.push(target.phone);
@@ -468,6 +477,16 @@ pub async fn send_receipt_nudge_sms() -> Result<SmsReport, ServerFnError> {
         }
     }
 
+    if !nudged_assignment_ids.is_empty() {
+        let _ = sqlx::query!(
+            r#"UPDATE assignments SET receipt_nudge_sent_at = now() WHERE id = ANY($1)"#,
+            &nudged_assignment_ids,
+        )
+        .execute(&pool)
+        .await;
+    }
+
+    let sent = u32::try_from(nudged_assignment_ids.len()).unwrap_or(u32::MAX);
     let failed = u32::try_from(failed_phones.len()).unwrap_or(u32::MAX);
     Ok(SmsReport {
         sent,

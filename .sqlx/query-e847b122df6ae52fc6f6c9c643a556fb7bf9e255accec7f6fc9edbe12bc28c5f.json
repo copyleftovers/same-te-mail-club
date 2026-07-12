@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO season_open_notifications (user_id, season_id)\n            SELECT unnest($1::uuid[]), $2\n            ON CONFLICT (user_id, season_id) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e847b122df6ae52fc6f6c9c643a556fb7bf9e255accec7f6fc9edbe12bc28c5f"
+}

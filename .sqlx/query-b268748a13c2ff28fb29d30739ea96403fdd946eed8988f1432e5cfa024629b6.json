@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE enrollments SET confirm_nudge_sent_at = now() WHERE user_id = ANY($1) AND season_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b268748a13c2ff28fb29d30739ea96403fdd946eed8988f1432e5cfa024629b6"
+}

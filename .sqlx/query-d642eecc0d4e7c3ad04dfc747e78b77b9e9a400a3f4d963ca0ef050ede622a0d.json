@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE assignments SET receipt_nudge_sent_at = now() WHERE id = ANY($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d642eecc0d4e7c3ad04dfc747e78b77b9e9a400a3f4d963ca0ef050ede622a0d"
+}
