@@ -25,7 +25,7 @@ Does the same element look the same across every page?
 | # | Criterion | Test |
 |---|-----------|------|
 | A1 | Zero hardcoded colors | `grep -rn '#[0-9a-fA-F]\{3,8\}' src/ style/` returns nothing outside `@theme` raw token block |
-| A2 | Spacing from Tailwind scale only | No bare `px`/`rem` values outside `@theme` in `style/tailwind.css` |
+| A2 | Spacing from Tailwind scale only | No bare `px`/`rem` values outside `@theme` in `style/tokens.css` or `style/components.css` |
 | A3 | One button definition | All pill-shaped clickable elements trace to `.btn`. `grep -rn 'border-radius.*100\|radius-pill' src/ style/` shows no independent declarations |
 | A4 | One field definition | All `<input>` elements use `.field-input` or sit inside `.field` |
 | A5 | One badge definition | All status indicators use `.badge[data-status]`. No ad-hoc colored pills |
