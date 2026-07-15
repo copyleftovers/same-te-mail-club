@@ -1633,13 +1633,27 @@ fn InviteCodesSection(
                                                     >
                                                         {code.code.clone()}
                                                     </span>
-                                                    // Distributor — secondary line
-                                                    <span
-                                                        class="invite-code-card-meta"
+                                                    // Distributor — canonical label/value pair (RV-05):
+                                                    // routed through .info-list so this meta block
+                                                    // renders with the same overline-label + value
+                                                    // treatment as every other label/value pair in the
+                                                    // app, instead of a bare, unlabeled line.
+                                                    <dl
+                                                        class="info-list invite-code-card-meta"
                                                         data-testid="invite-code-distributor-cell"
                                                     >
-                                                        {code.distributor_name.clone()}
-                                                    </span>
+                                                        <div class="info-item">
+                                                            <dt class="info-label">
+                                                                {t!(
+                                                                    i18n,
+                                                                    admin_invite_codes_distributor_label
+                                                                )}
+                                                            </dt>
+                                                            <dd class="info-value">
+                                                                {code.distributor_name.clone()}
+                                                            </dd>
+                                                        </div>
+                                                    </dl>
                                                     // Status badge
                                                     <span data-testid="invite-code-status-cell">
                                                         {match code.status {

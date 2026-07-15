@@ -604,11 +604,10 @@
     white-space: nowrap;
   }
 
-  /* Distributor — secondary muted line */
-  .invite-code-card-meta {
-    font-size: var(--text-secondary);
-    color: var(--color-text-muted);
-  }
+  /* Distributor — canonical .info-list label/value pair (RV-05). No own
+     typography here: .info-label/.info-value (below) own the type scale;
+     this class only carries the mobile full-width stacking behaviour
+     shared with its .invite-code-card-redeemer/-action siblings. */
 
   /* Redeemer block — secondary muted, grows to fill available space. The name
      and timestamp render on separate lines (name row + <small> date row) so a
@@ -877,6 +876,10 @@
   }
 
   /* ── Info list ────────────────────────────────────────────────── */
+  /* The ONE canonical label/value treatment in the app (RV-05) — every
+     meta pair (saved address, receipt recipient, invite-card distributor)
+     routes through .info-list > .info-item > .info-label + .info-value
+     so they render identically everywhere. */
   .info-list {
     display: flex;
     flex-direction: column;
@@ -908,14 +911,24 @@
     text-underline-offset: 2px; /* structural: aesthetic underline spacing */
   }
 
+  /* At >=640px, .info-item becomes `display: contents` so every dt/dd pair
+     in a list joins the SAME grid as a direct child of .info-list. This
+     makes the label column one shared width — sized to the longest label
+     across ALL items in the list — so the value column starts at the same
+     x for every row. A per-item flex row (the previous model) cannot do
+     this: each row sizes its own label independently, so a list mixing a
+     long label ("Відділення Нової Пошти") with a short one ("Телефон")
+     produces a ragged, per-row value start instead of one aligned column
+     (RV-05's "ragged value column" symptom). */
   @media (min-width: 640px) {
-    .info-item {
-      flex-direction: row;
+    .info-list {
+      display: grid;
+      grid-template-columns: auto 1fr;
       align-items: baseline; /* baseline-aligns value text with label text */
-      gap: var(--density-space-md);
+      gap: var(--density-space-sm) var(--density-space-md);
     }
-    .info-label {
-      min-width: calc(var(--spacing) * 20); /* tightened from 32 to eliminate dead horizontal gap */
+    .info-item {
+      display: contents;
     }
   }
 
