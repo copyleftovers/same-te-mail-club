@@ -1041,6 +1041,10 @@ fn render_assignment_section(
             // Generate button (only in assignment phase)
             {if is_assignment_phase {
                 view! {
+                    // RV-11: pairs the button with a one-line description, matching
+                    // the sibling action-cards in `render_phase_sms` (each pairs its
+                    // trigger button with a target/scope line).
+                    <p>{t!(i18n, assignments_generate_description)}</p>
                     <leptos::form::ActionForm action=generate_action>
                         // Secondary variant (FU-20): card-local routine action, not
                         // the page's phase-transition control — leaves exactly one

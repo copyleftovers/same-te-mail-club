@@ -83,6 +83,7 @@
   "admin_pre_launch_participant_count": "Учасників у системі",
   "admin_not_received_label": "Не отримано: ",
   "assignments_page_title": "Розподіл",
+  "assignments_generate_description": "Створює пари відправник-отримувач із підтверджених учасників.",
   "assignments_regenerate_button": "Перегенерувати",
   "assignments_generate_button": "Згенерувати",
   "assignments_released_note": "Опубліковано — учасники бачать свої призначення.",
