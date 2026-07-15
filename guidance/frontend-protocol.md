@@ -234,9 +234,9 @@ Applied in `@layer base` inside `style/components.css` as `body::after`:
     z-index: 1;
     pointer-events: none;
     opacity: 0.04;
+    /* No mix-blend-mode — normal/default compositing. See §Changes below. */
     background-image: url("data:image/svg+xml,..."); /* feTurbulence SVG, 283 bytes */
     background-size: 200px;
-    mix-blend-mode: overlay;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -245,7 +245,7 @@ Applied in `@layer base` inside `style/components.css` as `body::after`:
 }
 ```
 
-Changes from landing page: `z-index: 1` (was 100), `opacity: 0.04` (was 0.09), `mix-blend-mode: overlay` (was multiply — multiply is near-invisible on both cream and black as confirmed by Chrome inspection).
+Changes from landing page: `z-index: 1` (was 100), `opacity: 0.04` (was 0.09), no `mix-blend-mode` — normal/default compositing (was multiply). FU-08: `overlay` measured stdev 0 / invisible at the OKLCH lightness extremes of both cream and black; normal blend composites the noise at constant alpha regardless of backdrop, so the grain renders on every surface.
 
 ---
 

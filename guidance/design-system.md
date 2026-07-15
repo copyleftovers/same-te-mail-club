@@ -261,7 +261,7 @@ SVG `feTurbulence` noise, 283 bytes inline. Applied as `body::after` with `posit
 
 **Changes from landing page:**
 - `z-index: 1` (not 100 — app needs stacking room for modals, toasts, dropdowns)
-- `opacity: 0.04` with `mix-blend-mode: overlay` (not multiply — multiply is near-invisible on both cream and black surfaces as confirmed by Chrome inspection; overlay produces visible texture at both extremes)
+- `opacity: 0.04`, no `mix-blend-mode` — normal/default compositing (FU-08: `overlay` measured stdev 0 / invisible at the OKLCH lightness extremes of both cream L=0.98 and black L=0.15; normal blend composites the noise at constant alpha regardless of backdrop, so the grain renders on every surface)
 - `@media (prefers-reduced-motion: reduce)`: hide entirely
 
 ---
