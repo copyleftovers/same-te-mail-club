@@ -808,7 +808,7 @@ fn render_phase_sms(
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_season_open_section_title)}</h3>
                         <p>{t!(i18n, sms_season_open_target)}</p>
-                        <div class="flex items-center gap-(--density-space-sm)">
+                        <div class="sms-trigger-action">
                             <leptos::form::ActionForm action=season_open_action>
                                 <button
                                     class="btn"
@@ -846,7 +846,7 @@ fn render_phase_sms(
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_confirm_nudge_section_title)}</h3>
                         <p>{t!(i18n, sms_confirm_nudge_target)}</p>
-                        <div class="flex items-center gap-(--density-space-sm)">
+                        <div class="sms-trigger-action">
                             <leptos::form::ActionForm action=confirm_nudge_action>
                                 <button
                                     class="btn"
@@ -889,7 +889,7 @@ fn render_phase_sms(
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_assignment_section_title)}</h3>
                         <p>{t!(i18n, sms_assignment_target)}</p>
-                        <div class="flex items-center gap-(--density-space-sm)">
+                        <div class="sms-trigger-action">
                             <leptos::form::ActionForm action=assignment_action>
                                 <button
                                     class="btn"
@@ -923,7 +923,7 @@ fn render_phase_sms(
                     <div class="sms-trigger">
                         <h3>{t!(i18n, sms_receipt_nudge_section_title)}</h3>
                         <p>{t!(i18n, sms_receipt_nudge_target)}</p>
-                        <div class="flex items-center gap-(--density-space-sm)">
+                        <div class="sms-trigger-action">
                             <leptos::form::ActionForm action=receipt_nudge_action>
                                 <button
                                     class="btn"

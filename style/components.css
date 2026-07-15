@@ -778,6 +778,24 @@
     margin-bottom: var(--density-space-sm);
   }
 
+  /* Button + status-counter row inside a .sms-trigger card. At mobile
+     widths there is no room for both a full-length button label and the
+     counter text side by side, so the label wraps mid-pill (FU-11). Stack
+     the row instead — the button keeps its own single-line width, mirroring
+     the invite-code-card mobile stack breakpoint below. */
+  .sms-trigger-action {
+    display: flex;
+    align-items: center;
+    gap: var(--density-space-sm);
+  }
+
+  @media (max-width: 639px) {
+    .sms-trigger-action {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+
   /* ── Typography component classes ────────────────────────────── */
 
   /* overline label — uppercase label appearing above section headings */
