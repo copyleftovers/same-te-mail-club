@@ -1167,14 +1167,50 @@
     color: var(--color-text-muted);
   }
 
-  /* Mobile-first: show the compact line, hide the strip. */
+  /* Cancelled compact form (RV-08): a dash-marker row (one per phase) above
+     the muted label, so the terminal state reads as the same abandoned
+     shape on mobile as the desktop strip below — label-free, so it fits
+     375px without the scrolling the full labeled strip would need. */
+  .stepper-compact-abandoned {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    padding: var(--density-space-md) calc(var(--spacing) * 4);
+    margin: 0;
+    font-weight: 600;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .stepper-compact-abandoned-markers {
+    display: flex;
+    gap: calc(var(--spacing) * 1.5);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .stepper-compact-abandoned-marker {
+    width: calc(var(--spacing) * 2);
+    height: calc(var(--spacing) * 2);
+    border-radius: 50%;
+    background: var(--color-step-idle);
+    opacity: 0.35; /* matches the desktop abandoned marker/label/connector opacity */
+  }
+
+  .stepper-compact-abandoned-label {
+    margin: 0;
+  }
+
+  /* Mobile-first: show the compact form, hide the strip. */
   .stepper-strip {
     display: none;
   }
 
   @media (min-width: 640px) {
-    /* Desktop: show the full horizontal strip, hide the compact line. */
-    .stepper-compact {
+    /* Desktop: show the full horizontal strip, hide the compact forms. */
+    .stepper-compact,
+    .stepper-compact-abandoned {
       display: none;
     }
 

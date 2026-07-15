@@ -14,6 +14,29 @@ fn phase_label(i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>, phase:
     }
 }
 
+/// Compact (mobile) indicator for a cancelled season: a dash-marker row
+/// (one per phase) mirroring the desktop abandoned strip's marker language,
+/// plus the muted "Сезон скасовано" line — RV-08: text alone rendered the
+/// terminal state as a different shape on mobile than the desktop strip.
+fn abandoned_compact_indicator(
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+    phase_count: usize,
+) -> AnyView {
+    view! {
+        <div class="stepper-compact-abandoned" data-status="abandoned" aria-hidden="true">
+            <ol class="stepper-compact-abandoned-markers">
+                {(0..phase_count)
+                    .map(|_| view! { <li class="stepper-compact-abandoned-marker"></li> })
+                    .collect_view()}
+            </ol>
+            <p class="stepper-compact-abandoned-label">
+                {t!(i18n, season_stepper_cancelled)}
+            </p>
+        </div>
+    }
+    .into_any()
+}
+
 /// Stepper showing season progress through phases.
 ///
 /// Two responsive forms share one `phase-stepper` testid:
@@ -21,7 +44,9 @@ fn phase_label(i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>, phase:
 ///   (completed green check / current accent / locked gray / abandoned muted).
 /// - Mobile (<640px): a compact single line "Крок N з 5: <phase>" — the
 ///   5-label Ukrainian strip does not fit 375px, so it is replaced rather
-///   than shrunk. Cancelled shows a muted "Сезон скасовано" line.
+///   than shrunk. Cancelled shows a muted dash-marker row (mirroring the
+///   desktop abandoned strip's marker language, label-free so it fits
+///   without scrolling) plus a "Сезон скасовано" line.
 ///
 /// Step number and labels derive from the phase enum — single source of truth.
 ///
@@ -57,18 +82,9 @@ pub fn PhaseStepper(
         .map_or(1, |i| i64::try_from(i + 1).unwrap_or(1));
 
     // Compact (mobile) indicator: "Крок N з 5: <phase>" for active phases,
-    // muted "Сезон скасовано" for cancelled.
+    // the abandoned dash-marker row (see `abandoned_compact_indicator`) for cancelled.
     let compact = if is_cancelled {
-        view! {
-            <p
-                class="stepper-compact"
-                data-status="abandoned"
-                aria-hidden="true"
-            >
-                {t!(i18n, season_stepper_cancelled)}
-            </p>
-        }
-        .into_any()
+        abandoned_compact_indicator(i18n, phases.len())
     } else {
         let step = current_step;
         view! {
