@@ -1190,29 +1190,37 @@
   .step-connector {
     width: calc(var(--spacing) * 4);
     height: 2px; /* structural: thin connector line */
-    background: oklch(from var(--color-border) l c h / 0.2);
     flex-shrink: 0;
     align-self: flex-start;
     margin-top: calc(var(--spacing) * 5);
   }
 
+  /* FU-23: every connector_status value stepper.rs emits ("completed",
+     "pending", "abandoned") gets its own explicit rule below — none relies on
+     an un-qualified fallback — so the traversed segment (green, matches the
+     completed marker disc) reads as deliberately distinct from the
+     not-yet-reached segment (idle token, same tint as the idle step marker),
+     in both color modes via --color-step-idle's own dark reassignment. */
   .step-connector[data-status="completed"] {
-    background: var(--color-badge-success); /* matches the completed marker disc */
+    background: var(--color-badge-success);
+  }
+
+  .step-connector[data-status="pending"] {
+    background: var(--color-step-idle);
   }
 
   .step-connector[data-status="abandoned"] {
+    background: var(--color-step-idle);
     opacity: 0.35;
   }
 
-  /* Dark mode: an alpha-gray fill over near-black is invisible (idle marker ≈1.3:1
-     vs the page). Swap the idle marker + connector to a SOLID +0.15-L step so the
-     sequence structure (3 of 5 steps normally idle) stays visible. Only orange
-     (current) and green (completed) already read; idle/locked did not. */
+  /* Dark mode: an alpha-gray fill over near-black is invisible (idle marker
+     ≈1.3:1 vs the page). --color-step-idle's own dark :root reassignment
+     (solid +0.15-L step) already covers the pending/abandoned connector rules
+     above; only the marker (a separate element, out of FU-23 scope) needs its
+     own override here. */
   @media (prefers-color-scheme: dark) {
     .step-marker {
-      background: var(--color-step-idle);
-    }
-    .step-connector {
       background: var(--color-step-idle);
     }
   }
