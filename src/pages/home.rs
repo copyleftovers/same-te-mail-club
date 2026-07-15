@@ -826,12 +826,18 @@ fn render_enrollment_open(
                         city = city.clone()
                     );
                     view! {
-                        <dl class="info-list" data-testid="existing-address">
-                            <div class="info-item">
-                                <dt class="info-label">{t!(i18n, home_saved_address_label)}</dt>
-                                <dd class="info-value">{branch_text}</dd>
-                            </div>
-                        </dl>
+                        // Framed card + explicit "saved" label distinguishes this
+                        // reuse-my-address branch from the fresh-entry input fields
+                        // (the None arm below), which otherwise occupy the same slot.
+                        <article class="card" data-testid="existing-address">
+                            <dl class="info-list">
+                                <div class="info-item">
+                                    <dt class="info-label">{t!(i18n, home_saved_address_label)}</dt>
+                                    <dd class="info-value">{branch_text}</dd>
+                                </div>
+                            </dl>
+                            <p>{t!(i18n, home_saved_address_note)}</p>
+                        </article>
                         <input type="hidden" name="use_existing_address" value="true" />
                         // city and np_number are required by form deserialization but
                         // ignored by the server when use_existing_address is true.
