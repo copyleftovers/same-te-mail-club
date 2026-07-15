@@ -1163,10 +1163,6 @@
     color: var(--color-text);
   }
 
-  .stepper-compact[data-status="abandoned"] {
-    color: var(--color-text-muted);
-  }
-
   /* Cancelled compact form (RV-08): a dash-marker row (one per phase) above
      the muted label, so the terminal state reads as the same abandoned
      shape on mobile as the desktop strip below — label-free, so it fits
