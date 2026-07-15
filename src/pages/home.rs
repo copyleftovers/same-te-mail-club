@@ -1191,6 +1191,9 @@ fn render_home_state(
         HomeState::Assigning => view! {
             <div class="empty-state">
                 <h1 class="empty-state-headline">{t!(i18n, home_assigning_heading)}</h1>
+                <span class="badge" data-status="pending" data-testid="assigning-in-progress-badge">
+                    {t!(i18n, home_assigning_in_progress_label)}
+                </span>
                 <p class="empty-state-body">{t!(i18n, home_assigning_desc)}</p>
             </div>
         }
