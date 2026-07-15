@@ -220,3 +220,5 @@ Discovery/planning artifacts (recon/2026-07-15/, gitignored): `REVIEW-CONTRACT.m
 - **Docs synced**: design-system.md (destructive token, focus token, grain), frontend-protocol.md (grain). `visual-audit.spec.ts`: G7 mobile-menu capture test removed (state deleted).
 
 **Rendered-verify status:** CSS foundation was rendered-verified (grain/destructive/helper/header CLEAR; FU-01 residual caught+fixed in pixels). The other 26 units passed CODE review only — a FULL holistic rendered re-verify (both viewports, both modes) is the outstanding trust gate before this campaign is complete.
+
+**Verification-orchestration map** (per-unit screen + pixel-check + rendered-verify status for task #4, priority order, do-not-re-flag list, capture invocations): `recon/2026-07-15/VERIFICATION-HANDOFF.md` (gitignored/disposable — the offloaded per-fault detail for high-fidelity re-verify).
