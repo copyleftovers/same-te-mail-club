@@ -170,74 +170,80 @@ pub fn OnboardingPage() -> impl IntoView {
                     }
                     alt="Саме Те · Поштовий клуб"
                 />
-                <h1>{t!(i18n, onboarding_page_title)}</h1>
-                <p>{t!(i18n, onboarding_description)}</p>
+                // Wrapped in a plain div (mirroring login.rs's per-step wrapper)
+                // so the heading resolves against .auth-card > div { width:100% }
+                // instead of shrink-wrapping as a bare flex child of .auth-card —
+                // the same centered treatment login's step headings get (RV-10).
+                <div>
+                    <h1>{t!(i18n, onboarding_page_title)}</h1>
+                    <p>{t!(i18n, onboarding_description)}</p>
 
-                <leptos::form::ActionForm action=onboard_action>
-                    <div class="flex flex-col gap-(--density-space-md)">
-                        <div class="field w-full">
-                            <label class="field-label" for="np-city">
-                                {t!(i18n, onboarding_city_label)}
-                            </label>
-                            <input
-                                class="field-input"
-                                type="text"
-                                id="np-city"
-                                name="city"
-                                placeholder="Київ"
-                                required
-                                data-testid="np-city-input"
-                                aria-invalid=move || city_error.get().map(|_| "true")
-                                aria-describedby="np-city-error"
-                            />
-                            <p
-                                id="np-city-error"
-                                class="field-error"
-                                aria-live="assertive"
-                                data-testid="np-city-error"
-                            >
-                                {move || city_error.get()}
-                            </p>
+                    <leptos::form::ActionForm action=onboard_action>
+                        <div class="flex flex-col gap-(--density-space-md)">
+                            <div class="field w-full">
+                                <label class="field-label" for="np-city">
+                                    {t!(i18n, onboarding_city_label)}
+                                </label>
+                                <input
+                                    class="field-input"
+                                    type="text"
+                                    id="np-city"
+                                    name="city"
+                                    placeholder="Київ"
+                                    required
+                                    data-testid="np-city-input"
+                                    aria-invalid=move || city_error.get().map(|_| "true")
+                                    aria-describedby="np-city-error"
+                                />
+                                <p
+                                    id="np-city-error"
+                                    class="field-error"
+                                    aria-live="assertive"
+                                    data-testid="np-city-error"
+                                >
+                                    {move || city_error.get()}
+                                </p>
+                            </div>
+                            <div class="field w-full">
+                                <label class="field-label" for="np-number">
+                                    {t!(i18n, onboarding_np_number_label)}
+                                </label>
+                                <input
+                                    class="field-input"
+                                    id="np-number"
+                                    type="text"
+                                    inputmode="numeric"
+                                    name="np_number"
+                                    placeholder="123"
+                                    required
+                                    data-testid="np-number-input"
+                                    aria-invalid=move || np_error.get().map(|_| "true")
+                                    aria-describedby="np-number-error"
+                                />
+                                <p
+                                    id="np-number-error"
+                                    class="field-error"
+                                    aria-live="assertive"
+                                    data-testid="np-number-error"
+                                >
+                                    {move || np_error.get()}
+                                </p>
+                            </div>
                         </div>
-                        <div class="field w-full">
-                            <label class="field-label" for="np-number">
-                                {t!(i18n, onboarding_np_number_label)}
-                            </label>
-                            <input
-                                class="field-input"
-                                id="np-number"
-                                type="text"
-                                inputmode="numeric"
-                                name="np_number"
-                                placeholder="123"
-                                required
-                                data-testid="np-number-input"
-                                aria-invalid=move || np_error.get().map(|_| "true")
-                                aria-describedby="np-number-error"
-                            />
-                            <p
-                                id="np-number-error"
-                                class="field-error"
-                                aria-live="assertive"
-                                data-testid="np-number-error"
-                            >
-                                {move || np_error.get()}
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        class="btn w-full mt-(--density-space-md)"
-                        type="submit"
-                        data-testid="save-onboarding-button"
-                        disabled=move || onboard_pending.get() || !hydrated.get()
-                    >
-                        {move || if onboard_pending.get() {
-                            "Зберігаю...".into_any()
-                        } else {
-                            t!(i18n, onboarding_save_button).into_any()
-                        }}
-                    </button>
-                </leptos::form::ActionForm>
+                        <button
+                            class="btn w-full mt-(--density-space-md)"
+                            type="submit"
+                            data-testid="save-onboarding-button"
+                            disabled=move || onboard_pending.get() || !hydrated.get()
+                        >
+                            {move || if onboard_pending.get() {
+                                "Зберігаю...".into_any()
+                            } else {
+                                t!(i18n, onboarding_save_button).into_any()
+                            }}
+                        </button>
+                    </leptos::form::ActionForm>
+                </div>
             </div>
         </div>
     }
