@@ -681,22 +681,19 @@
     }
   }
 
-  /* FU-09: without an explicit height, the header auto-grows to fit whichever
-     content is tallest: the logo mark (--size-logo-height-header, 2.5rem) on
-     unauthenticated pages (login/onboarding, no nav shown) vs the logout/nav
-     .btn or .menu-toggle (both --size-touch-target, 2.75rem, the accessibility-
-     mandated touch-target minimum) on authenticated pages -- a ~4px drift that
-     also desyncs .page-frame's viewport-height calc (which subtracts a single
-     --header-height token). Pin to the taller of the two so every page renders
-     the same header height; box-sizing:border-box (global) means this height
-     nets out to the original padding once the taller content is subtracted,
-     so padding stays unchanged below -- the logo simply gets a hair more
-     centering slack on the pages where it is the only content. */
+  /* FU-09: pin to --header-height (the single source of truth, defined in
+     tokens.css) so the header is one constant height regardless of auth-state
+     content -- and so .page-frame's `min-height: calc(100dvh -
+     var(--header-height))` subtracts the SAME value the header actually
+     renders at. Without this the header auto-grew to its tallest child
+     (logo 2.5rem unauth vs logout/menu 2.75rem auth), drifting ~4px from the
+     token .page-frame relies on. box-sizing:border-box (global) folds the
+     padding below into this height. */
   .app-header {
     display: flex;
     align-items: center;
     gap: var(--density-space-sm);
-    height: calc(max(var(--size-logo-height-header), var(--size-touch-target)) + calc(var(--spacing) * 6) + 1px);
+    height: var(--header-height);
     padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
     border-bottom: 1px solid oklch(from var(--color-border) l c h / 0.35); /* structural: 1px header separator */
   }

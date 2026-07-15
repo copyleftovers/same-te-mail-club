@@ -98,9 +98,15 @@
   --size-cycle-viz: 480px;
   --size-auth-logo: 5rem;   /* auth hero mark: relates to the section-scale heading, not a page-title hero */
 
-  /* Header height: logo (2.5rem) + top+bottom padding (3*spacing each side = 6*spacing total) + 1px border.
-     Used by .page-frame for full-viewport-height participant layouts. */
-  --header-height: calc(var(--size-logo-height-header) + calc(var(--spacing) * 6) + 1px);
+  /* Header height: the taller of the two things the header ever contains -- the
+     logo mark (--size-logo-height-header, 2.5rem) on unauthenticated pages, or
+     the logout/nav .btn / .menu-toggle (--size-touch-target, 2.75rem, the a11y
+     touch minimum) on authenticated pages -- plus top+bottom padding
+     (3*spacing each side = 6*spacing total) + 1px border. This is the SINGLE
+     source of truth for header height: .app-header sets `height:
+     var(--header-height)` and .page-frame subtracts the same token in its
+     viewport calc, so the rendered bar and the centering math never disagree. */
+  --header-height: calc(max(var(--size-logo-height-header), var(--size-touch-target)) + calc(var(--spacing) * 6) + 1px);
 }
 
 /* Admin density override — in @layer base so Tailwind utilities can override via higher layers */
