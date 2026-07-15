@@ -102,7 +102,7 @@ pub fn App() -> impl IntoView {
                                 <div class="empty-state">
                                     <h1 class="empty-state-headline">{t!(i18n, app_not_found)}</h1>
                                     <p class="empty-state-body">{t!(i18n, not_found_body)}</p>
-                                    <a href="/" class="btn" data-variant="secondary">{t!(i18n, not_found_home_link)}</a>
+                                    <a href="/" class="btn">{t!(i18n, not_found_home_link)}</a>
                                 </div>
                             </div>
                         </div>
