@@ -7,6 +7,19 @@ pub(crate) fn strip_server_error_prefix(e: &leptos::prelude::ServerFnError) -> S
         .to_string()
 }
 
+/// ASCII Unit Separator used to encode a stable field discriminant alongside
+/// the localized user-facing message in a single `ServerFnError` string.
+///
+/// Format: `"<field_key>\u{1f}<localized_message>"` — `field_key` is a
+/// server-function-specific stable identifier (e.g. `"city"`, `"np_number"`,
+/// `"signup_deadline"`). Infra/DB/auth errors carry no separator and route
+/// to the page-level banner instead of a specific form field.
+///
+/// Shared wire-format contract between every server function that routes a
+/// validation error to one specific form field and the client-side parser
+/// that reads it back out: `pages::onboarding`, `pages::home`, `admin::season`.
+pub(crate) const FIELD_DISCRIMINANT_SEPARATOR: char = '\u{1f}';
+
 #[cfg(feature = "ssr")]
 use crate::types::{InvalidTransition, Phase};
 

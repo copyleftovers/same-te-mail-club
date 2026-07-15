@@ -2,14 +2,10 @@ use leptos::prelude::*;
 
 #[cfg(feature = "ssr")]
 use crate::error::db_err;
-
-/// ASCII Unit Separator used to encode a stable field discriminant alongside
-/// the localized user-facing message in a single `ServerFnError` string.
-///
-/// Format: `"<field_key>\u{1f}<localized_message>"`
-/// where `field_key` ∈ {`"signup_deadline"`, `"confirm_deadline"`} for create-season
-/// validation errors. Infra/DB/auth errors carry no separator.
-pub(super) const FIELD_DISCRIMINANT_SEPARATOR: char = '\u{1f}';
+// Only referenced inside create_season's ssr-gated body (unlike home.rs/
+// onboarding.rs, which also parse this separator in a client-compiled fn).
+#[cfg(feature = "ssr")]
+use crate::error::FIELD_DISCRIMINANT_SEPARATOR;
 
 // ── Server functions ───────────────────────────────────────────────────────────
 

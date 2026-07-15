@@ -7,9 +7,7 @@ use crate::admin::invite_codes::{
     list_distributor_options, list_invite_codes,
 };
 use crate::admin::participants::{DeactivateParticipant, ParticipantSummary, list_participants};
-use crate::admin::season::{
-    AdvanceSeason, CancelSeason, CreateSeason, FIELD_DISCRIMINANT_SEPARATOR, LaunchSeason,
-};
+use crate::admin::season::{AdvanceSeason, CancelSeason, CreateSeason, LaunchSeason};
 use crate::admin::sms::{
     SendAssignmentSms, SendConfirmNudgeSms, SendReceiptNudgeSms, SendSeasonOpenSms, SmsReport,
 };
@@ -17,7 +15,7 @@ use crate::admin::state::{AdminSeason, AdminState, get_admin_state};
 use crate::components::skeleton::SkeletonFallback;
 use crate::components::stepper::PhaseStepper;
 use crate::components::toast::use_toast;
-use crate::error::strip_server_error_prefix;
+use crate::error::{FIELD_DISCRIMINANT_SEPARATOR, strip_server_error_prefix};
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use crate::types::InviteCodeStatus;
@@ -192,6 +190,15 @@ pub fn AdminPage() -> impl IntoView {
     });
 
     // ── Collect errors from all actions ───────────────────────────────────────
+    // create_action's field-discriminated errors (signup/confirm deadline) ALSO
+    // render locally next to their input (see render_create_form); this banner
+    // keeps showing the stripped message too (existing E2E contract on
+    // `action-error` for create-season validation), field-less errors (e.g.
+    // "active season already exists") have no other home.
+    //
+    // generate_invite_action has exactly one field (distributor); every error it
+    // can produce belongs to that field's local `.field-error` (see
+    // InviteCodesSection), never this banner.
     let action_error = move || {
         create_action
             .value()
@@ -207,7 +214,6 @@ pub fn AdminPage() -> impl IntoView {
             .or_else(|| confirm_nudge_action.value().get().and_then(Result::err))
             .or_else(|| receipt_nudge_action.value().get().and_then(Result::err))
             .or_else(|| deactivate_action.value().get().and_then(Result::err))
-            .or_else(|| generate_invite_action.value().get().and_then(Result::err))
             .or_else(|| revoke_invite_action.value().get().and_then(Result::err))
     };
 
@@ -231,7 +237,7 @@ pub fn AdminPage() -> impl IntoView {
                         admin_state
                             .get()
                             .map(|result| match result {
-                                Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
+                                Err(e) => view! { <p class="alert">{strip_server_error_prefix(&e)}</p> }.into_any(),
                                 Ok(ref state) => render_season_section(
                                     state,
                                     create_action,
@@ -352,39 +358,44 @@ fn parse_create_season_field_error(stripped: &str) -> (Option<CreateSeasonReject
 }
 
 /// Render the create-season form (no active season).
+// The `view!` macro's HTML attribute verbosity inflates line count beyond what
+// reflects logic complexity; extracting sub-components here would be YAGNI.
+#[allow(clippy::too_many_lines)]
 fn render_create_form(
     create_action: ServerAction<CreateSeason>,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
     let pending = create_action.pending();
-    // Per-field invalid signals — only the rejected field becomes true.
-    let (signup_invalid, set_signup_invalid) = signal(false);
-    let (confirm_invalid, set_confirm_invalid) = signal(false);
+    // Per-field error messages — only the rejected field's signal is set, so its
+    // `.field-error` renders locally instead of relying on the page-wide banner.
+    let (signup_error, set_signup_error) = signal(Option::<String>::None);
+    let (confirm_error, set_confirm_error) = signal(Option::<String>::None);
 
     Effect::new(move |_| {
         if let Some(result) = create_action.value().get() {
             match result {
                 Ok(()) => {
-                    set_signup_invalid.set(false);
-                    set_confirm_invalid.set(false);
+                    set_signup_error.set(None);
+                    set_confirm_error.set(None);
                 }
                 Err(e) => {
                     let stripped = strip_server_error_prefix(&e);
-                    let (field, _msg) = parse_create_season_field_error(&stripped);
+                    let (field, msg) = parse_create_season_field_error(&stripped);
                     match field {
                         Some(CreateSeasonRejectedField::SignupDeadline) => {
-                            set_signup_invalid.set(true);
-                            set_confirm_invalid.set(false);
+                            set_signup_error.set(Some(msg.to_owned()));
+                            set_confirm_error.set(None);
                         }
                         Some(CreateSeasonRejectedField::ConfirmDeadline) => {
-                            set_signup_invalid.set(false);
-                            set_confirm_invalid.set(true);
+                            set_signup_error.set(None);
+                            set_confirm_error.set(Some(msg.to_owned()));
                         }
                         None => {
-                            // Infra/auth/active-exists errors: no field border.
-                            set_signup_invalid.set(false);
-                            set_confirm_invalid.set(false);
+                            // Infra/auth/active-exists errors: no field border,
+                            // shown on the page-wide banner instead.
+                            set_signup_error.set(None);
+                            set_confirm_error.set(None);
                         }
                     }
                 }
@@ -409,9 +420,17 @@ fn render_create_form(
                             name="signup_deadline"
                             required=true
                             data-testid="signup-deadline-input"
-                            aria-describedby="action-error"
-                            aria-invalid=move || signup_invalid.get().then_some("true")
+                            aria-describedby="signup-deadline-error"
+                            aria-invalid=move || signup_error.get().is_some().then_some("true")
                         />
+                        <p
+                            id="signup-deadline-error"
+                            class="field-error"
+                            aria-live="assertive"
+                            data-testid="signup-deadline-error"
+                        >
+                            {move || signup_error.get()}
+                        </p>
                     </div>
                     <div class="field">
                         <label class="field-label" for="confirm-deadline">
@@ -424,9 +443,17 @@ fn render_create_form(
                             name="confirm_deadline"
                             required=true
                             data-testid="confirm-deadline-input"
-                            aria-describedby="action-error"
-                            aria-invalid=move || confirm_invalid.get().then_some("true")
+                            aria-describedby="confirm-deadline-error"
+                            aria-invalid=move || confirm_error.get().is_some().then_some("true")
                         />
+                        <p
+                            id="confirm-deadline-error"
+                            class="field-error"
+                            aria-live="assertive"
+                            data-testid="confirm-deadline-error"
+                        >
+                            {move || confirm_error.get()}
+                        </p>
                     </div>
                     <div class="field">
                         <label class="field-label" for="theme">
@@ -440,7 +467,6 @@ fn render_create_form(
                             maxlength="100"
                             placeholder=move || t_string!(i18n, season_theme_placeholder)
                             data-testid="theme-input"
-                            aria-describedby="action-error"
                         />
                     </div>
                     <button
@@ -1342,6 +1368,16 @@ fn InviteCodesSection(
     let generate_pending = generate_invite_action.pending();
     let revoke_pending = revoke_invite_action.pending();
     let (filter_query, set_filter_query) = signal(String::new());
+    // generate_invite_code has exactly one input (distributor), so any error it
+    // returns belongs to this field's own local `.field-error` — no discriminant
+    // wire format needed, unlike the multi-field create-season/onboarding forms.
+    let distributor_error = move || {
+        generate_invite_action
+            .value()
+            .get()
+            .and_then(Result::err)
+            .map(|e| strip_server_error_prefix(&e))
+    };
 
     view! {
         <section class="admin-section" data-testid="invite-codes-section">
@@ -1360,7 +1396,7 @@ fn InviteCodesSection(
                         .get()
                         .map(|result| match result {
                             Err(e) => {
-                                view! { <p class="text-(--color-error)">{e.to_string()}</p> }
+                                view! { <p class="alert">{strip_server_error_prefix(&e)}</p> }
                                     .into_any()
                             }
                             Ok(options) => {
@@ -1377,7 +1413,8 @@ fn InviteCodesSection(
                                                 name="distributor_id"
                                                 data-testid="distributor-select"
                                                 required=true
-                                                aria-describedby="action-error"
+                                                aria-describedby="distributor-id-error"
+                                                aria-invalid=move || distributor_error().is_some().then_some("true")
                                             >
                                                 <option value="">
                                                     {t!(i18n, assignments_select_sender)}
@@ -1391,6 +1428,14 @@ fn InviteCodesSection(
                                                     })
                                                     .collect_view()}
                                             </select>
+                                            <p
+                                                id="distributor-id-error"
+                                                class="field-error"
+                                                aria-live="assertive"
+                                                data-testid="distributor-id-error"
+                                            >
+                                                {move || distributor_error()}
+                                            </p>
                                         </div>
                                         <button
                                             class="btn"
@@ -1465,7 +1510,7 @@ fn InviteCodesSection(
                             .map(|result| match result {
                                 Err(e) => {
                                     view! {
-                                        <p class="text-(--color-error)">{e.to_string()}</p>
+                                        <p class="alert">{strip_server_error_prefix(&e)}</p>
                                     }
                                     .into_any()
                                 }
@@ -1677,7 +1722,7 @@ fn ParticipantListSection(
                     participants
                         .get()
                         .map(|result| match result {
-                            Err(e) => view! { <p class="alert">{e.to_string()}</p> }.into_any(),
+                            Err(e) => view! { <p class="alert">{strip_server_error_prefix(&e)}</p> }.into_any(),
                             Ok(list) => {
                                 if list.is_empty() {
                                     view! {
