@@ -593,15 +593,15 @@ fn render_active_season(
                 ().into_any()
             }}
 
-            // Not-received alert (only in delivery/complete with non-zero count)
+            // Not-received alert (only in delivery/complete with non-zero count).
+            // Bare `<p class="alert">` — the canonical alert shape shared with the
+            // page-wide banner and the distributor/state error alerts.
             {if not_received_count > 0 {
                 view! {
-                    <div class="alert" data-testid="not-received-alert">
-                        <strong>
-                            {t!(i18n, admin_not_received_label)}
-                            {not_received_count}
-                        </strong>
-                    </div>
+                    <p class="alert" data-testid="not-received-alert">
+                        {t!(i18n, admin_not_received_label)}
+                        {not_received_count}
+                    </p>
                 }.into_any()
             } else {
                 ().into_any()
@@ -750,10 +750,17 @@ fn render_active_season(
                 }}
             </div>
 
-            // Terminal state: show create form below the summary so organiser
-            // can start a new season without navigating away.
+            // Terminal state: offer a fresh season below the concluded-season
+            // summary. A top border + generous spacing separate the read-only
+            // record above from the create-next-season form, so the summary's
+            // deadline facts and the form's editable deadline inputs no longer
+            // read as one braided block.
             {if is_terminal {
-                render_create_form(create_action, hydrated, i18n)
+                view! {
+                    <div class="mt-(--density-space-lg) pt-(--density-space-lg) border-t border-(--color-border)">
+                        {render_create_form(create_action, hydrated, i18n)}
+                    </div>
+                }.into_any()
             } else {
                 ().into_any()
             }}
