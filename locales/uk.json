@@ -18,7 +18,7 @@
   "home_enroll_button": "Зареєструватись",
   "home_enrolled_heading": "Ти в списку",
   "home_enrolled_desc": "Тепер час створити свій лист. Щось справжнє, від тебе.",
-  "home_enrolled_milestone": "Коли реєстрація завершиться — зможеш підтвердити готовність. Дедлайн: {{ confirm_deadline }}.",
+  "home_enrolled_milestone": "Коли реєстрація завершиться — зможеш підтвердити готовність.",
   "home_preparing_heading": "Час творити",
   "home_deadline_label": "Дедлайн: ",
   "home_confirm_ready_button": "Лист готовий",

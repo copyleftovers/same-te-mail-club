@@ -1083,6 +1083,9 @@ fn render_assignment_details(
     .into_any()
 }
 
+// The `view!` macro's HTML attribute verbosity inflates line count beyond what
+// reflects logic complexity; extracting sub-components here would be YAGNI.
+#[allow(clippy::too_many_lines)]
 fn render_home_state(
     state: HomeState,
     enroll_action: ServerAction<EnrollInSeason>,
@@ -1125,8 +1128,10 @@ fn render_home_state(
             <div class="empty-state">
                 <h1 class="empty-state-headline">{t!(i18n, home_enrolled_heading)}</h1>
                 <p class="empty-state-body">{t!(i18n, home_enrolled_desc)}</p>
-                <p class="empty-state-body">
-                    {t!(i18n, home_enrolled_milestone, confirm_deadline = confirm_deadline.clone())}
+                <p class="empty-state-body">{t!(i18n, home_enrolled_milestone)}</p>
+                <p class="deadline">
+                    {t!(i18n, home_deadline_label)}
+                    {confirm_deadline}
                 </p>
             </div>
         }
