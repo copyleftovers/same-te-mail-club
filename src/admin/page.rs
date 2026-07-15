@@ -1030,8 +1030,12 @@ fn render_assignment_section(
             {if is_assignment_phase {
                 view! {
                     <leptos::form::ActionForm action=generate_action>
+                        // Secondary variant (FU-20): card-local routine action, not
+                        // the page's phase-transition control — leaves exactly one
+                        // orange primary ("Далі") per admin phase.
                         <button
                             class="btn"
+                            data-variant="secondary"
                             type="submit"
                             data-testid="generate-button"
                             disabled=move || generate_pending.get() || !hydrated.get()
@@ -1396,11 +1400,14 @@ fn SwapFormSection(
                             .collect_view()}
                     </select>
                 </div>
-                // Primary (default) variant: applying a swap is an affirmative
-                // commit and the sole CTA of this form — it must read as the
-                // main action, not a recessive secondary (S3).
+                // Secondary variant (FU-20): reverses S3's per-form primary call.
+                // FU-20 grades emphasis per PAGE, not per form — the season's
+                // phase-advance control is the sole primary; this form's own sole
+                // CTA still reads clearly as secondary, without competing for the
+                // page's one orange action.
                 <button
                     class="btn"
+                    data-variant="secondary"
                     type="submit"
                     data-testid="swap-button"
                     disabled=move || swap_pending.get() || !hydrated.get()
@@ -1496,8 +1503,12 @@ fn InviteCodesSection(
                                                 {move || distributor_error()}
                                             </p>
                                         </div>
+                                        // Secondary variant (FU-20): card-local
+                                        // routine create action, calm relative to
+                                        // the page's one phase-transition primary.
                                         <button
                                             class="btn"
+                                            data-variant="secondary"
                                             type="submit"
                                             data-testid="generate-code-button"
                                             disabled=move || generate_pending.get() || !hydrated.get()
@@ -1722,9 +1733,14 @@ fn InviteCodesSection(
                                                                         name="id"
                                                                         value=code_id
                                                                     />
+                                                                    // Secondary variant (FU-20): revoke is frequent
+                                                                    // and low-consequence — demoted off
+                                                                    // destructive-red so red stays a real danger
+                                                                    // signal reserved for cancel-confirm. Intent
+                                                                    // is carried by the label + status badge.
                                                                     <button
                                                                         class="btn"
-                                                                        data-variant="destructive"
+                                                                        data-variant="secondary"
                                                                         data-size="sm"
                                                                         type="submit"
                                                                         data-testid="invite-code-revoke-button"
@@ -1857,9 +1873,13 @@ fn ParticipantListSection(
                                                                                             name="user_id"
                                                                                             value=uid_str
                                                                                         />
+                                                                                        // Secondary variant (FU-20): same
+                                                                                        // rationale as invite-code revoke —
+                                                                                        // frequent, low-consequence, kept
+                                                                                        // off destructive-red.
                                                                                         <button
                                                                                             class="btn"
-                                                                                            data-variant="destructive"
+                                                                                            data-variant="secondary"
                                                                                             data-size="sm"
                                                                                             type="submit"
                                                                                             data-testid="deactivate-button"
