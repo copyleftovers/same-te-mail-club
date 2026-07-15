@@ -16,8 +16,14 @@ use crate::error::db_err;
 /// Derives from (season phase + participant enrollment + confirmation + assignment state).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum HomeState {
-    /// No active launched season.
+    /// No active launched season, and none is being prepared either.
     NoSeason,
+
+    /// A season row exists (just created, still in Enrollment phase) but has
+    /// not been launched yet, so participants can't see its details. Distinct
+    /// from `NoSeason` so the page doesn't claim nothing is happening when
+    /// the organiser is already preparing the next season.
+    EnrollmentNotOpen,
 
     /// Enrollment phase, participant is NOT enrolled.
     EnrollmentOpen {
@@ -309,7 +315,12 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
         return match most_recent_phase {
             Some(Phase::Complete) => Ok(HomeState::Complete),
             Some(Phase::Cancelled) => Ok(HomeState::Cancelled),
-            _ => Ok(HomeState::NoSeason),
+            // Reaching here means this season failed the launched_at filter
+            // above — creation always starts unlaunched in Enrollment phase,
+            // and advancing phase requires already being launched — so any
+            // other phase found here means a season exists but isn't live yet.
+            Some(_) => Ok(HomeState::EnrollmentNotOpen),
+            None => Ok(HomeState::NoSeason),
         };
     };
 
@@ -1079,6 +1090,14 @@ fn render_home_state(
             <div class="empty-state">
                 <h1 class="empty-state-headline">{t!(i18n, home_no_season_heading)}</h1>
                 <p class="empty-state-body">{t!(i18n, home_no_season)}</p>
+            </div>
+        }
+        .into_any(),
+
+        HomeState::EnrollmentNotOpen => view! {
+            <div class="empty-state" data-testid="enrollment-not-open">
+                <h1 class="empty-state-headline">{t!(i18n, home_enrollment_not_open_heading)}</h1>
+                <p class="empty-state-body">{t!(i18n, home_enrollment_not_open_body)}</p>
             </div>
         }
         .into_any(),
