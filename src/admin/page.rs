@@ -1537,8 +1537,8 @@ fn InviteCodesSection(
                     <span class="text-sm font-semibold">
                         {t!(i18n, admin_invite_codes_generated_label)}
                     </span>
-                    <code
-                        class="font-mono text-sm bg-(--color-surface-raised) px-2 py-1 rounded"
+                    <span
+                        class="invite-code-card-code"
                         data-testid="generated-code-value"
                     >
                         {move || {
@@ -1548,7 +1548,7 @@ fn InviteCodesSection(
                                 .and_then(Result::ok)
                                 .unwrap_or_default()
                         }}
-                    </code>
+                    </span>
                 </div>
             </Show>
 
