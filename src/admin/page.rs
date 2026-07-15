@@ -273,7 +273,7 @@ pub fn AdminPage() -> impl IntoView {
             // wrapping them in a third card would produce nested white-on-white
             // panels (surface-raised inside surface-raised, no perceptual depth).
             <section data-testid="participants-outer-section">
-                <h2 class="mb-(--density-space-md)">{t!(i18n, participants_page_title)}</h2>
+                <h2>{t!(i18n, participants_page_title)}</h2>
                 <InviteCodesSection
                     generate_invite_action=generate_invite_action
                     revoke_invite_action=revoke_invite_action
