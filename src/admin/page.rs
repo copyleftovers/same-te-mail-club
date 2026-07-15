@@ -316,7 +316,7 @@ fn render_season_section(
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
     match &state.season {
-        None => render_create_form(create_action, hydrated, i18n),
+        None => render_create_form(create_action, hydrated, i18n, CreateFormContext::Standalone),
         Some(season) => render_active_season(
             season,
             state.participant_count,
@@ -359,7 +359,21 @@ fn parse_create_season_field_error(stripped: &str) -> (Option<CreateSeasonReject
     }
 }
 
-/// Render the create-season form (no active season).
+/// Where the create-season form is mounted — controls whether the "no active
+/// season" heading above it is shown.
+///
+/// RV-13: when the form is embedded below an already-terminal season (a
+/// ЗАВЕРШЕНО/СКАСОВАНО badge is already visible above it), restating "no
+/// active season" is redundant with that badge. When the form is the page's
+/// only content (no season row exists yet), the same line is the primary,
+/// meaningful heading.
+#[derive(Clone, Copy, PartialEq)]
+enum CreateFormContext {
+    Standalone,
+    AfterTerminalSeason,
+}
+
+/// Render the create-season form.
 // The `view!` macro's HTML attribute verbosity inflates line count beyond what
 // reflects logic complexity; extracting sub-components here would be YAGNI.
 #[allow(clippy::too_many_lines)]
@@ -367,37 +381,42 @@ fn render_create_form(
     create_action: ServerAction<CreateSeason>,
     hydrated: ReadSignal<bool>,
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+    context: CreateFormContext,
 ) -> AnyView {
     let pending = create_action.pending();
-    // Per-field error messages — only the rejected field's signal is set, so its
-    // `.field-error` renders locally instead of relying on the page-wide banner.
-    let (signup_error, set_signup_error) = signal(Option::<String>::None);
-    let (confirm_error, set_confirm_error) = signal(Option::<String>::None);
+    // Per-field flags drive `aria-invalid` (the red border on the rejected
+    // input) only. RV-04: the error MESSAGE itself is shown once, in the
+    // page-wide `#action-error` banner below — a local text echo here would
+    // duplicate that same fact. `aria-describedby="action-error"` links each
+    // input to that single message, matching the pattern already used by the
+    // swap form's `sender-a`/`sender-b` selects.
+    let (signup_error, set_signup_error) = signal(false);
+    let (confirm_error, set_confirm_error) = signal(false);
 
     Effect::new(move |_| {
         if let Some(result) = create_action.value().get() {
             match result {
                 Ok(()) => {
-                    set_signup_error.set(None);
-                    set_confirm_error.set(None);
+                    set_signup_error.set(false);
+                    set_confirm_error.set(false);
                 }
                 Err(e) => {
                     let stripped = strip_server_error_prefix(&e);
-                    let (field, msg) = parse_create_season_field_error(&stripped);
+                    let (field, _msg) = parse_create_season_field_error(&stripped);
                     match field {
                         Some(CreateSeasonRejectedField::SignupDeadline) => {
-                            set_signup_error.set(Some(msg.to_owned()));
-                            set_confirm_error.set(None);
+                            set_signup_error.set(true);
+                            set_confirm_error.set(false);
                         }
                         Some(CreateSeasonRejectedField::ConfirmDeadline) => {
-                            set_signup_error.set(None);
-                            set_confirm_error.set(Some(msg.to_owned()));
+                            set_signup_error.set(false);
+                            set_confirm_error.set(true);
                         }
                         None => {
                             // Infra/auth/active-exists errors: no field border,
                             // shown on the page-wide banner instead.
-                            set_signup_error.set(None);
-                            set_confirm_error.set(None);
+                            set_signup_error.set(false);
+                            set_confirm_error.set(false);
                         }
                     }
                 }
@@ -407,9 +426,13 @@ fn render_create_form(
 
     view! {
         <div data-testid="create-season-form">
-            <p class="text-[length:var(--text-secondary)] text-(--color-text-muted) mb-(--density-space-sm)">{t!(i18n, home_no_season_heading)}</p>
+            {(context == CreateFormContext::Standalone).then(|| view! {
+                <p class="text-[length:var(--text-secondary)] text-(--color-text-muted) mb-(--density-space-sm)">
+                    {t!(i18n, home_no_season_heading)}
+                </p>
+            })}
             <section>
-                <h2>{t!(i18n, season_create_form_title)}</h2>
+                <h3 class="overline-label">{t!(i18n, season_create_form_title)}</h3>
                 <leptos::form::ActionForm action=create_action>
                     <div class="field">
                         <label class="field-label" for="signup-deadline">
@@ -422,17 +445,9 @@ fn render_create_form(
                             name="signup_deadline"
                             required=true
                             data-testid="signup-deadline-input"
-                            aria-describedby="signup-deadline-error"
-                            aria-invalid=move || signup_error.get().is_some().then_some("true")
+                            aria-describedby="action-error"
+                            aria-invalid=move || signup_error.get().then_some("true")
                         />
-                        <p
-                            id="signup-deadline-error"
-                            class="field-error"
-                            aria-live="assertive"
-                            data-testid="signup-deadline-error"
-                        >
-                            {move || signup_error.get()}
-                        </p>
                     </div>
                     <div class="field">
                         <label class="field-label" for="confirm-deadline">
@@ -445,17 +460,9 @@ fn render_create_form(
                             name="confirm_deadline"
                             required=true
                             data-testid="confirm-deadline-input"
-                            aria-describedby="confirm-deadline-error"
-                            aria-invalid=move || confirm_error.get().is_some().then_some("true")
+                            aria-describedby="action-error"
+                            aria-invalid=move || confirm_error.get().then_some("true")
                         />
-                        <p
-                            id="confirm-deadline-error"
-                            class="field-error"
-                            aria-live="assertive"
-                            data-testid="confirm-deadline-error"
-                        >
-                            {move || confirm_error.get()}
-                        </p>
                     </div>
                     <div class="field">
                         <label class="field-label" for="theme">
@@ -760,7 +767,12 @@ fn render_active_season(
             {if is_terminal {
                 view! {
                     <div class="mt-(--density-space-lg) pt-(--density-space-lg) border-t border-(--color-border)">
-                        {render_create_form(create_action, hydrated, i18n)}
+                        {render_create_form(
+                            create_action,
+                            hydrated,
+                            i18n,
+                            CreateFormContext::AfterTerminalSeason,
+                        )}
                     </div>
                 }.into_any()
             } else {
