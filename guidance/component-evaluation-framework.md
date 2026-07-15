@@ -39,7 +39,7 @@ Does the rendered output match `design-system.md`?
 | B1 | Typography hierarchy matches | Each level in the spec table: family, weight, size, line-height, letter-spacing. Playwright computed-style extraction on representative pages |
 | B2 | Semantic color aliases match | `:root` block values match spec's Semantic Aliases table exactly |
 | B3 | Density tokens respect layout | `[data-layout="admin"]` overrides `--density-space-*` to compact values per spec |
-| B4 | Grain overlay compliant | `body::after`: z-index 1, opacity 0.04, mix-blend-mode overlay, pointer-events none. Hidden under `prefers-reduced-motion: reduce` |
+| B4 | Grain overlay compliant | `body::after`: z-index 1, opacity 0.04, no mix-blend-mode (normal blend), pointer-events none. Hidden under `prefers-reduced-motion: reduce` |
 
 ### C. Interactive States
 
