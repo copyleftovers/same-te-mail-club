@@ -42,6 +42,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes" />
+                // WARNING: theme-color can't consume CSS var() — mirror by hand if
+                // --color-brand-orange / --color-brand-black change in style/tokens.css.
                 <meta name="theme-color" content="#D93A12" media="(prefers-color-scheme: light)" />
                 <meta name="theme-color" content="#161616" media="(prefers-color-scheme: dark)" />
                 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
