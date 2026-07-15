@@ -995,6 +995,9 @@
     width: 100%;
     max-width: var(--size-content-max);   /* 28rem — one envelope for field + primary */
     margin-inline: auto;
+    /* RV-02: same inset concept + same token as .prose-page's padding-inline,
+       so mobile content clears the bezel instead of running edge-to-edge. */
+    padding-inline: calc(var(--spacing) * 4);
     display: flex;
     flex-direction: column;
     align-items: center;                   /* centers hero, heading, OTP, primary, link */
