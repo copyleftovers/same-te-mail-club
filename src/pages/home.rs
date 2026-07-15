@@ -1,6 +1,6 @@
 use crate::components::skeleton::SkeletonFallback;
 use crate::components::toast::use_toast;
-use crate::error::strip_server_error_prefix;
+use crate::error::{FIELD_DISCRIMINANT_SEPARATOR, strip_server_error_prefix};
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
@@ -343,6 +343,10 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
 ///
 /// Returns `Err` if not logged in, season not in Enrollment phase, deadline passed,
 /// no delivery address, or already enrolled.
+// Field-discriminated validation (city vs np_number) adds real branches, not
+// boilerplate — genuinely 1 line over the limit; splitting further would fragment
+// one cohesive validation flow across functions for no clarity gain.
+#[allow(clippy::too_many_lines)]
 #[server]
 pub async fn enroll_in_season(
     use_existing_address: bool,
@@ -353,6 +357,14 @@ pub async fn enroll_in_season(
         auth,
         i18n::i18n::{Locale, td_string},
     };
+
+    /// Build a field-discriminated `ServerFnError` for the enrollment form —
+    /// see `FIELD_DISCRIMINANT_SEPARATOR` for the wire format.
+    fn field_error(field_key: &str, message: impl std::fmt::Display) -> ServerFnError {
+        ServerFnError::new(format!(
+            "{field_key}{FIELD_DISCRIMINANT_SEPARATOR}{message}"
+        ))
+    }
 
     let (pool, user) = auth::require_auth().await?;
 
@@ -385,15 +397,27 @@ pub async fn enroll_in_season(
             0
         } else {
             np_number.trim().parse().map_err(|_| {
-                ServerFnError::new(td_string!(Locale::uk, home_error_invalid_branch_number))
+                field_error(
+                    "np_number",
+                    td_string!(Locale::uk, home_error_invalid_branch_number),
+                )
             })?
         };
 
+        // Route the "incomplete address" failure to whichever field is actually
+        // empty/invalid, so the client can show the message next to that field
+        // instead of only on the page-wide banner.
         if !enrollment_new_address_is_complete(&city, number) {
-            return Err(ServerFnError::new(td_string!(
-                Locale::uk,
-                home_error_incomplete_address
-            )));
+            if city.is_empty() {
+                return Err(field_error(
+                    "city",
+                    td_string!(Locale::uk, home_error_city_required),
+                ));
+            }
+            return Err(field_error(
+                "np_number",
+                td_string!(Locale::uk, home_error_invalid_branch_number),
+            ));
         }
 
         sqlx::query!(
@@ -642,16 +666,27 @@ pub fn HomePage() -> impl IntoView {
     // Receipt confirmation transitions to ReceiptConfirmed, which renders an
     // inline thank-you heading — a toast would be redundant, so we omit it.
 
+    // enroll_action's field-discriminated errors (city/np_number) render locally
+    // next to their input (see render_enrollment_open); only the field-less
+    // remainder (season state/deadline/no-delivery-address) belongs on this banner.
+    let enroll_error_for_banner = move || {
+        enroll_action
+            .value()
+            .get()
+            .and_then(Result::err)
+            .filter(|e| {
+                let stripped = strip_server_error_prefix(e);
+                parse_enroll_field_error(&stripped).0.is_none()
+            })
+    };
+
     view! {
         <div class="page-frame">
             <div class="prose-page">
                 // Action error display
                 <div id="action-error" role="alert" aria-live="assertive" data-testid="action-error">
                     {move || {
-                        let err = enroll_action
-                            .value()
-                            .get()
-                            .and_then(Result::err)
+                        let err = enroll_error_for_banner()
                             .or_else(|| confirm_action.value().get().and_then(Result::err))
                             .or_else(|| receipt_action.value().get().and_then(Result::err));
                         err.map(|e| view! { <p class="alert">{strip_server_error_prefix(&e)}</p> })
@@ -682,6 +717,34 @@ pub fn HomePage() -> impl IntoView {
     }
 }
 
+/// Which enrollment field the server rejected.
+#[derive(Clone, Copy, PartialEq)]
+enum EnrollRejectedField {
+    City,
+    NpNumber,
+}
+
+/// Split a stripped enrollment error into `(field, display_message)`.
+///
+/// Mirrors the `field_key\u{1f}message` wire format `enroll_in_season` encodes;
+/// `None` means the error is field-less (season state/deadline/infra) and
+/// belongs on the page-level banner only.
+fn parse_enroll_field_error(stripped: &str) -> (Option<EnrollRejectedField>, &str) {
+    if let Some((key, msg)) = stripped.split_once(FIELD_DISCRIMINANT_SEPARATOR) {
+        let field = match key {
+            "city" => Some(EnrollRejectedField::City),
+            "np_number" => Some(EnrollRejectedField::NpNumber),
+            _ => None,
+        };
+        (field, msg)
+    } else {
+        (None, stripped)
+    }
+}
+
+// The `view!` macro's HTML attribute verbosity inflates line count beyond what
+// reflects logic complexity; extracting sub-components here would be YAGNI.
+#[allow(clippy::too_many_lines)]
 fn render_enrollment_open(
     deadline: &str,
     theme: Option<&String>,
@@ -691,6 +754,34 @@ fn render_enrollment_open(
     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
 ) -> AnyView {
     let pending = enroll_action.pending();
+    // Per-field error messages, derived from enroll_action's discriminated
+    // error — only the rejected field's `.field-error` shows text.
+    let city_error = move || {
+        enroll_action
+            .value()
+            .get()
+            .and_then(Result::err)
+            .and_then(|e| {
+                let stripped = strip_server_error_prefix(&e);
+                match parse_enroll_field_error(&stripped) {
+                    (Some(EnrollRejectedField::City), msg) => Some(msg.to_owned()),
+                    _ => None,
+                }
+            })
+    };
+    let np_number_error = move || {
+        enroll_action
+            .value()
+            .get()
+            .and_then(Result::err)
+            .and_then(|e| {
+                let stripped = strip_server_error_prefix(&e);
+                match parse_enroll_field_error(&stripped) {
+                    (Some(EnrollRejectedField::NpNumber), msg) => Some(msg.to_owned()),
+                    _ => None,
+                }
+            })
+    };
     view! {
         <h1>{t!(i18n, home_enroll_open_heading)}</h1>
 
@@ -751,9 +842,17 @@ fn render_enrollment_open(
                                 name="city"
                                 placeholder="Київ"
                                 data-testid="np-city-input"
-                                aria-invalid=move || enroll_action.value().get().and_then(Result::err).map(|_| "true")
-                                aria-describedby="action-error"
+                                aria-invalid=move || city_error().is_some().then_some("true")
+                                aria-describedby="enroll-city-error"
                             />
+                            <p
+                                id="enroll-city-error"
+                                class="field-error"
+                                aria-live="assertive"
+                                data-testid="enroll-city-error"
+                            >
+                                {move || city_error()}
+                            </p>
                         </div>
                         <div class="field sm:w-1/2">
                             <label class="field-label" for="enroll-number">
@@ -767,9 +866,17 @@ fn render_enrollment_open(
                                 name="np_number"
                                 placeholder="123"
                                 data-testid="np-number-input"
-                                aria-invalid=move || enroll_action.value().get().and_then(Result::err).map(|_| "true")
-                                aria-describedby="action-error"
+                                aria-invalid=move || np_number_error().is_some().then_some("true")
+                                aria-describedby="enroll-number-error"
                             />
+                            <p
+                                id="enroll-number-error"
+                                class="field-error"
+                                aria-live="assertive"
+                                data-testid="enroll-number-error"
+                            >
+                                {move || np_number_error()}
+                            </p>
                         </div>
                     </div>
                 }.into_any(),
