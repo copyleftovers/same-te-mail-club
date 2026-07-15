@@ -230,6 +230,12 @@
   }
 
   .field-input {
+    /* FU-01: <input> is a replaced, inline-block element by default, so it
+       sizes to its own intrinsic content width instead of filling a block
+       ancestor the way a <div> would. Without an explicit width, a
+       width:100% ancestor chain (e.g. .auth-card .field) has nothing to
+       resolve against and collapses to the input's ~20ch intrinsic size. */
+    width: 100%;
     font-family: var(--font-body);
     font-weight: 400;
     font-size: var(--text-base);
