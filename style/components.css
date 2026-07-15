@@ -72,7 +72,14 @@
     z-index: 1;
     pointer-events: none;
     opacity: 0.04;
-    mix-blend-mode: overlay;
+    /* FU-08: mix-blend-mode:overlay's per-pixel contribution vanishes near the
+       extremes of the OKLCH lightness range — --color-brand-cream (L=0.98) in
+       light mode and --color-brand-black (L=0.15) in dark both sit close
+       enough to overlay's derivative-zero endpoints that the texture measured
+       stdev 0 (zero visible variance) on flat regions in both modes. Normal
+       blending (the CSS default) linearly composites the noise at a constant
+       alpha regardless of backdrop lightness, so the grain renders on every
+       surface — this is the standard "film grain" overlay technique. */
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     background-size: 200px; /* structural: feTurbulence tile size, visual calibration */
   }
