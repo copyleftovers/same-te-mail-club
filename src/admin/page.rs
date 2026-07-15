@@ -394,7 +394,7 @@ fn render_create_form(
 
     view! {
         <div data-testid="create-season-form">
-            <p class="text-sm text-(--color-text-muted) mb-(--density-space-sm)">{t!(i18n, home_no_season_heading)}</p>
+            <p class="text-[length:var(--text-secondary)] text-(--color-text-muted) mb-(--density-space-sm)">{t!(i18n, home_no_season_heading)}</p>
             <section>
                 <h2>{t!(i18n, season_create_form_title)}</h2>
                 <leptos::form::ActionForm action=create_action>
@@ -650,7 +650,7 @@ fn render_active_season(
                             {if advance_blocked {
                                 view! {
                                     <p
-                                        class="text-xs text-(--color-text-muted)"
+                                        class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
                                         data-testid="advance-blocked-hint"
                                     >
                                         {t!(i18n, season_advance_blocked_hint)}
@@ -792,7 +792,7 @@ fn render_phase_sms(
                                 </button>
                             </leptos::form::ActionForm>
                             <span
-                                class="text-sm text-(--color-text-muted)"
+                                class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
                                 data-testid="sms-count-active-users"
                             >
                                 {t!(i18n, sms_count_active_users, count = season_open_target_count)}
@@ -830,7 +830,7 @@ fn render_phase_sms(
                                 </button>
                             </leptos::form::ActionForm>
                             <span
-                                class="text-sm text-(--color-text-muted)"
+                                class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
                                 data-testid="sms-count-unconfirmed-enrolled"
                             >
                                 {t!(
@@ -873,7 +873,7 @@ fn render_phase_sms(
                                 </button>
                             </leptos::form::ActionForm>
                             <span
-                                class="text-sm text-(--color-text-muted)"
+                                class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
                                 data-testid="sms-count-unnotified-senders"
                             >
                                 {t!(
@@ -907,7 +907,7 @@ fn render_phase_sms(
                                 </button>
                             </leptos::form::ActionForm>
                             <span
-                                class="text-sm text-(--color-text-muted)"
+                                class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
                                 data-testid="sms-count-no-response"
                             >
                                 {t!(i18n, sms_count_no_response, count = no_response_count)}

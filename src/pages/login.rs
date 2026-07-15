@@ -1042,7 +1042,7 @@ where
         <h1>
             {t!(i18n, auth_name_step_heading)}
         </h1>
-        <p class="text-sm text-(--color-text-muted) mb-4">
+        <p class="text-[length:var(--text-secondary)] text-(--color-text-muted) mb-4">
             {t!(i18n, auth_name_context)}
         </p>
         // Native POST form — not ActionForm — because register_with_code sets
