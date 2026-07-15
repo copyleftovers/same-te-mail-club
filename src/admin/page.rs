@@ -1156,9 +1156,11 @@ fn ring_radius_for_cohort_size(n: usize) -> f64 {
     if n >= MAX_VALIDATED_COHORT_SIZE {
         return MAX_RING_RADIUS;
     }
+    // n < MAX_VALIDATED_COHORT_SIZE here (early return above), so both operands
+    // are single-digit — the usize→f64 casts are exact, no precision loss.
     let span = (MAX_VALIDATED_COHORT_SIZE - MIN_COHORT_SIZE) as f64;
-    let steps_past_smallest = n.saturating_sub(MIN_COHORT_SIZE);
-    let progress = f64::from(u32::try_from(steps_past_smallest).unwrap_or(0)) / span;
+    let steps_past_smallest = n.saturating_sub(MIN_COHORT_SIZE) as f64;
+    let progress = steps_past_smallest / span;
     MIN_RING_RADIUS + progress * (MAX_RING_RADIUS - MIN_RING_RADIUS)
 }
 
@@ -1912,5 +1914,72 @@ fn ParticipantListSection(
                 }}
             </Suspense>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        MAX_RING_RADIUS, MAX_VALIDATED_COHORT_SIZE, MIN_COHORT_SIZE, MIN_RING_RADIUS,
+        ring_radius_for_cohort_size,
+    };
+
+    /// Two radii are equal within sub-pixel tolerance (float positioning math).
+    fn approx_eq(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-9
+    }
+
+    #[test]
+    fn radius_at_min_cohort_is_min_radius() {
+        assert!(approx_eq(
+            ring_radius_for_cohort_size(MIN_COHORT_SIZE),
+            MIN_RING_RADIUS
+        ));
+    }
+
+    #[test]
+    fn radius_below_min_cohort_clamps_to_min_radius() {
+        // Cohorts never fall below MIN_COHORT_SIZE, but the fn must not underflow.
+        for n in 0..MIN_COHORT_SIZE {
+            assert!(approx_eq(ring_radius_for_cohort_size(n), MIN_RING_RADIUS));
+        }
+    }
+
+    #[test]
+    fn radius_at_validated_cohort_matches_prior_fixed_geometry() {
+        // Load-bearing invariant: at MAX_VALIDATED_COHORT_SIZE the radius is
+        // exactly MAX_RING_RADIUS (190), reproducing the previously-validated
+        // 900x750 canvas so the one collision-free layout is preserved.
+        assert!(approx_eq(
+            ring_radius_for_cohort_size(MAX_VALIDATED_COHORT_SIZE),
+            MAX_RING_RADIUS
+        ));
+    }
+
+    #[test]
+    fn radius_above_validated_cohort_saturates_at_max_radius() {
+        for n in [MAX_VALIDATED_COHORT_SIZE + 1, 15, 100] {
+            assert!(approx_eq(ring_radius_for_cohort_size(n), MAX_RING_RADIUS));
+        }
+    }
+
+    #[test]
+    fn radius_grows_strictly_and_stays_in_range_across_the_band() {
+        let mut previous = ring_radius_for_cohort_size(MIN_COHORT_SIZE);
+        for n in (MIN_COHORT_SIZE + 1)..=MAX_VALIDATED_COHORT_SIZE {
+            let current = ring_radius_for_cohort_size(n);
+            assert!(current > previous, "radius must increase from n-1 to n");
+            assert!((MIN_RING_RADIUS..=MAX_RING_RADIUS).contains(&current));
+            previous = current;
+        }
+    }
+
+    #[test]
+    fn interpolation_is_linear_equal_steps_give_equal_deltas() {
+        // A one-participant increase changes the radius by a constant amount
+        // anywhere inside the band — the defining property of linear interpolation.
+        let delta_low = ring_radius_for_cohort_size(5) - ring_radius_for_cohort_size(4);
+        let delta_high = ring_radius_for_cohort_size(9) - ring_radius_for_cohort_size(8);
+        assert!(approx_eq(delta_low, delta_high));
     }
 }
