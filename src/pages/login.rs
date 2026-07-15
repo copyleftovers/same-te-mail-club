@@ -3,6 +3,7 @@ use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
 use leptos::prelude::*;
 use leptos::server_fn::ServerFn;
+use leptos_use::use_preferred_dark;
 
 // ── DTOs ─────────────────────────────────────────────────────────────────────
 
@@ -574,6 +575,9 @@ pub fn LoginPage() -> impl IntoView {
     // Hydration gate — buttons stay disabled until WASM hydrates.
     let hydrated = use_hydrated();
 
+    // Dark-mode-aware hero logo — mirrors the header mark's swap (app.rs Header).
+    let is_dark = use_preferred_dark();
+
     // Store the phone when it's submitted — capture from the pending input
     // before the action completes and clears `input()`.
     let (submitted_phone, set_submitted_phone) = signal(String::new());
@@ -644,7 +648,13 @@ pub fn LoginPage() -> impl IntoView {
         <div class="page-frame">
             <div class="auth-card">
                 <img
-                    src="/logo.svg"
+                    src=move || {
+                        if is_dark.get() {
+                            "/logo-white.svg"
+                        } else {
+                            "/logo.svg"
+                        }
+                    }
                     alt="Саме Те · Поштовий клуб"
                 />
 
