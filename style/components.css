@@ -428,7 +428,10 @@
     margin-inline: auto;
     padding-inline: calc(var(--spacing) * 4);
     padding-block: var(--density-space-lg);
-    padding-bottom: env(safe-area-inset-bottom);
+    /* max(): preserve the token's bottom spacing on ordinary viewports (no
+       safe-area inset) while still growing past it on notched devices —
+       a plain override collapses to 0 outside a notched/PWA context. */
+    padding-bottom: max(var(--density-space-lg), env(safe-area-inset-bottom));
   }
 
   /* FU-21: admin content is forms/cards/tables, not prose — the 65ch reading
@@ -680,6 +683,21 @@
     margin-bottom: var(--density-space-md);
   }
 
+  /* Light-mode .toast base: wash background + mode-invariant badge-success
+     text, plus the elevation/slide-animation a transient banner needs (an
+     inline alert is static, so .alert carries neither). Declared here,
+     immediately before the dark override below: both rules select .toast at
+     equal (0,1,0) specificity, so the cascade breaks the tie by source order.
+     A .toast color rule placed anywhere AFTER the dark block silently reverts
+     it — this is why the definition lives here and not in the Toast section
+     further down (see the comment there). */
+  .toast {
+    background: oklch(from var(--color-success) l c h / 0.1);
+    color: var(--color-badge-success);
+    box-shadow: 0 4px 12px oklch(from var(--color-brand-black) l c h / 0.15); /* structural: elevation shadow */
+    animation: toast-in 200ms ease;
+  }
+
   /* Dark mode: a 0.1-alpha colour wash over near-black tops out at ~1.4:1 vs the
      page — the informational container disappears. Use a SOLID panel fill
      (--color-panel-dark = oklch 0.27, +0.12 L above base = a real container) with
@@ -697,7 +715,7 @@
       border-left: 3px solid var(--color-success); /* structural: 3px accent stripe */
     }
     /* --color-success reassigns lighter (0.72) here, giving 6.5:1 text-on-panel
-       contrast. The light-mode .toast rule below uses the mode-invariant
+       contrast. The light-mode .toast rule above uses the mode-invariant
        --color-badge-success instead: the semantic token's light value (0.58)
        computes only 3.6:1 as text on a light wash — fails AA (needs 4.5:1). */
     .toast {
@@ -1074,18 +1092,13 @@
      in normal block flow. Empty = zero height. Message present = pushes <main>
      down. No overlap with content is geometrically possible, so no positioning
      and no z-index layer is needed.
-     Shares the .alert feedback-panel shape above (padding/radius/type) — see
-     that rule. Success is the one color that differs, plus the elevation and
-     slide animation a transient banner needs (an inline alert is static). */
+     .toast's base color/shape rule is declared near .alert above, immediately
+     before the dark-mode override — placing it here instead would put it
+     AFTER the dark override in source order and silently revert it (equal
+     specificity, cascade breaks ties by position). Only the elevation/slide
+     keyframes and the leaving-state trigger live here. */
   .toast-container {
     width: 100%;
-  }
-
-  .toast {
-    background: oklch(from var(--color-success) l c h / 0.1);
-    color: var(--color-badge-success); /* mode-invariant; see the dark override for why */
-    box-shadow: 0 4px 12px oklch(from var(--color-brand-black) l c h / 0.15); /* structural: elevation shadow */
-    animation: toast-in 200ms ease;
   }
 
   /* Slides down into view from above — correct for an in-flow top banner */
