@@ -156,7 +156,7 @@ Three variants via `data-variant` attribute. Two sizes via `data-size`.
 |---------|-----------|------|--------|-----|
 | primary (default) | `--color-accent` | white | none | Main CTA, form submit |
 | secondary | transparent | `--color-text` | `currentcolor` | Cancel, secondary action |
-| destructive | `--color-badge-error` | white | none | Delete, deactivate |
+| destructive | `--color-badge-error` | white | none | Dangerous, irreversible confirmation (e.g. cancel season). Routine per-row actions (revoke, deactivate) use `secondary`, not this — FU-20. |
 
 | Size | Padding | Font size |
 |------|---------|-----------|
@@ -225,7 +225,7 @@ Inline informational link (tel/address): `color: var(--color-text)`, `text-decor
 
 `max-width: 65ch; margin-inline: auto; padding-inline: var(--spacing-4)`
 
-Participant-facing pages: spacious. Admin pages: same container but tighter density (see below).
+Participant-facing pages: spacious (65ch). Admin pages widen the container to `--size-admin-content-max` (64rem) — admin content is forms/cards/tables, not prose, so the 65ch reading cap is the wrong constraint — via `[data-layout="admin"] .prose-page`, and additionally run tighter density (see below).
 
 ### Page Frame
 
