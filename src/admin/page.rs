@@ -653,7 +653,7 @@ fn render_active_season(
                 // Advance — only when launched and phase can advance
                 {if launched && can_advance {
                     view! {
-                        <div class="flex flex-col gap-1">
+                        <div class="flex flex-col gap-(--density-space-sm)">
                             <leptos::form::ActionForm action=advance_action>
                                 // Primary (default) variant: advancing the phase is
                                 // the affirmative main action of the launched season —
