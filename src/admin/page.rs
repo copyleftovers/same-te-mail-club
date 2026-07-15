@@ -1115,9 +1115,21 @@ fn compute_circle_positions(
         .collect()
 }
 
-const CENTER_X: f64 = 450.0;
-const CENTER_Y: f64 = 375.0;
-const RING_RADIUS: f64 = 190.0;
+/// Smallest cohort the assignment algorithm ever produces (see `split_cohorts`
+/// in `assignment.rs`, which groups participants into cohorts of 3-15).
+const MIN_COHORT_SIZE: usize = 3;
+/// Cohort size at which the ring reaches `MAX_RING_RADIUS`. Matches the 12-node
+/// capture harness (`end2end/tests/fixtures/cohort-seed.sql`) — the only cohort
+/// size this label layout (two-line split + quadrant-aware anchors, below) has
+/// been verified collision-free against. Cohorts larger than this, up to the
+/// algorithm's ceiling of 15, reuse the same radius rather than growing further
+/// into untested territory.
+const MAX_VALIDATED_COHORT_SIZE: usize = 12;
+/// Ring radius at the smallest possible cohort. A fixed worst-case radius would
+/// strand a 3-node cycle in mostly-empty canvas, so radius grows from here
+/// toward `MAX_RING_RADIUS` as cohort size approaches `MAX_VALIDATED_COHORT_SIZE`.
+const MIN_RING_RADIUS: f64 = 90.0;
+const MAX_RING_RADIUS: f64 = 190.0;
 const NODE_RADIUS: f64 = 20.0;
 /// Gap from node edge to label anchor, measured radially outward.
 const LABEL_RADIAL_GAP: f64 = 14.0;
@@ -1125,6 +1137,30 @@ const LABEL_RADIAL_GAP: f64 = 14.0;
 const ARROW_CLEARANCE: f64 = 5.0;
 /// Nodes within this many degrees of the vertical axis use middle text-anchor.
 const VERTICAL_AXIS_TOLERANCE_DEGREES: f64 = 20.0;
+/// Horizontal canvas clearance beyond the ring, reserved for label text growing
+/// sideways from start/end-anchored nodes. Sized for the longest expected label
+/// regardless of cohort size — one node's name label is exactly as wide whether
+/// the cohort has 3 or 15 members.
+const LABEL_HORIZONTAL_CLEARANCE: f64 = 226.0;
+/// Vertical canvas clearance beyond the ring — smaller than the horizontal
+/// clearance because top/bottom (middle-anchored) labels only need line-height
+/// room, not full text width.
+const LABEL_VERTICAL_CLEARANCE: f64 = 151.0;
+
+/// Ring radius for a cohort of `n` participants: grows from `MIN_RING_RADIUS`
+/// at the smallest possible cohort to `MAX_RING_RADIUS` at
+/// `MAX_VALIDATED_COHORT_SIZE`, so a small cycle doesn't inherit a canvas sized
+/// for the largest cohort.
+#[allow(clippy::cast_precision_loss)]
+fn ring_radius_for_cohort_size(n: usize) -> f64 {
+    if n >= MAX_VALIDATED_COHORT_SIZE {
+        return MAX_RING_RADIUS;
+    }
+    let span = (MAX_VALIDATED_COHORT_SIZE - MIN_COHORT_SIZE) as f64;
+    let steps_past_smallest = n.saturating_sub(MIN_COHORT_SIZE);
+    let progress = f64::from(u32::try_from(steps_past_smallest).unwrap_or(0)) / span;
+    MIN_RING_RADIUS + progress * (MAX_RING_RADIUS - MIN_RING_RADIUS)
+}
 
 /// Render a single cohort cycle as an SVG ring.
 ///
@@ -1136,7 +1172,18 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
         return view! { <div></div> }.into_any();
     }
 
-    let positions = compute_circle_positions(n, RING_RADIUS, CENTER_X, CENTER_Y);
+    // Canvas is derived from the ring radius, not fixed — a small cohort gets a
+    // tight viewBox (no dead space, larger effective label size) while cohorts
+    // at MAX_VALIDATED_COHORT_SIZE+ reproduce the previously validated geometry.
+    let ring_radius = ring_radius_for_cohort_size(n);
+    let half_width = ring_radius + NODE_RADIUS + LABEL_RADIAL_GAP + LABEL_HORIZONTAL_CLEARANCE;
+    let half_height = ring_radius + NODE_RADIUS + LABEL_RADIAL_GAP + LABEL_VERTICAL_CLEARANCE;
+    let center_x = half_width;
+    let center_y = half_height;
+    let viewbox_width = half_width * 2.0;
+    let viewbox_height = half_height * 2.0;
+
+    let positions = compute_circle_positions(n, ring_radius, center_x, center_y);
 
     let arrows = (0..n)
         .map(|i| {
@@ -1183,9 +1230,9 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
             let node_angle = (i as f64 / n as f64) * TAU - (PI / 2.0);
 
             // Place the label anchor point radially beyond the node edge.
-            let label_radius = RING_RADIUS + NODE_RADIUS + LABEL_RADIAL_GAP;
-            let label_x = CENTER_X + label_radius * node_angle.cos();
-            let label_y = CENTER_Y + label_radius * node_angle.sin();
+            let label_radius = ring_radius + NODE_RADIUS + LABEL_RADIAL_GAP;
+            let label_x = center_x + label_radius * node_angle.cos();
+            let label_y = center_y + label_radius * node_angle.sin();
 
             // Choose SVG text-anchor so the label grows away from the ring center,
             // preventing overlap with the adjacent node's label on the same side.
@@ -1251,7 +1298,8 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                 "Assignment cycle " {cohort_num} ": " {n} " participants (score: " {score} ")"
             </figcaption>
             <svg
-                viewBox="0 0 900 750"
+                viewBox=format!("0 0 {viewbox_width} {viewbox_height}")
+                style=format!("aspect-ratio: {viewbox_width} / {viewbox_height}")
                 class="cycle-viz"
                 role="img"
                 aria-label=format!("Assignment cycle {cohort_num}: {n} participants")
