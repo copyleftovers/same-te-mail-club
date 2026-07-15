@@ -722,6 +722,17 @@
     border-bottom: 1px solid oklch(from var(--color-border) l c h / 0.35); /* structural: 1px header separator */
   }
 
+  /* Dark mode: the 0.35-alpha whisper line above computes to ~1.59:1 on the
+     dark surface -- the header is a functional chrome/content boundary and
+     needs to be felt. Pin to full-strength --color-border (oklch 0.58 =
+     4.60:1 on base) so the separator meets WCAG 1.4.11's 3:1 non-text
+     minimum in dark. Light mode already passes at 0.35 alpha -- unchanged. */
+  @media (prefers-color-scheme: dark) {
+    .app-header {
+      border-bottom-color: var(--color-border);
+    }
+  }
+
   .app-header img {
     height: var(--size-logo-height-header);
     width: auto;
