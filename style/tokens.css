@@ -99,7 +99,12 @@
   --size-empty-state: 12rem;
   --size-content-max: 28rem;
   --size-cycle-viz: 480px;
-  --size-auth-logo: 5rem;   /* auth hero mark: relates to the section-scale heading, not a page-title hero */
+  /* auth hero mark: relates to the section-scale heading, not a page-title hero.
+     3.5rem, not the header's 2.5rem — a hero deserves more presence than a nav
+     mark, but same_te_mark_*.svg is a 16:9 landscape viewBox (unlike the old
+     ~1:1 logo.svg this token was originally sized for), so at a naive 5rem
+     height the rendered width would nearly double vs. before. */
+  --size-auth-logo: 3.5rem;
 
   /* Header height: the taller of the two things the header ever contains -- the
      logo mark (--size-logo-height-header, 2.5rem) on unauthenticated pages, or

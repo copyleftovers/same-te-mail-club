@@ -647,12 +647,16 @@ pub fn LoginPage() -> impl IntoView {
     view! {
         <div class="page-frame">
             <div class="auth-card">
+                // Icon-only mark (matches the header's clean rendering) — the
+                // compound logo.svg/logo-white.svg baked an embedded "САМЕ ТЕ"
+                // wordmark that read as illegible split-tone mush at hero size;
+                // the adjacent <h1> already carries the readable step label.
                 <img
                     src=move || {
                         if is_dark.get() {
-                            "/logo-white.svg"
+                            "/same_te_mark_white.svg"
                         } else {
-                            "/logo.svg"
+                            "/same_te_mark_orange.svg"
                         }
                     }
                     alt="Саме Те · Поштовий клуб"

@@ -157,12 +157,15 @@ pub fn OnboardingPage() -> impl IntoView {
         // placement and typography match login rather than the 65ch .prose-page column.
         <div class="page-frame">
             <div class="auth-card">
+                // Icon-only mark — mirrors login.rs's hero swap (same asset pair,
+                // same rationale: the compound logo.svg embeds an illegible
+                // wordmark; the <h1> below already carries the readable label).
                 <img
                     src=move || {
                         if is_dark.get() {
-                            "/logo-white.svg"
+                            "/same_te_mark_white.svg"
                         } else {
-                            "/logo.svg"
+                            "/same_te_mark_orange.svg"
                         }
                     }
                     alt="Саме Те · Поштовий клуб"

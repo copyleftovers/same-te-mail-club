@@ -135,7 +135,7 @@ Copy from `same-te-landing/Logo/SVG/` and root:
 | Favicon | `favicon.svg` | Mark/orange, tight crop |
 | Nav header (light bg) | `same_te_mark_orange.svg` | Mark/orange |
 | Nav header (dark bg) | `same_te_mark_white.svg` | Mark/white |
-| Auth page hero | `logo.svg` | Main/orange, tight crop |
+| Auth page hero | `same_te_mark_orange.svg` / `same_te_mark_white.svg` | Mark/orange, mark/white (dark-mode swap; compound `logo.svg`'s embedded wordmark is illegible at hero size) |
 | Footer (dark bg) | `logo-white.svg` | Main/white, tight crop |
 
 ### Logo Rules (from brand guidelines)
