@@ -1404,8 +1404,9 @@
   .cycle-viz {
     width: 100%;
     max-width: var(--size-cycle-viz);
-    /* aspect-ratio is set inline per instance (render_cycle_ring) — the viewBox
-       scales with cohort size (FU-12), so a single fixed ratio here would
+    /* aspect-ratio is set inline per instance (render_cycle_ring) — the viewBox,
+       ring radius, node size, and label clearances all scale together with
+       cohort size (FU-12, RV-06), so a single fixed ratio here would
        stretch/letterbox every cohort but the one it was written for. */
   }
 

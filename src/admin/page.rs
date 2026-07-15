@@ -1136,38 +1136,130 @@ const MAX_VALIDATED_COHORT_SIZE: usize = 12;
 /// toward `MAX_RING_RADIUS` as cohort size approaches `MAX_VALIDATED_COHORT_SIZE`.
 const MIN_RING_RADIUS: f64 = 90.0;
 const MAX_RING_RADIUS: f64 = 190.0;
-const NODE_RADIUS: f64 = 20.0;
+/// Node dot radius at the smallest possible cohort. Fewer nodes need less
+/// circumferential room, so the dot can afford to shrink alongside the ring —
+/// see `MAX_NODE_RADIUS` for the validated large-cohort size.
+const MIN_NODE_RADIUS: f64 = 14.0;
+/// Node dot radius at `MAX_VALIDATED_COHORT_SIZE` — the previously-validated,
+/// collision-free size for a densely-packed 12-node ring.
+const MAX_NODE_RADIUS: f64 = 20.0;
 /// Gap from node edge to label anchor, measured radially outward.
 const LABEL_RADIAL_GAP: f64 = 14.0;
 /// Clearance from node edge to arrow tip/tail so arrows don't overlap nodes.
 const ARROW_CLEARANCE: f64 = 5.0;
 /// Nodes within this many degrees of the vertical axis use middle text-anchor.
 const VERTICAL_AXIS_TOLERANCE_DEGREES: f64 = 20.0;
-/// Horizontal canvas clearance beyond the ring, reserved for label text growing
-/// sideways from start/end-anchored nodes. Sized for the longest expected label
-/// regardless of cohort size — one node's name label is exactly as wide whether
-/// the cohort has 3 or 15 members.
-const LABEL_HORIZONTAL_CLEARANCE: f64 = 226.0;
-/// Vertical canvas clearance beyond the ring — smaller than the horizontal
-/// clearance because top/bottom (middle-anchored) labels only need line-height
-/// room, not full text width.
-const LABEL_VERTICAL_CLEARANCE: f64 = 151.0;
+/// Font size (SVG user units) for every node label. Held constant across
+/// cohort sizes — see `MIN_LABEL_HORIZONTAL_CLEARANCE`/`MIN_LABEL_VERTICAL_CLEARANCE`
+/// for why shrinking the canvas around a constant-size label (rather than
+/// shrinking the label itself) is what raises small-cohort legibility.
+const LABEL_FONT_SIZE: f64 = 12.0;
+/// Horizontal canvas clearance beyond the ring at `MAX_VALIDATED_COHORT_SIZE`,
+/// reserved for label text growing sideways from start/end-anchored nodes.
+/// Sized for the longest expected single-line label (a ~15-char half of a
+/// double-barrel name ≈ 112px at `LABEL_FONT_SIZE`, see the name-splitting
+/// comment below) plus safety margin.
+const MAX_LABEL_HORIZONTAL_CLEARANCE: f64 = 226.0;
+/// Horizontal clearance at the smallest possible cohort. RV-06: the fixed
+/// (cohort-size-independent) worst-case clearance above dominates a small
+/// cohort's canvas — a small ring occupies only ~26% of it, reading as mostly
+/// dead space. This floor still comfortably covers the same worst-case label
+/// width (label length doesn't shrink with fewer participants) while letting
+/// the canvas shrink close to proportionally with the ring, so small cohorts
+/// fill their canvas about as fully as the validated 12-node cohort does.
+const MIN_LABEL_HORIZONTAL_CLEARANCE: f64 = 140.0;
+/// Vertical canvas clearance beyond the ring at `MAX_VALIDATED_COHORT_SIZE` —
+/// smaller than the horizontal clearance because top/bottom (middle-anchored)
+/// labels only need two-line-height room, not full text width.
+const MAX_LABEL_VERTICAL_CLEARANCE: f64 = 151.0;
+/// Vertical clearance at the smallest possible cohort (RV-06 rationale as
+/// `MIN_LABEL_HORIZONTAL_CLEARANCE`). A two-line label needs roughly one line
+/// height above and below its anchor plus font ascent/descent — comfortably
+/// under this floor — so shrinking it here carries no clipping risk.
+const MIN_LABEL_VERTICAL_CLEARANCE: f64 = 55.0;
 
-/// Ring radius for a cohort of `n` participants: grows from `MIN_RING_RADIUS`
-/// at the smallest possible cohort to `MAX_RING_RADIUS` at
-/// `MAX_VALIDATED_COHORT_SIZE`, so a small cycle doesn't inherit a canvas sized
-/// for the largest cohort.
+/// Linearly interpolate a geometry value from `at_min_cohort` (at
+/// `MIN_COHORT_SIZE`) to `at_max_cohort` (at `MAX_VALIDATED_COHORT_SIZE`),
+/// clamping outside that band. Shared by every per-cohort geometry dimension
+/// (ring radius, node radius, label clearances) so a cohort's whole canvas
+/// scales together rather than just one dimension of it (RV-06).
 #[allow(clippy::cast_precision_loss)]
-fn ring_radius_for_cohort_size(n: usize) -> f64 {
+fn scale_for_cohort_size(n: usize, at_min_cohort: f64, at_max_cohort: f64) -> f64 {
     if n >= MAX_VALIDATED_COHORT_SIZE {
-        return MAX_RING_RADIUS;
+        return at_max_cohort;
     }
     // n < MAX_VALIDATED_COHORT_SIZE here (early return above), so both operands
     // are single-digit — the usize→f64 casts are exact, no precision loss.
     let span = (MAX_VALIDATED_COHORT_SIZE - MIN_COHORT_SIZE) as f64;
     let steps_past_smallest = n.saturating_sub(MIN_COHORT_SIZE) as f64;
     let progress = steps_past_smallest / span;
-    MIN_RING_RADIUS + progress * (MAX_RING_RADIUS - MIN_RING_RADIUS)
+    at_min_cohort + progress * (at_max_cohort - at_min_cohort)
+}
+
+/// Ring radius for a cohort of `n` participants: grows from `MIN_RING_RADIUS`
+/// at the smallest possible cohort to `MAX_RING_RADIUS` at
+/// `MAX_VALIDATED_COHORT_SIZE`, so a small cycle doesn't inherit a canvas sized
+/// for the largest cohort.
+fn ring_radius_for_cohort_size(n: usize) -> f64 {
+    scale_for_cohort_size(n, MIN_RING_RADIUS, MAX_RING_RADIUS)
+}
+
+/// Node dot radius for a cohort of `n` participants — see `MIN_NODE_RADIUS`.
+fn node_radius_for_cohort_size(n: usize) -> f64 {
+    scale_for_cohort_size(n, MIN_NODE_RADIUS, MAX_NODE_RADIUS)
+}
+
+/// Horizontal label clearance for a cohort of `n` participants — see
+/// `MIN_LABEL_HORIZONTAL_CLEARANCE`.
+fn label_horizontal_clearance_for_cohort_size(n: usize) -> f64 {
+    scale_for_cohort_size(
+        n,
+        MIN_LABEL_HORIZONTAL_CLEARANCE,
+        MAX_LABEL_HORIZONTAL_CLEARANCE,
+    )
+}
+
+/// Vertical label clearance for a cohort of `n` participants — see
+/// `MIN_LABEL_VERTICAL_CLEARANCE`.
+fn label_vertical_clearance_for_cohort_size(n: usize) -> f64 {
+    scale_for_cohort_size(
+        n,
+        MIN_LABEL_VERTICAL_CLEARANCE,
+        MAX_LABEL_VERTICAL_CLEARANCE,
+    )
+}
+
+/// Every per-cohort SVG dimension for a cycle-ring, derived once so rendering
+/// and tests share one authoritative geometry (no duplicated arithmetic).
+#[derive(Clone, Copy)]
+struct CycleGeometry {
+    ring_radius: f64,
+    node_radius: f64,
+    half_width: f64,
+    half_height: f64,
+}
+
+impl CycleGeometry {
+    fn for_cohort_size(n: usize) -> Self {
+        let ring_radius = ring_radius_for_cohort_size(n);
+        let node_radius = node_radius_for_cohort_size(n);
+        let label_horizontal_clearance = label_horizontal_clearance_for_cohort_size(n);
+        let label_vertical_clearance = label_vertical_clearance_for_cohort_size(n);
+        Self {
+            ring_radius,
+            node_radius,
+            half_width: ring_radius + node_radius + LABEL_RADIAL_GAP + label_horizontal_clearance,
+            half_height: ring_radius + node_radius + LABEL_RADIAL_GAP + label_vertical_clearance,
+        }
+    }
+
+    fn viewbox_width(self) -> f64 {
+        self.half_width * 2.0
+    }
+
+    fn viewbox_height(self) -> f64 {
+        self.half_height * 2.0
+    }
 }
 
 /// Render a single cohort cycle as an SVG ring.
@@ -1180,16 +1272,20 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
         return view! { <div></div> }.into_any();
     }
 
-    // Canvas is derived from the ring radius, not fixed — a small cohort gets a
-    // tight viewBox (no dead space, larger effective label size) while cohorts
-    // at MAX_VALIDATED_COHORT_SIZE+ reproduce the previously validated geometry.
-    let ring_radius = ring_radius_for_cohort_size(n);
-    let half_width = ring_radius + NODE_RADIUS + LABEL_RADIAL_GAP + LABEL_HORIZONTAL_CLEARANCE;
-    let half_height = ring_radius + NODE_RADIUS + LABEL_RADIAL_GAP + LABEL_VERTICAL_CLEARANCE;
+    // The whole canvas — ring radius, node size, and label clearances — scales
+    // together with cohort size (CycleGeometry), not just the ring radius: a
+    // small cohort gets a tight viewBox with a constant label font size (so
+    // effective on-screen labels grow, not shrink) while cohorts at
+    // MAX_VALIDATED_COHORT_SIZE+ reproduce the previously validated geometry.
+    let geometry = CycleGeometry::for_cohort_size(n);
+    let ring_radius = geometry.ring_radius;
+    let node_radius = geometry.node_radius;
+    let half_width = geometry.half_width;
+    let half_height = geometry.half_height;
     let center_x = half_width;
     let center_y = half_height;
-    let viewbox_width = half_width * 2.0;
-    let viewbox_height = half_height * 2.0;
+    let viewbox_width = geometry.viewbox_width();
+    let viewbox_height = geometry.viewbox_height();
 
     let positions = compute_circle_positions(n, ring_radius, center_x, center_y);
 
@@ -1202,7 +1298,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
             let dist = (dx * dx + dy * dy).sqrt();
             let ux = dx / dist;
             let uy = dy / dist;
-            let margin = NODE_RADIUS + ARROW_CLEARANCE;
+            let margin = node_radius + ARROW_CLEARANCE;
             let start_x = x1 + ux * margin;
             let start_y = y1 + uy * margin;
             let end_x = x2 - ux * margin;
@@ -1238,7 +1334,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
             let node_angle = (i as f64 / n as f64) * TAU - (PI / 2.0);
 
             // Place the label anchor point radially beyond the node edge.
-            let label_radius = ring_radius + NODE_RADIUS + LABEL_RADIAL_GAP;
+            let label_radius = ring_radius + node_radius + LABEL_RADIAL_GAP;
             let label_x = center_x + label_radius * node_angle.cos();
             let label_y = center_y + label_radius * node_angle.sin();
 
@@ -1258,7 +1354,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
 
             // Split "Given-Name Surname-Name" into two lines at the first space.
             // Each line of a 30-char double-barrel name becomes ~15 chars ≈ 112px
-            // at font-size 12 — fits within the per-node arc lane at n=15.
+            // at LABEL_FONT_SIZE — fits within the per-node arc lane at n=15.
             let (line1, line2) = name
                 .find(' ')
                 .map_or((&name[..], ""), |pos| (&name[..pos], &name[pos + 1..]));
@@ -1277,7 +1373,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                     <circle
                         cx=cx
                         cy=cy
-                        r=NODE_RADIUS
+                        r=node_radius
                         fill="var(--color-accent)"
                         stroke="var(--color-surface-raised)"
                         stroke-width="2"
@@ -1286,7 +1382,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                     />
                     <text
                         text-anchor=anchor
-                        font-size="12"
+                        font-size=LABEL_FONT_SIZE
                         font-weight="600"
                         fill="var(--color-text)"
                     >
@@ -1956,11 +2052,15 @@ fn ParticipantListSection(
 #[cfg(test)]
 mod tests {
     use super::{
-        MAX_RING_RADIUS, MAX_VALIDATED_COHORT_SIZE, MIN_COHORT_SIZE, MIN_RING_RADIUS,
+        CycleGeometry, MAX_LABEL_HORIZONTAL_CLEARANCE, MAX_LABEL_VERTICAL_CLEARANCE,
+        MAX_NODE_RADIUS, MAX_RING_RADIUS, MAX_VALIDATED_COHORT_SIZE, MIN_COHORT_SIZE,
+        MIN_LABEL_HORIZONTAL_CLEARANCE, MIN_LABEL_VERTICAL_CLEARANCE, MIN_NODE_RADIUS,
+        MIN_RING_RADIUS, label_horizontal_clearance_for_cohort_size,
+        label_vertical_clearance_for_cohort_size, node_radius_for_cohort_size,
         ring_radius_for_cohort_size,
     };
 
-    /// Two radii are equal within sub-pixel tolerance (float positioning math).
+    /// Two values are equal within sub-pixel tolerance (float positioning math).
     fn approx_eq(a: f64, b: f64) -> bool {
         (a - b).abs() < 1e-9
     }
@@ -2017,5 +2117,73 @@ mod tests {
         let delta_low = ring_radius_for_cohort_size(5) - ring_radius_for_cohort_size(4);
         let delta_high = ring_radius_for_cohort_size(9) - ring_radius_for_cohort_size(8);
         assert!(approx_eq(delta_low, delta_high));
+    }
+
+    #[test]
+    fn node_radius_and_clearances_are_wired_to_their_own_bounds() {
+        // These wrap the same generic `scale_for_cohort_size` already exercised
+        // above via ring radius — this only confirms each wrapper reaches its
+        // own min/max constants, not a re-test of the interpolation itself.
+        assert!(approx_eq(
+            node_radius_for_cohort_size(MIN_COHORT_SIZE),
+            MIN_NODE_RADIUS
+        ));
+        assert!(approx_eq(
+            node_radius_for_cohort_size(MAX_VALIDATED_COHORT_SIZE),
+            MAX_NODE_RADIUS
+        ));
+        assert!(approx_eq(
+            label_horizontal_clearance_for_cohort_size(MIN_COHORT_SIZE),
+            MIN_LABEL_HORIZONTAL_CLEARANCE
+        ));
+        assert!(approx_eq(
+            label_horizontal_clearance_for_cohort_size(MAX_VALIDATED_COHORT_SIZE),
+            MAX_LABEL_HORIZONTAL_CLEARANCE
+        ));
+        assert!(approx_eq(
+            label_vertical_clearance_for_cohort_size(MIN_COHORT_SIZE),
+            MIN_LABEL_VERTICAL_CLEARANCE
+        ));
+        assert!(approx_eq(
+            label_vertical_clearance_for_cohort_size(MAX_VALIDATED_COHORT_SIZE),
+            MAX_LABEL_VERTICAL_CLEARANCE
+        ));
+    }
+
+    #[test]
+    fn validated_cohort_geometry_is_unregressed() {
+        // RV-06 acceptance: the 12-node cohort must reproduce the exact
+        // previously-validated 900x750 canvas — this fix must change nothing
+        // at or above MAX_VALIDATED_COHORT_SIZE.
+        let geometry = CycleGeometry::for_cohort_size(MAX_VALIDATED_COHORT_SIZE);
+        assert!(approx_eq(geometry.viewbox_width(), 900.0));
+        assert!(approx_eq(geometry.viewbox_height(), 750.0));
+    }
+
+    #[test]
+    fn smallest_cohort_ring_fills_a_comparable_share_of_its_canvas() {
+        // RV-06: before this fix, a 3-node ring occupied only ~33% of its
+        // canvas height (top+bottom dead space) because the fixed label
+        // clearances dominated a shrunk ring. Scaling node radius and label
+        // clearances down alongside the ring closes that gap to within a
+        // modest band of the validated cohort's own fill ratio, without
+        // shrinking clearances below what the same worst-case label text
+        // (see MIN_LABEL_HORIZONTAL_CLEARANCE) needs regardless of cohort size.
+        let small = CycleGeometry::for_cohort_size(MIN_COHORT_SIZE);
+        let validated = CycleGeometry::for_cohort_size(MAX_VALIDATED_COHORT_SIZE);
+
+        let vertical_fill_ratio = |g: CycleGeometry| (g.ring_radius * 2.0) / g.viewbox_height();
+        let small_fill = vertical_fill_ratio(small);
+        let validated_fill = vertical_fill_ratio(validated);
+
+        assert!(
+            small_fill > 0.45,
+            "smallest cohort should fill well over the pre-fix ~33%, got {small_fill}"
+        );
+        assert!(
+            (small_fill - validated_fill).abs() < 0.10,
+            "small cohort ({small_fill}) and validated cohort ({validated_fill}) fill ratios \
+             should stay within a modest band of each other"
+        );
     }
 }
