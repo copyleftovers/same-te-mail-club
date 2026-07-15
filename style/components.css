@@ -162,9 +162,14 @@
     }
   }
 
+  /* FU-06: --color-error reassigns lighter in dark (0.68) for TEXT legibility —
+     as a button FILL that same lift drops white-on-fill to 3.28:1 (fails AA).
+     --color-badge-error is the mode-invariant fill already used by the error
+     badge for exactly this reason (5.44:1 white in both modes); destructive
+     buttons use the same fill so the destructive-action colour stays AA. */
   .btn[data-variant="destructive"] {
-    --btn-bg: var(--color-error);
-    --btn-ring: var(--color-error);
+    --btn-bg: var(--color-badge-error);
+    --btn-ring: var(--color-badge-error);
   }
 
   .btn[data-size="sm"] {
