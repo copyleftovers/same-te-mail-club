@@ -194,7 +194,7 @@
   "admin_invite_codes_empty_state_body": "Створіть перший код запрошення вище",
   "admin_invite_codes_generated_toast": "Код створено!",
   "admin_invite_codes_revoked_toast": "Код відкликано!",
-  "admin_invite_codes_filter_placeholder": "Фільтр за кодом, розповсюджувачем, статусом…",
+  "admin_invite_codes_filter_placeholder": "Пошук…",
   "admin_invite_codes_filter_label": "Фільтр",
   "admin_season_created_toast": "Сезон створено!",
   "admin_season_launched_toast": "Сезон запущено!",
