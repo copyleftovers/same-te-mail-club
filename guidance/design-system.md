@@ -153,7 +153,7 @@ Three variants via `data-variant` attribute. Two sizes via `data-size`.
 |---------|-----------|------|--------|-----|
 | primary (default) | `--color-accent` | white | none | Main CTA, form submit |
 | secondary | transparent | `--color-text` | `currentcolor` | Cancel, secondary action |
-| destructive | `--color-error` | white | none | Delete, deactivate |
+| destructive | `--color-badge-error` | white | none | Delete, deactivate |
 
 | Size | Padding | Font size |
 |------|---------|-----------|
@@ -275,7 +275,7 @@ Global default in `@layer base`:
 }
 ```
 
-Components may override ring color (e.g., destructive button uses `--color-error` for ring).
+Components may override ring color (e.g., destructive button uses `--color-badge-error` for ring — the mode-invariant fill token, not the reassigning `--color-error`, so white-on-fill stays AA in dark).
 
 ---
 
