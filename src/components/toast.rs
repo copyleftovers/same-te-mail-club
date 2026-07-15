@@ -108,7 +108,7 @@ pub fn Toast() -> impl IntoView {
                     data-testid="toast"
                     data-state=move || if leaving.get() { "leaving" } else { "visible" }
                 >
-                    <p class="toast-message">{msg}</p>
+                    <p>{msg}</p>
                 </div>
             })}
         </div>

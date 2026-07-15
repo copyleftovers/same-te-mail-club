@@ -644,13 +644,22 @@
     }
   }
 
-  .alert {
+  /* FU-05: shared feedback-panel shape for error (.alert) and success (.toast)
+     — filled wash background, semantic-colored text, same padding/radius/type
+     scale. One family, differentiated only by status color (plus the
+     elevation + slide animation .toast needs as a transient banner; see its
+     own rule further down). */
+  .alert,
+  .toast {
     padding: var(--density-space-sm) var(--density-space-md);
     border-radius: var(--radius-md);
-    background: oklch(from var(--color-error) l c h / 0.1);
-    color: var(--color-error);
     font-weight: 600;
     font-size: var(--text-sm);
+  }
+
+  .alert {
+    background: oklch(from var(--color-error) l c h / 0.1);
+    color: var(--color-error);
     margin-bottom: var(--density-space-md);
   }
 
@@ -675,9 +684,17 @@
       background: var(--color-panel-dark);
       border-left: 3px solid var(--color-error); /* structural: 3px accent stripe */
     }
-    .sms-report-result {
+    .sms-report-result,
+    .toast {
       background: var(--color-panel-dark);
       border-left: 3px solid var(--color-success); /* structural: 3px accent stripe */
+    }
+    /* --color-success reassigns lighter (0.72) here, giving 6.5:1 text-on-panel
+       contrast. The light-mode .toast rule below uses the mode-invariant
+       --color-badge-success instead: the semantic token's light value (0.58)
+       computes only 3.6:1 as text on a light wash — fails AA (needs 4.5:1). */
+    .toast {
+      color: var(--color-success);
     }
   }
 
@@ -1034,24 +1051,19 @@
   /* The container lives between <Header> and <main> in the app flex column —
      in normal block flow. Empty = zero height. Message present = pushes <main>
      down. No overlap with content is geometrically possible, so no positioning
-     and no z-index layer is needed. */
+     and no z-index layer is needed.
+     Shares the .alert feedback-panel shape above (padding/radius/type) — see
+     that rule. Success is the one color that differs, plus the elevation and
+     slide animation a transient banner needs (an inline alert is static). */
   .toast-container {
     width: 100%;
   }
 
   .toast {
-    --_border: var(--toast-border, var(--color-success));
-    background: var(--color-surface-raised);
-    border-bottom: 1px solid var(--_border); /* structural: bottom border marks the banner edge */
-    padding: var(--density-space-md);
+    background: oklch(from var(--color-success) l c h / 0.1);
+    color: var(--color-badge-success); /* mode-invariant; see the dark override for why */
     box-shadow: 0 4px 12px oklch(from var(--color-brand-black) l c h / 0.15); /* structural: elevation shadow */
     animation: toast-in 200ms ease;
-  }
-
-  .toast-message {
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--color-text);
   }
 
   /* Slides down into view from above — correct for an in-flow top banner */
