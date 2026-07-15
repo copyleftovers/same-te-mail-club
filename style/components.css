@@ -720,22 +720,12 @@
     width: auto;
   }
 
+  /* One inline nav affordance at every viewport — no drawer, no breakpoint gate */
   .header-nav {
-    display: none;
+    display: flex;
     margin-left: auto;
     align-items: center;
     gap: calc(var(--spacing) * 2);
-  }
-
-  @media (min-width: 640px) {
-    .header-nav {
-      display: flex;
-    }
-  }
-
-  /* Non-admin: show logout directly in header, hide hamburger */
-  .app-header:not(.app-header--admin) .header-nav {
-    display: flex;
   }
 
   /* Navigation destination link in header — text link treatment, distinct from logout pill */
@@ -759,10 +749,6 @@
       text-decoration: underline;
       text-underline-offset: 2px;
     }
-  }
-
-  .app-header:not(.app-header--admin) .menu-toggle {
-    display: none;
   }
 
   .sms-trigger {
@@ -1309,110 +1295,6 @@
     .data-table td:last-child {
       margin-left: auto;
     }
-  }
-
-  /* ── Menu ─────────────────────────────────────────────────────── */
-  .menu-toggle {
-    display: flex;
-    flex-direction: column;
-    margin-left: auto;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3rem; /* structural: hamburger bar spacing, calibrated visually */
-    width: var(--size-touch-target);
-    height: var(--size-touch-target);
-    border: none;
-    background: none;
-    color: var(--color-text);
-    cursor: pointer;
-    border-radius: var(--radius-md);
-  }
-
-  .menu-toggle:focus-visible {
-    outline: 2px solid var(--color-focus); /* structural: 2px WCAG focus ring */
-    outline-offset: 2px;                   /* structural: 2px WCAG focus offset */
-  }
-
-  @media (min-width: 640px) {
-    .menu-toggle { display: none; }
-  }
-
-  .mobile-menu-overlay {
-    position: fixed;
-    inset: 0;
-    background: oklch(from var(--color-brand-black) l c h / 0.4);
-    z-index: 40; /* below menu panel (50), above page content */
-  }
-
-  /* z-index: 50 — top interactive layer; menu closes before any future overlay can open */
-  .mobile-menu {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: var(--size-mobile-menu);
-    max-width: 80vw;
-    background: var(--color-surface-raised);
-    z-index: 50;
-    padding: var(--density-space-lg) var(--density-space-md);
-    display: flex;
-    flex-direction: column;
-    gap: var(--density-space-sm);
-    box-shadow: -4px 0 16px oklch(from var(--color-brand-black) l c h / 0.1); /* structural: elevation shadow */
-    animation: slide-in-right 200ms ease;
-  }
-
-  .mobile-menu-close {
-    align-self: flex-end;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: var(--size-touch-target);
-    height: var(--size-touch-target);
-    border: none;
-    background: none;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    font-size: var(--text-icon);
-    border-radius: var(--radius-md);
-    margin-bottom: var(--density-space-sm);
-  }
-
-  .mobile-menu-close:focus-visible {
-    outline: 2px solid var(--color-focus); /* structural: 2px WCAG focus ring */
-    outline-offset: 2px;                   /* structural: 2px WCAG focus offset */
-  }
-
-  @media (hover: hover) {
-    .mobile-menu-close:hover {
-      color: var(--color-text);
-    }
-  }
-
-  .mobile-menu a {
-    display: block;
-    padding: var(--density-space-sm) var(--density-space-md);
-    font-weight: 600;
-    font-size: var(--text-sm);
-    color: var(--color-text);
-    border-radius: var(--radius-md);
-    text-decoration: none;
-  }
-
-  .mobile-menu a[aria-current="page"] {
-    color: var(--color-accent);
-    background: oklch(from var(--color-accent) l c h / 0.08);
-  }
-
-  @media (hover: hover) {
-    .mobile-menu a:hover {
-      background: oklch(from var(--color-border) l c h / 0.1);
-    }
-  }
-
-  @keyframes slide-in-right {
-    from { translate: 100% 0; }
-    to { translate: 0 0; }
   }
 
   /* ── Cycle visualization ──────────────────────────────────────── */

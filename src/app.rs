@@ -151,15 +151,15 @@ pub fn App() -> impl IntoView {
 // ── Header ────────────────────────────────────────────────────────────────────
 
 /// App header with dark-mode–aware logo and admin nav.
+///
+/// One inline nav affordance at every viewport — no drawer, no breakpoint
+/// gate. `HeaderNav` (logo + admin link + logout pill) fits inside 375px.
 #[component]
 fn Header() -> impl IntoView {
     let is_dark = use_preferred_dark();
-    let (menu_open, set_menu_open) = signal(false);
-    let pathname = leptos_router::hooks::use_location().pathname;
-    let is_admin_path = move || pathname.get().starts_with("/admin");
 
     view! {
-        <header class=move || if is_admin_path() { "app-header app-header--admin" } else { "app-header" }>
+        <header class="app-header">
             <a href="/">
                 <img
                     src=move || {
@@ -174,20 +174,6 @@ fn Header() -> impl IntoView {
                 />
             </a>
             <HeaderNav />
-            <button
-                class="menu-toggle"
-                aria-label="Menu"
-                aria-expanded=move || menu_open.get()
-                data-testid="menu-toggle"
-                on:click=move |_| set_menu_open.update(|v| *v = !*v)
-            >
-                <span class="block h-0.5 w-5 bg-current"></span>
-                <span class="block h-0.5 w-5 bg-current"></span>
-                <span class="block h-0.5 w-5 bg-current"></span>
-            </button>
-            <Show when=move || menu_open.get()>
-                <MobileMenu on_close=Callback::new(move |()| set_menu_open.set(false)) />
-            </Show>
         </header>
     }
 }
@@ -247,98 +233,6 @@ fn HeaderNav() -> impl IntoView {
                 </leptos::form::ActionForm>
             </div>
         </Show>
-    }
-}
-
-// ── Mobile menu ────────────────────────────────────────────────────────────────
-
-/// Mobile navigation menu with overlay and slide-in panel.
-///
-/// Closes on overlay click, link click, or Escape key.
-#[component]
-fn MobileMenu(on_close: Callback<()>) -> impl IntoView {
-    use crate::hooks::use_hydrated;
-    let i18n = use_i18n();
-    let pathname = leptos_router::hooks::use_location().pathname;
-    let is_active = move |path: &'static str| move || pathname.get() == path;
-    let hydrated = use_hydrated();
-    let logout_action =
-        use_context::<ServerAction<Logout>>().expect("logout action must be provided");
-
-    // Close menu on Escape key (client-side only)
-    #[cfg(not(feature = "ssr"))]
-    Effect::new(move |_| {
-        use leptos::prelude::document;
-        use leptos::wasm_bindgen::JsCast;
-        use leptos::wasm_bindgen::closure::Closure;
-        use leptos::web_sys;
-
-        let document = document();
-        let closure: Closure<dyn Fn(web_sys::KeyboardEvent)> =
-            Closure::new(move |ev: web_sys::KeyboardEvent| {
-                if ev.key() == "Escape" {
-                    on_close.run(());
-                }
-            });
-
-        let _ =
-            document.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref());
-
-        // Cleanup: remove listener when Effect is dropped
-        move || {
-            let _ = document
-                .remove_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref());
-        }
-    });
-
-    view! {
-        <div
-            class="mobile-menu-overlay"
-            on:click=move |_| on_close.run(())
-            data-testid="mobile-menu-overlay"
-        ></div>
-        <nav class="mobile-menu" data-testid="mobile-menu">
-            <button
-                class="mobile-menu-close"
-                aria-label="Close menu"
-                data-testid="mobile-menu-close"
-                on:click=move |_| on_close.run(())
-            >
-                "\u{2715}"
-            </button>
-            <a
-                href="/"
-                data-testid="mobile-nav-home"
-                on:click=move |_| on_close.run(())
-                aria-current=move || is_active("/")().then_some("page")
-            >
-                {t!(i18n, nav_home)}
-            </a>
-            <Show when=move || pathname.get().starts_with("/admin")>
-                <a
-                    href="/admin"
-                    data-testid="mobile-nav-admin"
-                    on:click=move |_| on_close.run(())
-                    aria-current=move || is_active("/admin")().then_some("page")
-                >
-                    {t!(i18n, admin_nav_dashboard)}
-                </a>
-            </Show>
-            <Show when=move || pathname.get() != "/login" && pathname.get() != "/onboarding">
-                <leptos::form::ActionForm action=logout_action>
-                    <button
-                        type="submit"
-                        class="btn w-full"
-                        data-variant="secondary"
-                        data-size="sm"
-                        data-testid="logout-button-mobile"
-                        disabled=move || !hydrated.get()
-                    >
-                        {t!(i18n, nav_logout)}
-                    </button>
-                </leptos::form::ActionForm>
-            </Show>
-        </nav>
     }
 }
 

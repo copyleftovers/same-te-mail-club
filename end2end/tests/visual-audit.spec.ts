@@ -334,27 +334,6 @@ test.describe.serial("Visual Audit", () => {
     await filterInput.fill("");
   });
 
-  // ── Global: mobile menu open ──────────────────────────────────────────────────
-
-  test("capture global — mobile menu open", async ({ page }) => {
-    const app = new MailClubPage(page);
-    await app.login(ADMIN_PHONE);
-    await app.goToDashboard();
-    // Set mobile viewport before clicking so the menu button is rendered.
-    await page.setViewportSize(MOBILE_VIEWPORT);
-    await paintSettle(page);
-    await page.getByTestId("menu-toggle").click();
-    await paintSettle(page);
-    // Mobile viewport only — the menu toggle does not render at desktop widths.
-    // Captured in both color schemes.
-    await page.emulateMedia({ colorScheme: "light" });
-    await recordScreenshot(page, MOBILE_VIEWPORT, "light-mobile/global-mobile-menu-open.png", "G7", "/admin");
-    await page.emulateMedia({ colorScheme: "dark" });
-    await recordScreenshot(page, MOBILE_VIEWPORT, "dark-mobile/global-mobile-menu-open.png", "G7", "/admin");
-    await page.emulateMedia({ colorScheme: "light" });
-    await page.setViewportSize(DESKTOP_VIEWPORT);
-  });
-
   // ── Global: 404 fallback ──────────────────────────────────────────────────────
 
   test("capture global — 404 fallback", async ({ page }) => {
