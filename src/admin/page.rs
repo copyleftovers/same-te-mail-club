@@ -190,11 +190,13 @@ pub fn AdminPage() -> impl IntoView {
     });
 
     // ── Collect errors from all actions ───────────────────────────────────────
-    // create_action's field-discriminated errors (signup/confirm deadline) ALSO
-    // render locally next to their input (see render_create_form); this banner
-    // keeps showing the stripped message too (existing E2E contract on
-    // `action-error` for create-season validation), field-less errors (e.g.
-    // "active season already exists") have no other home.
+    // This banner is the sole message surface for create_action. Its
+    // field-discriminated errors (signup/confirm deadline) set aria-invalid on
+    // the rejected input (red border) via render_create_form, but the message
+    // text itself renders only here — no field-local echo — so one error fact
+    // has one home. Field-less errors (e.g. "active season already exists")
+    // likewise surface here. E2E asserts on `action-error` for create-season
+    // validation.
     //
     // generate_invite_action has exactly one field (distributor); every error it
     // can produce belongs to that field's local `.field-error` (see
