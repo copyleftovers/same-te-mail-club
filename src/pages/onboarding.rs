@@ -1,17 +1,9 @@
-use crate::error::strip_server_error_prefix;
+use crate::error::{FIELD_DISCRIMINANT_SEPARATOR, strip_server_error_prefix};
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, use_i18n};
 use leptos::prelude::*;
 
 // ── Server function ───────────────────────────────────────────────────────────
-
-/// ASCII Unit Separator used to encode a stable field discriminant alongside
-/// the localized user-facing message in a single `ServerFnError` string.
-///
-/// Format: `"<field_key>\u{1f}<localized_message>"`
-/// where `field_key` ∈ {"city", "`np_number`"} — stable across locale changes.
-/// Infra/DB errors carry no separator and no field key.
-const FIELD_DISCRIMINANT_SEPARATOR: char = '\u{1f}';
 
 /// Save the user's Nova Poshta delivery address and mark them as onboarded.
 ///
@@ -180,15 +172,14 @@ pub fn OnboardingPage() -> impl IntoView {
                             aria-invalid=move || city_error.get().map(|_| "true")
                             aria-describedby="np-city-error"
                         />
-                        <div
+                        <p
                             id="np-city-error"
+                            class="field-error"
                             aria-live="assertive"
-                            data-testid="action-error"
+                            data-testid="np-city-error"
                         >
-                            {move || city_error.get().map(|msg| view! {
-                                <p class="field-error" role="alert">{msg}</p>
-                            })}
-                        </div>
+                            {move || city_error.get()}
+                        </p>
                     </div>
                     <div class="field w-full">
                         <label class="field-label" for="np-number">
@@ -204,17 +195,16 @@ pub fn OnboardingPage() -> impl IntoView {
                             required
                             data-testid="np-number-input"
                             aria-invalid=move || np_error.get().map(|_| "true")
-                            aria-describedby="np-np-number-error"
+                            aria-describedby="np-number-error"
                         />
-                        <div
-                            id="np-np-number-error"
+                        <p
+                            id="np-number-error"
+                            class="field-error"
                             aria-live="assertive"
                             data-testid="np-number-error"
                         >
-                            {move || np_error.get().map(|msg| view! {
-                                <p class="field-error" role="alert">{msg}</p>
-                            })}
-                        </div>
+                            {move || np_error.get()}
+                        </p>
                     </div>
                 </div>
                 <button
