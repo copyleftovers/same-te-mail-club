@@ -45,7 +45,11 @@
   --color-text: var(--color-brand-black);
   --color-text-muted: var(--color-brand-gray);
   --color-accent: var(--color-brand-orange);
-  --color-focus: var(--color-brand-blue);
+  /* --color-brand-blue alone is 1.86:1 on cream / 1.97:1 on white — below the
+     WCAG 2.1 §1.4.11 3:1 non-text minimum for a focus outline. This deeper blue
+     is 4.04:1 on cream / 4.28:1 on white. Dark mode keeps brand-blue (already
+     9.97:1 on black) — see the dark :root override below. */
+  --color-focus: oklch(0.58 0.15 250);
   /* Derives from the mode-invariant badge fill so both share the same light
      value; dark overrides this with a lifted literal (0.68) for text
      legibility. */
@@ -137,6 +141,9 @@
     --color-border: oklch(0.58 0.01 250);
     --color-error: oklch(0.68 0.22 25);
     --color-success: oklch(0.72 0.16 160);
+    /* Restore brand-blue: the light-mode --color-focus tune (0.58) exists only
+       to pass 3:1 on cream/white. Brand-blue already clears 9.97:1 on black. */
+    --color-focus: var(--color-brand-blue);
 
     /* Solid dark container fill for informational panels (.alert /
        .sms-report-result) and stepper markers. A colour-alpha wash over

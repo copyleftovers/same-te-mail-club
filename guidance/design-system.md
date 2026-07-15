@@ -33,13 +33,15 @@ These are CSS custom properties on `:root`, not `@theme` tokens. They do not gen
 --color-text              → --color-brand-black
 --color-text-muted        → --color-brand-gray
 --color-accent            → --color-brand-orange
---color-focus             → --color-brand-blue
+--color-focus             → oklch(0.58 0.15 250)
 --color-error             → var(--color-badge-error)
 --color-success           → oklch(0.58 0.16 160)
 --color-border            → --color-brand-gray
 ```
 
 `--color-border` is the semantic alias for UI-component boundaries (form-input borders, card/table/container borders, deadline stripe). It exists so borders can reassign in dark mode to meet WCAG 2.1 §1.4.11 (≥3:1 non-text) — `--color-brand-gray` alone is a raw token and would not reassign. All border consumers route through `--color-border`; the alpha-tinted decorative variants use `oklch(from var(--color-border) l c h / α)`.
+
+`--color-focus` is tuned darker than `--color-brand-blue` for the same WCAG 2.1 §1.4.11 reason: brand-blue alone is 1.86:1 on cream / 1.97:1 on white — below the 3:1 non-text minimum for a focus outline. `oklch(0.58 0.15 250)` is 4.04:1 on cream / 4.28:1 on white. Dark mode reassigns it back to `--color-brand-blue` (already 9.97:1 on black) — see Dark Mode below.
 
 ### Dark Mode
 
@@ -53,6 +55,7 @@ These are CSS custom properties on `:root`, not `@theme` tokens. They do not gen
 --color-border        → oklch(0.58 0.01 250)
 --color-error         → oklch(0.68 0.22 25)
 --color-success       → oklch(0.72 0.16 160)
+--color-focus         → --color-brand-blue
 ```
 
 Plus two dark-only helper tokens (defined only inside the dark `:root`, no light-mode counterpart):
