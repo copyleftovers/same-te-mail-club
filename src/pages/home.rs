@@ -3,6 +3,7 @@ use crate::components::toast::use_toast;
 use crate::error::{FIELD_DISCRIMINANT_SEPARATOR, strip_server_error_prefix};
 use crate::hooks::use_hydrated;
 use crate::i18n::i18n::{t, t_string, use_i18n};
+use crate::types::ReceiptStatus;
 use leptos::prelude::*;
 
 #[cfg(feature = "ssr")]
@@ -57,7 +58,9 @@ pub enum HomeState {
     },
 
     /// Delivery phase, participant has confirmed receipt (received or not received).
-    ReceiptConfirmed,
+    /// Carries which outcome was confirmed so the rendered copy can distinguish
+    /// "your mail arrived" from "you reported it never arrived" — see `render_receipt_confirmed`.
+    ReceiptConfirmed { status: ReceiptStatus },
 
     /// Season is complete.
     Complete,
@@ -195,8 +198,6 @@ async fn resolve_delivery_state(
     user_id: uuid::Uuid,
     season_id: uuid::Uuid,
 ) -> Result<HomeState, ServerFnError> {
-    use crate::types::ReceiptStatus;
-
     // Outgoing assignment: who does this user need to send to?
     let outgoing = sqlx::query_as!(
         AssignmentRow,
@@ -238,8 +239,8 @@ async fn resolve_delivery_state(
     .map_err(db_err)?;
 
     match incoming_status {
-        Some(ReceiptStatus::Received | ReceiptStatus::NotReceived) => {
-            Ok(HomeState::ReceiptConfirmed)
+        Some(status @ (ReceiptStatus::Received | ReceiptStatus::NotReceived)) => {
+            Ok(HomeState::ReceiptConfirmed { status })
         }
         _ => Ok(HomeState::Assigned {
             recipient_name: a.recipient_name,
@@ -557,7 +558,6 @@ pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(
     use crate::{
         auth,
         i18n::i18n::{Locale, td_string},
-        types::ReceiptStatus,
     };
 
     let (pool, user) = auth::require_auth().await?;
@@ -1083,6 +1083,38 @@ fn render_assignment_details(
     .into_any()
 }
 
+/// Render the delivery-phase receipt-confirmed state.
+///
+/// Branches on `status`: a participant who reported their mail never arrived must
+/// see that fact reflected back, not the same "thank you" copy shown for a
+/// successful delivery. `NoResponse` cannot reach here — `resolve_delivery_state`
+/// only produces `HomeState::ReceiptConfirmed` for `Received`/`NotReceived`.
+fn render_receipt_confirmed(
+    status: ReceiptStatus,
+    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+) -> AnyView {
+    match status {
+        ReceiptStatus::NotReceived => view! {
+            <div class="empty-state">
+                <h1 class="empty-state-headline">{t!(i18n, home_not_received_heading)}</h1>
+                <p class="empty-state-body" data-testid="receipt-thanks">
+                    {t!(i18n, home_reported_label)}
+                </p>
+            </div>
+        }
+        .into_any(),
+        ReceiptStatus::Received | ReceiptStatus::NoResponse => view! {
+            <div class="empty-state">
+                <h1 class="empty-state-headline">{t!(i18n, home_thanks_heading)}</h1>
+                <p class="empty-state-body" data-testid="receipt-thanks">
+                    {t!(i18n, home_received_confirmed_body)}
+                </p>
+            </div>
+        }
+        .into_any(),
+    }
+}
+
 // The `view!` macro's HTML attribute verbosity inflates line count beyond what
 // reflects logic complexity; extracting sub-components here would be YAGNI.
 #[allow(clippy::too_many_lines)]
@@ -1179,15 +1211,7 @@ fn render_home_state(
             i18n,
         ),
 
-        HomeState::ReceiptConfirmed => view! {
-            <div class="empty-state">
-                <h1 class="empty-state-headline">{t!(i18n, home_thanks_heading)}</h1>
-                <p class="empty-state-body" data-testid="receipt-thanks">
-                    {t!(i18n, home_reported_label)}
-                </p>
-            </div>
-        }
-        .into_any(),
+        HomeState::ReceiptConfirmed { status } => render_receipt_confirmed(status, i18n),
 
         HomeState::Complete => view! {
             <div class="empty-state">

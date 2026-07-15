@@ -35,6 +35,8 @@
   "home_received_button": "Так, отримав(ла)",
   "home_not_received_button": "Не отримав(ла)",
   "home_thanks_heading": "Дякуємо",
+  "home_received_confirmed_body": "Раді, що лист дійшов.",
+  "home_not_received_heading": "Записано",
   "home_reported_label": "Повідомлено організатору",
   "home_complete_heading": "Сезон завершено",
   "home_thanks_participation": "Дякуємо, що був(ла) з нами. До наступного разу.",
