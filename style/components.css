@@ -926,6 +926,16 @@
   /* Narrow centered form column (NOT the 65ch .prose-page reading column).
      Consumes T01's .page-frame for viewport centering — see .page-frame > .auth-card. */
   .auth-card {
+    /* FU-01 (root): as a flex item inside .page-frame (flex-direction:column),
+       the card's cross-axis auto margins (margin-inline:auto here, plus the
+       .page-frame > .auth-card { margin:auto } centering rule) EXCLUDE it from
+       align-items:stretch — so without an explicit cross-size it shrink-wraps
+       to its widest child (measured 193–339px, varying per step) and max-width
+       never binds. An explicit width:100% gives a definite cross-size that
+       max-width then caps at 28rem: 28rem on desktop, full-width on mobile,
+       auto margins centering it in both cases. This is what the descendant
+       width:100% chain (.auth-card form, .field, .field-input) resolves against. */
+    width: 100%;
     max-width: var(--size-content-max);   /* 28rem — one envelope for field + primary */
     margin-inline: auto;
     display: flex;
