@@ -119,6 +119,12 @@
     --density-space-md: calc(var(--spacing) * 3);
     --density-space-lg: calc(var(--spacing) * 5);
     --text-section: 1.1rem; /* admin section headings one step above body, not page-title scale */
+    /* FU-21: brand-anchor page title, one compact step below the participant
+       clamp(1.8rem,5vw,2.8rem) — present without spending the density budget. */
+    --text-page-title: 1.75rem;
+    /* FU-21: admin content is forms/cards/tables, not prose — the 65ch reading
+       cap strands ~320px dead margin per side on data-dense screens. */
+    --size-admin-content-max: 64rem;
   }
 }
 

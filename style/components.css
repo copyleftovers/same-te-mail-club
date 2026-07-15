@@ -431,6 +431,13 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
+  /* FU-21: admin content is forms/cards/tables, not prose — the 65ch reading
+     cap is the wrong constraint there (see design-direction). Specificity
+     (0,2,0) beats the bare `.prose-page` rule (0,1,0) cleanly. */
+  [data-layout="admin"] .prose-page {
+    max-width: var(--size-admin-content-max);
+  }
+
   .prose-page h1 {
     font-family: var(--font-display);
     font-weight: 900;

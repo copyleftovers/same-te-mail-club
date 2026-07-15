@@ -219,6 +219,9 @@ pub fn AdminPage() -> impl IntoView {
 
     view! {
         <div class="prose-page" data-testid="dashboard-content">
+            // FU-21: brand-anchor page title — admin previously had no h1, so the
+            // heading scale started at h2 (section) with nothing above it.
+            <h1>{t!(i18n, admin_page_title)}</h1>
             <div id="action-error" role="alert" aria-live="assertive" data-testid="action-error">
                 {move || action_error().map(|e| {
                     let stripped = strip_server_error_prefix(&e);
@@ -268,26 +271,25 @@ pub fn AdminPage() -> impl IntoView {
                 }}
             </Suspense>
 
-            // ── Participants group — plain wrapper, no card treatment ────────────
-            // invite-codes and participant-list are peer .admin-section cards;
-            // wrapping them in a third card would produce nested white-on-white
-            // panels (surface-raised inside surface-raised, no perceptual depth).
-            <section data-testid="participants-outer-section">
-                <h2>{t!(i18n, participants_page_title)}</h2>
-                <InviteCodesSection
-                    generate_invite_action=generate_invite_action
-                    revoke_invite_action=revoke_invite_action
-                    invite_codes=invite_codes
-                    distributor_options=distributor_options
-                    hydrated=hydrated
+            // ── Participants (peer top-level sections, no group wrapper) ───────
+            // FU-21: the "Учасники" group h2 wrapped these two cards, whose own
+            // titles are ALSO h2 — a same-level collision (FU-18's root cause).
+            // Dropped: invite-codes and participant-list stand as peer
+            // .admin-section cards directly under the page h1, same as
+            // season-section/assignment-section above.
+            <InviteCodesSection
+                generate_invite_action=generate_invite_action
+                revoke_invite_action=revoke_invite_action
+                invite_codes=invite_codes
+                distributor_options=distributor_options
+                hydrated=hydrated
+            />
+            <section class="admin-section" data-testid="participant-list-section">
+                <h2>{t!(i18n, participants_list_title)}</h2>
+                <ParticipantListSection
+                    participants=participants
+                    deactivate_action=deactivate_action
                 />
-                <section class="admin-section" data-testid="participant-list-section">
-                    <h2>{t!(i18n, participants_list_title)}</h2>
-                    <ParticipantListSection
-                        participants=participants
-                        deactivate_action=deactivate_action
-                    />
-                </section>
             </section>
         </div>
     }
