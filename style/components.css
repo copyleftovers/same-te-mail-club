@@ -7,6 +7,10 @@
     font-weight: 900;
     font-style: normal;
     font-display: swap;
+    /* U+0454 (Cyrillic 'є') is a defective glyph baked into the foundry asset
+       (renders identical to 'с'; no corrected woff2/otf exists anywhere).
+       Cede only that codepoint to the stack's next face ('Arial Black'). */
+    unicode-range: U+0-453, U+455-10FFFF;
   }
 
   @font-face {
