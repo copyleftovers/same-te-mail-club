@@ -815,7 +815,7 @@ test.describe.serial("Visual Audit", () => {
   test("setup — create and launch third season for existing-address capture", async ({ page }) => {
     const app = new MailClubPage(page);
     await app.login(ADMIN_PHONE);
-    await app.createSeason(futureDeadline(7), futureDeadline(21));
+    await app.createSeason(futureDeadline(7), futureDeadline(21), SEASON_THEME);
     await app.launchSeason();
   });
 
