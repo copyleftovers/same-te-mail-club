@@ -61,3 +61,40 @@ main @ `59bef87`, UNPUSHED, clean tree. Fix loop COMPLETE (task #3 done). **Rema
 - Safety-net wakes armed: #3 @23:50, #4 @00:20 (next token-session window).
 
 Halted per user: "after integrating the last unit, do /session-checkpoint and halt, wait for me on a clean tree."
+
+## Checkpoint — 2026-07-17 03:08 (session-limit resume)
+
+Continuation of the 2026-07-15 campaign (user: "continue with the verification"). All work below lives under recon/2026-07-15/ and this session.md by design (one campaign, one dir). Advisor tool unavailable the entire run (Fable 5, returned disabled every call) — proceeded on judgment per mandate.
+
+### Extracted contract (unchanged from prior checkpoint, re-affirmed)
+Fix EVERY visual fault; PURE DISCOVERY (I own the inventory); scope = holistic aesthetic cohesion not checkbox; MY eye final, A-Z autonomous, NO human gate; deficit = diligence/attention not taste; HOLD push (user pushes). Never escalate what I can solve; figure-out-together items surfaced up front via /spec-chef.
+
+### Narrative (this session)
+1. Doc-sweep (#7, opus worktree): reconciled 4 campaign drifts (frontend-protocol z-index drawer deleted; design-system admin 64rem width; destructive-button table; component-eval B4 grain blend) → integrated a152b39.
+2. Task #4 re-verify ROUND 1: fresh 164-shot isolated capture (41 states x 4 modes) → 9 assume-broken agents (6 area + 3 concern) → opus synthesis → RESIDUAL-CATALOG.md = 14 fix-units (29 raw, 8 dropped, 2B/8M/4m). Wordmark verdict = CODE-FIXABLE (icon-mark swap), NOT a brand-asset escalation.
+3. ROUND-1 fix loop: 8 bundles B1-B8 (14 RV units + wordmark), each implement(worktree)->spec-reviewer->code-quality-reviewer->integrate-on-both-green. All integrated -> main fc934d1 (14 fix commits 2766173..fc934d1 over doc base a152b39). B5 one quality fix-cycle (dead rule). B7 folded a stale-comment Minor pre-quality. B3/B4 both hit admin/page.rs (disjoint regions, sequential cherry-pick clean).
+4. ROUND-2 re-verify: fresh capture (164 + 12-node cohort admin-cycle-viz-12-nodes.png) -> 7 agents. BOTH round-1 blockers CONFIRMED FIXED in pixels (RV-01 dark-toast AA, RV-14 header border). Surfaced 2B/10M/11m residuals -> opus synthesis -> RESIDUAL-CATALOG-2.md = 12 units (2B/7M/3m, 6 dropped).
+5. ROUND-2 planner killed by session limit mid-work -> fix-loop-plan-2.md NOT written.
+
+### Decisions
+| Decision | Rationale |
+|---|---|
+| 8-bundle collision-safe topology (coupled css+rs per unit) | worktrees isolate dev; serialize shared hubs (components.css/admin/page.rs/home.rs) at integration via cherry-pick+rebase; disjoint parallel |
+| Wordmark = code fix (swap to existing icon-mark same_te_mark_*.svg) | icon marks already clean in header + in public/; hero <h1> carries the label; no new asset needed -> NOT escalated |
+| Own RV-14/RV-12 "NEEDS-DECISION" (header border felt; static amber in-progress badge) | taste delegated to me; escalating would be the named FAILURE |
+| Cohort 12-node captured under distinct filename | avoids overwriting the small-cohort admin-assignment-cycle shot needed for RV-06 |
+
+### Failures / corrections (this session)
+| Failure | Root cause | Correction |
+|---|---|---|
+| DATETIME HALLUCINATION scheduling wakes | inferred ~01:57 from stale commit timestamps; actual was 22:07 | user caught it; ALWAYS `date` before scheduling any cron/wake |
+| Ephemeral cron != durable checkpoint | on session limit I stood down with session-only wake crons + on-disk catalogs but no session.md/codebase_state durable checkpoint | user caught it; this checkpoint. Session-limit standdown MUST write durable memory |
+| Double-nohup detached capture (untracked) | wrapped a run_in_background bash in `nohup ... &` -> real work detached, harness tracked only the launcher | use run_in_background on the DIRECT command; verify via pgrep + ls counts |
+| B3 premature-idle on backgrounded build | implementer backgrounded a build and idled (not completion) | resumed via SendMessage with foreground-verify mandate |
+
+### Working State (RESUME HERE)
+- main @ fc934d1, UNPUSHED (ahead 52), clean tree, ZERO worktrees. Dev server live on :3000 -> isolated harness only.
+- ROUND-1 (14 RV units) DONE + fully gated. ROUND-2 (RESIDUAL-CATALOG-2.md, 12 units) QUEUED; fix-loop-plan-2.md not yet written.
+- Regressions: R2-01 CyGrotesk glyph є->с (latent app-wide, exposed by B2 CyGrotesk h1); R2-02 12-node cycle-viz labels illegible (B4/RV-06).
+- NEXT: re-run round-2 planner (root-cause R2-01 font: unicode-range/corrected-asset-in-same-te-landing/fonts vs NEEDS-NEW-ASSET) -> round-2 fix loop implement->spec->quality->integrate-on-both-green (regressions correct the round-1 change) -> re-capture+cohort -> re-verify to clean -> #5 CI preflight (SQLX_OFFLINE=true cargo clippy --no-default-features --features ssr + isolated e2e mode=full) -> close #4/#8 -> HOLD push.
+- Tasks #4/#8 in_progress. Wakes 9f41ad4e@03:07 + dee57390@03:37 (fired at this resume).
