@@ -313,6 +313,15 @@
     font-size: var(--text-otp);
   }
 
+  /* R2-12: the native datetime-local calendar-icon glyph lives in the
+     browser's shadow DOM and always renders for a LIGHT UA color scheme
+     unless told otherwise — custom properties cannot restyle it directly.
+     Declaring both schemes lets the browser pick a dark-appropriate icon
+     under prefers-color-scheme: dark, matching the input's own dark fill. */
+  .field-input[type="datetime-local"] {
+    color-scheme: light dark;
+  }
+
   select.field-input {
     appearance: none;
     /* SVG arrow uses %23565656 — hex approximation of --color-brand-gray (oklch 0.45 0.01 250).
