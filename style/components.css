@@ -673,6 +673,19 @@
     margin-bottom: var(--density-space-md);
   }
 
+  /* R2-06: a routine operational stat (e.g. a not-yet-received delivery
+     count) is not a failure — reusing error-red diluted red's meaning right
+     where FU-20 worked to reserve it for one dangerous action. Reuses the
+     attention/open amber family already established for badges
+     (unused/pending) per design-system.md §Badges. Text stays the ambient
+     --color-text: amber's own 0.82 L is too light for AA as running text —
+     only the wash (light) / accent border (dark) carries the amber signal,
+     same neutral-text pattern as .sms-report-result below. */
+  .alert[data-variant="attention"] {
+    background: oklch(from var(--color-badge-amber) l c h / 0.1);
+    color: var(--color-text);
+  }
+
   /* SMS send result — neutral informational container, not an error state. */
   .sms-report-result {
     margin-top: var(--density-space-sm);
@@ -708,6 +721,13 @@
     .alert {
       background: var(--color-panel-dark);
       border-left: 3px solid var(--color-error); /* structural: 3px accent stripe */
+    }
+    /* R2-06: amber is mode-invariant (no dark reassignment, same as every
+       other --color-badge-* fill), so the accent stripe reuses the light-mode
+       token directly — no lifted dark variant needed. */
+    .alert[data-variant="attention"] {
+      background: var(--color-panel-dark);
+      border-left: 3px solid var(--color-badge-amber); /* structural: 3px accent stripe */
     }
     .sms-report-result,
     .toast {

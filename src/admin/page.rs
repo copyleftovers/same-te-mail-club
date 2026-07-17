@@ -620,12 +620,14 @@ fn render_active_season(
                 ().into_any()
             }}
 
-            // Not-received alert (only in delivery/complete with non-zero count).
-            // Bare `<p class="alert">` — the canonical alert shape shared with the
-            // page-wide banner and the distributor/state error alerts.
+            // Not-received stat (only in delivery/complete with non-zero count).
+            // The canonical `.alert` shape, but `data-variant="attention"`
+            // (amber, R2-06): this is a routine operational count, not a
+            // failure — error-red is reserved for genuine failure alerts
+            // (the page-wide banner, distributor/state errors).
             {if not_received_count > 0 {
                 view! {
-                    <p class="alert" data-testid="not-received-alert">
+                    <p class="alert" data-variant="attention" data-testid="not-received-alert">
                         {t!(i18n, admin_not_received_label)}
                         {not_received_count}
                     </p>
