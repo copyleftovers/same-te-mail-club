@@ -835,36 +835,39 @@ fn render_phase_sms(
             let season_open_pending = season_open_action.pending();
             view! {
                 <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)" data-testid="sms-section-enrollment">
-                    <div class="sms-trigger">
-                        <h3>{t!(i18n, sms_season_open_section_title)}</h3>
-                        <p>{t!(i18n, sms_season_open_target)}</p>
-                        <div class="sms-trigger-action">
-                            <leptos::form::ActionForm action=season_open_action>
-                                <button
-                                    class="btn"
-                                    data-variant="secondary"
-                                    data-size="sm"
-                                    type="submit"
-                                    data-testid="send-season-open-button"
-                                    disabled=move || season_open_pending.get() || !hydrated.get()
-                                    attr:aria-busy=move || season_open_pending.get().then_some("true")
-                                >
-                                    {move || if season_open_pending.get() {
-                                        t!(i18n, admin_sms_sending_loading).into_any()
-                                    } else {
-                                        t!(i18n, sms_send_season_open_button).into_any()
-                                    }}
-                                </button>
-                            </leptos::form::ActionForm>
-                            <span
-                                class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
-                                data-testid="sms-count-active-users"
+                    // R2-05: one grammar for a "labeled action sub-group" —
+                    // the overline-label heading already used by the
+                    // invite-code sub-sections, not a bordered box.
+                    <h3 class="overline-label">{t!(i18n, sms_season_open_section_title)}</h3>
+                    <p class="text-[length:var(--text-secondary)] text-(--color-text-muted)">
+                        {t!(i18n, sms_season_open_target)}
+                    </p>
+                    <div class="sms-trigger-action">
+                        <leptos::form::ActionForm action=season_open_action>
+                            <button
+                                class="btn"
+                                data-variant="secondary"
+                                data-size="sm"
+                                type="submit"
+                                data-testid="send-season-open-button"
+                                disabled=move || season_open_pending.get() || !hydrated.get()
+                                attr:aria-busy=move || season_open_pending.get().then_some("true")
                             >
-                                {t!(i18n, sms_count_active_users, count = season_open_target_count)}
-                            </span>
-                        </div>
-                        {render_sms_report_inline(move || season_open_action.value().get().and_then(Result::ok), i18n)}
+                                {move || if season_open_pending.get() {
+                                    t!(i18n, admin_sms_sending_loading).into_any()
+                                } else {
+                                    t!(i18n, sms_send_season_open_button).into_any()
+                                }}
+                            </button>
+                        </leptos::form::ActionForm>
+                        <span
+                            class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
+                            data-testid="sms-count-active-users"
+                        >
+                            {t!(i18n, sms_count_active_users, count = season_open_target_count)}
+                        </span>
                     </div>
+                    {render_sms_report_inline(move || season_open_action.value().get().and_then(Result::ok), i18n)}
                 </div>
             }
             .into_any()
@@ -873,40 +876,43 @@ fn render_phase_sms(
             let confirm_nudge_pending = confirm_nudge_action.pending();
             view! {
                 <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)" data-testid="sms-section-preparation">
-                    <div class="sms-trigger">
-                        <h3>{t!(i18n, sms_confirm_nudge_section_title)}</h3>
-                        <p>{t!(i18n, sms_confirm_nudge_target)}</p>
-                        <div class="sms-trigger-action">
-                            <leptos::form::ActionForm action=confirm_nudge_action>
-                                <button
-                                    class="btn"
-                                    data-variant="secondary"
-                                    data-size="sm"
-                                    type="submit"
-                                    data-testid="send-confirm-nudge-button"
-                                    disabled=move || confirm_nudge_pending.get() || !hydrated.get()
-                                    attr:aria-busy=move || confirm_nudge_pending.get().then_some("true")
-                                >
-                                    {move || if confirm_nudge_pending.get() {
-                                        t!(i18n, admin_sms_sending_loading).into_any()
-                                    } else {
-                                        t!(i18n, sms_send_confirm_nudge_button).into_any()
-                                    }}
-                                </button>
-                            </leptos::form::ActionForm>
-                            <span
-                                class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
-                                data-testid="sms-count-unconfirmed-enrolled"
+                    // R2-05: one grammar for a "labeled action sub-group" —
+                    // the overline-label heading already used by the
+                    // invite-code sub-sections, not a bordered box.
+                    <h3 class="overline-label">{t!(i18n, sms_confirm_nudge_section_title)}</h3>
+                    <p class="text-[length:var(--text-secondary)] text-(--color-text-muted)">
+                        {t!(i18n, sms_confirm_nudge_target)}
+                    </p>
+                    <div class="sms-trigger-action">
+                        <leptos::form::ActionForm action=confirm_nudge_action>
+                            <button
+                                class="btn"
+                                data-variant="secondary"
+                                data-size="sm"
+                                type="submit"
+                                data-testid="send-confirm-nudge-button"
+                                disabled=move || confirm_nudge_pending.get() || !hydrated.get()
+                                attr:aria-busy=move || confirm_nudge_pending.get().then_some("true")
                             >
-                                {t!(
-                                    i18n,
-                                    sms_count_unconfirmed_enrolled,
-                                    count = unconfirmed_enrolled_count
-                                )}
-                            </span>
-                        </div>
-                        {render_sms_report_inline(move || confirm_nudge_action.value().get().and_then(Result::ok), i18n)}
+                                {move || if confirm_nudge_pending.get() {
+                                    t!(i18n, admin_sms_sending_loading).into_any()
+                                } else {
+                                    t!(i18n, sms_send_confirm_nudge_button).into_any()
+                                }}
+                            </button>
+                        </leptos::form::ActionForm>
+                        <span
+                            class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
+                            data-testid="sms-count-unconfirmed-enrolled"
+                        >
+                            {t!(
+                                i18n,
+                                sms_count_unconfirmed_enrolled,
+                                count = unconfirmed_enrolled_count
+                            )}
+                        </span>
                     </div>
+                    {render_sms_report_inline(move || confirm_nudge_action.value().get().and_then(Result::ok), i18n)}
                 </div>
             }
             .into_any()
@@ -916,70 +922,79 @@ fn render_phase_sms(
             let receipt_nudge_pending = receipt_nudge_action.pending();
             view! {
                 <div class="flex flex-col gap-(--density-space-sm) mt-(--density-space-md)" data-testid="sms-section-delivery">
-                    <div class="sms-trigger">
-                        <h3>{t!(i18n, sms_assignment_section_title)}</h3>
-                        <p>{t!(i18n, sms_assignment_target)}</p>
-                        <div class="sms-trigger-action">
-                            <leptos::form::ActionForm action=assignment_action>
-                                <button
-                                    class="btn"
-                                    data-variant="secondary"
-                                    data-size="sm"
-                                    type="submit"
-                                    data-testid="send-assignment-button"
-                                    disabled=move || assignment_pending.get() || !hydrated.get()
-                                    attr:aria-busy=move || assignment_pending.get().then_some("true")
-                                >
-                                    {move || if assignment_pending.get() {
-                                        t!(i18n, admin_sms_sending_loading).into_any()
-                                    } else {
-                                        t!(i18n, sms_send_assignment_button).into_any()
-                                    }}
-                                </button>
-                            </leptos::form::ActionForm>
-                            <span
-                                class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
-                                data-testid="sms-count-unnotified-senders"
+                    // R2-05: one grammar for a "labeled action sub-group" —
+                    // the overline-label heading already used by the
+                    // invite-code sub-sections, not a bordered box. Two
+                    // groups stack here, same as the invite-code list's
+                    // "generate" + "all codes" pair — the second heading
+                    // gets the same `mt-(--density-space-lg)` breathing room.
+                    <h3 class="overline-label">{t!(i18n, sms_assignment_section_title)}</h3>
+                    <p class="text-[length:var(--text-secondary)] text-(--color-text-muted)">
+                        {t!(i18n, sms_assignment_target)}
+                    </p>
+                    <div class="sms-trigger-action">
+                        <leptos::form::ActionForm action=assignment_action>
+                            <button
+                                class="btn"
+                                data-variant="secondary"
+                                data-size="sm"
+                                type="submit"
+                                data-testid="send-assignment-button"
+                                disabled=move || assignment_pending.get() || !hydrated.get()
+                                attr:aria-busy=move || assignment_pending.get().then_some("true")
                             >
-                                {t!(
-                                    i18n,
-                                    sms_count_unnotified_senders,
-                                    count = unnotified_sender_count
-                                )}
-                            </span>
-                        </div>
-                        {render_sms_report_inline(move || assignment_action.value().get().and_then(Result::ok), i18n)}
+                                {move || if assignment_pending.get() {
+                                    t!(i18n, admin_sms_sending_loading).into_any()
+                                } else {
+                                    t!(i18n, sms_send_assignment_button).into_any()
+                                }}
+                            </button>
+                        </leptos::form::ActionForm>
+                        <span
+                            class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
+                            data-testid="sms-count-unnotified-senders"
+                        >
+                            {t!(
+                                i18n,
+                                sms_count_unnotified_senders,
+                                count = unnotified_sender_count
+                            )}
+                        </span>
                     </div>
-                    <div class="sms-trigger">
-                        <h3>{t!(i18n, sms_receipt_nudge_section_title)}</h3>
-                        <p>{t!(i18n, sms_receipt_nudge_target)}</p>
-                        <div class="sms-trigger-action">
-                            <leptos::form::ActionForm action=receipt_nudge_action>
-                                <button
-                                    class="btn"
-                                    data-variant="secondary"
-                                    data-size="sm"
-                                    type="submit"
-                                    data-testid="send-receipt-nudge-button"
-                                    disabled=move || receipt_nudge_pending.get() || !hydrated.get()
-                                    attr:aria-busy=move || receipt_nudge_pending.get().then_some("true")
-                                >
-                                    {move || if receipt_nudge_pending.get() {
-                                        t!(i18n, admin_sms_sending_loading).into_any()
-                                    } else {
-                                        t!(i18n, sms_send_receipt_nudge_button).into_any()
-                                    }}
-                                </button>
-                            </leptos::form::ActionForm>
-                            <span
-                                class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
-                                data-testid="sms-count-no-response"
+                    {render_sms_report_inline(move || assignment_action.value().get().and_then(Result::ok), i18n)}
+
+                    <h3 class="overline-label mt-(--density-space-lg)">
+                        {t!(i18n, sms_receipt_nudge_section_title)}
+                    </h3>
+                    <p class="text-[length:var(--text-secondary)] text-(--color-text-muted)">
+                        {t!(i18n, sms_receipt_nudge_target)}
+                    </p>
+                    <div class="sms-trigger-action">
+                        <leptos::form::ActionForm action=receipt_nudge_action>
+                            <button
+                                class="btn"
+                                data-variant="secondary"
+                                data-size="sm"
+                                type="submit"
+                                data-testid="send-receipt-nudge-button"
+                                disabled=move || receipt_nudge_pending.get() || !hydrated.get()
+                                attr:aria-busy=move || receipt_nudge_pending.get().then_some("true")
                             >
-                                {t!(i18n, sms_count_no_response, count = no_response_count)}
-                            </span>
-                        </div>
-                        {render_sms_report_inline(move || receipt_nudge_action.value().get().and_then(Result::ok), i18n)}
+                                {move || if receipt_nudge_pending.get() {
+                                    t!(i18n, admin_sms_sending_loading).into_any()
+                                } else {
+                                    t!(i18n, sms_send_receipt_nudge_button).into_any()
+                                }}
+                            </button>
+                        </leptos::form::ActionForm>
+                        <span
+                            class="text-[length:var(--text-secondary)] text-(--color-text-muted)"
+                            data-testid="sms-count-no-response"
+                        >
+                            {t!(i18n, sms_count_no_response, count = no_response_count)}
+                        </span>
                     </div>
+                    {render_sms_report_inline(move || receipt_nudge_action.value().get().and_then(Result::ok), i18n)}
                 </div>
             }
             .into_any()

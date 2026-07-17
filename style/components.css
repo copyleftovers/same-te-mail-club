@@ -466,9 +466,7 @@
 
   /* Sub-section heading — one defined step below h2 (section) and above body.
      Mont 600 at 1rem so bare <h3> (assignment "Обмін"/"Цикли", participant list,
-     card recipient name) is spec-styled rather than browser-default serif.
-     The scoped `.sms-trigger h3` rule below (equal specificity, later in source)
-     still wins inside SMS triggers, preserving its tighter label treatment. */
+     card recipient name) is spec-styled rather than browser-default serif. */
   .prose-page h3 {
     font-family: var(--font-body);
     font-weight: 600;
@@ -489,8 +487,7 @@
      The `>` direct-child combinator is retained so the rule is depth-bounded: it
      fires only between direct children of `.prose-page`, never between a nested
      <section> inside <section> and a later sibling (which an unbounded descendant
-     selector would wrongly match). `.sms-trigger` is intentionally excluded:
-     those stack as a tight list with their own margin-bottom rhythm. */
+     selector would wrongly match). */
   .prose-page
     > :where(section, article, .card, .cycle-viz-container)
     + :where(section, article, .card, .cycle-viz-container) {
@@ -790,27 +787,15 @@
     }
   }
 
-  .sms-trigger {
-    padding: var(--density-space-md);
-    border: 1px solid oklch(from var(--color-border) l c h / 0.2); /* structural: 1px container border */
-    border-radius: var(--radius-md);
-    margin-bottom: var(--density-space-sm);
-  }
+  /* R2-05: the SMS-trigger sub-groups previously boxed themselves in a
+     bordered card with a bold <h3> title — a second grammar for the same
+     "labeled action sub-group" role the invite-code sub-sections already
+     express as a plain overline-label heading (no box). Unified onto that
+     one grammar (page.rs applies `.overline-label` to each <h3> directly);
+     the box/heading rules below are gone, `.sms-trigger-action` (the
+     button+counter row layout) is unchanged. */
 
-  /* components use <h3> inside .sms-trigger */
-  .sms-trigger h3 {
-    font-size: var(--text-sm);
-    font-weight: 600;
-    margin-bottom: calc(var(--spacing) * 1);
-  }
-
-  .sms-trigger p {
-    font-size: var(--text-secondary);
-    color: var(--color-text-muted);
-    margin-bottom: var(--density-space-sm);
-  }
-
-  /* Button + status-counter row inside a .sms-trigger card. At mobile
+  /* Button + status-counter row inside an SMS-trigger group. At mobile
      widths there is no room for both a full-length button label and the
      counter text side by side, so the label wraps mid-pill (FU-11). Stack
      the row instead — the button keeps its own single-line width, mirroring
@@ -1418,7 +1403,7 @@
   /* The decorative container borders route through --color-border (lifts to
      oklch 0.58 in dark), but at their light-calibrated 0.15–0.2 alpha they still
      read as near-zero contrast on near-black. Raise the alpha in dark so grouping
-     (card rows, sms-trigger, table separators) is a visible structural signal.
+     (card rows, table separators) is a visible structural signal.
      0.4 alpha of oklch(0.58) over base(0.15) ≈ a perceptible hairline; solid
      borders (field-input, th 2px) already meet ≥3:1 via --color-border itself. */
   @media (prefers-color-scheme: dark) {
@@ -1426,10 +1411,6 @@
     .data-table-wrapper,
     .admin-section,
     .card {
-      border-color: oklch(from var(--color-border) l c h / 0.4);
-    }
-
-    .sms-trigger {
       border-color: oklch(from var(--color-border) l c h / 0.4);
     }
 
