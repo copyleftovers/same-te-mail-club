@@ -836,7 +836,9 @@ fn render_enrollment_open(
                                     <dd class="info-value">{branch_text}</dd>
                                 </div>
                             </dl>
-                            <p>{t!(i18n, home_saved_address_note)}</p>
+                            <p class="text-sm text-(--color-text-muted) mt-(--density-space-sm)">
+                                {t!(i18n, home_saved_address_note)}
+                            </p>
                         </article>
                         <input type="hidden" name="use_existing_address" value="true" />
                         // city and np_number are required by form deserialization but
