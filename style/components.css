@@ -1263,9 +1263,16 @@
     box-shadow: 0 0 0 3px oklch(from var(--color-accent) l c h / 0.2); /* structural: 3px focus glow */
   }
 
-  .step[data-status="locked"] .step-marker {
-    opacity: 0.4;
-  }
+  /* R2-11: locked (future) steps get no explicit background override here —
+     unlike completed/current/abandoned below, they render the plain
+     .step-marker base fill (a low-alpha ring in light, --color-step-idle
+     solid in dark), which already reads as de-emphasized next to the bold
+     completed/current discs. This used to ALSO scale the whole marker's
+     opacity to 0.4, dimming the digit text along with the fill — in dark
+     that compounded onto an already-muted --color-text-muted digit sitting
+     on a SOLID step-idle fill, crushing it to near-illegible "ghost text".
+     No further dimming is needed for the de-emphasis to read, so the
+     element-opacity rule is gone; the digit stays at full alpha. */
 
   /* Cancelled season: all steps muted — visually distinct from the all-green completed path */
   .step[data-status="abandoned"] .step-marker {
