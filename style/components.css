@@ -13,6 +13,21 @@
     unicode-range: U+0-453, U+455-10FFFF;
   }
 
+  /* R3-01: the codepoint ceded above lands on the system 'Arial Black' fallback,
+     whose own U+0454 glyph is marginal at forced font-weight:900 (its
+     distinguishing notch shrinks against the glyph's bulk) and is not
+     guaranteed present outside macOS (Linux CI, other platforms). Route that
+     single codepoint to an already-bundled, already-trusted webfont instead
+     of an OS font that may not exist. */
+  @font-face {
+    font-family: 'CyGrotesk';
+    src: url('/fonts/Mont-SemiBold.woff2') format('woff2');
+    font-weight: 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0454;
+  }
+
   @font-face {
     font-family: 'Mont';
     src: url('/fonts/Mont-Regular.woff2') format('woff2');
