@@ -633,13 +633,19 @@
     color: var(--color-text-muted);
   }
 
-  /* Redeemer name — own line, wraps within the block (long double-barrel names) */
+  /* Redeemer name — own line, wraps within the block (long double-barrel names).
+     Both this and .invite-code-card-redeemer-date sit as inline siblings inside
+     one .info-value <dd> — without an explicit block display each stays inline
+     and the two run together with no separator (R3-02: "Аудит УчасникВ17 липня").
+     display:block forces each onto its own line within that shared value cell. */
   .invite-code-card-redeemer-name {
+    display: block;
     overflow-wrap: anywhere;
   }
 
   /* Redeemer timestamp — separate line below the name, tabular for alignment */
   .invite-code-card-redeemer-date {
+    display: block;
     font-variant-numeric: tabular-nums;
   }
 
