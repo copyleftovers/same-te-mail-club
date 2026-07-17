@@ -200,6 +200,7 @@
   "admin_invite_codes_revoked_toast": "Код відкликано!",
   "admin_invite_codes_filter_placeholder": "Пошук…",
   "admin_invite_codes_filter_label": "Фільтр",
+  "admin_invite_codes_filter_count": "{{ count }} знайдено",
   "admin_season_created_toast": "Сезон створено!",
   "admin_season_launched_toast": "Сезон запущено!",
   "admin_season_advanced_toast": "Фазу просунуто!",

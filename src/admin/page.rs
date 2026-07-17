@@ -1787,7 +1787,28 @@ fn InviteCodesSection(
                                     .into_any()
                                 }
                                 Ok(codes) => {
+                                    // R2-10: the count line and the <For> filter must
+                                    // never drift on what counts as a "match" — both
+                                    // read the same clone through invite_code_matches_query.
+                                    let codes_for_count = codes.clone();
                                     view! {
+                                        {move || {
+                                            let query = filter_query.get().to_lowercase();
+                                            (!query.is_empty()).then(|| {
+                                                let count = codes_for_count
+                                                    .iter()
+                                                    .filter(|c| invite_code_matches_query(c, &query))
+                                                    .count();
+                                                view! {
+                                                    <p
+                                                        class="text-sm text-(--color-text-muted)"
+                                                        data-testid="invite-code-filter-count"
+                                                    >
+                                                        {t!(i18n, admin_invite_codes_filter_count, count = count)}
+                                                    </p>
+                                                }
+                                            })
+                                        }}
                                         <ul class="invite-code-list">
                                             <For
                                                 each=move || {
@@ -1797,14 +1818,7 @@ fn InviteCodesSection(
                                                     }
                                                     codes
                                                         .iter()
-                                                        .filter(|c| {
-                                                            c.code.to_lowercase().contains(&query)
-                                                                || c.distributor_name.to_lowercase().contains(&query)
-                                                                || matches_invite_status(c.status, &query)
-                                                                || c.redeemer_name
-                                                                    .as_deref()
-                                                                    .is_some_and(|n| n.to_lowercase().contains(&query))
-                                                        })
+                                                        .filter(|c| invite_code_matches_query(c, &query))
                                                         .cloned()
                                                         .collect::<Vec<_>>()
                                                 }
@@ -1987,6 +2001,20 @@ fn matches_invite_status(status: InviteCodeStatus, query: &str) -> bool {
         InviteCodeStatus::Revoked => "revoked",
     };
     status_text.contains(query)
+}
+
+/// True when `code` matches the free-text filter query on any of its visible
+/// fields (code string, distributor name, status label, or redeemer name).
+/// Shared by the filtered list and its result-count line (R2-10) so the two
+/// can never disagree on what counts as a "match".
+fn invite_code_matches_query(code: &InviteCodeRow, query: &str) -> bool {
+    code.code.to_lowercase().contains(query)
+        || code.distributor_name.to_lowercase().contains(query)
+        || matches_invite_status(code.status, query)
+        || code
+            .redeemer_name
+            .as_deref()
+            .is_some_and(|n| n.to_lowercase().contains(query))
 }
 
 #[component]
