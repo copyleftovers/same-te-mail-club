@@ -557,24 +557,38 @@ fn render_active_season(
         <div>
             <PhaseStepper current_phase=phase />
 
-            // Season summary: theme + deadlines + counts
-            <dl data-testid="season-summary">
+            // Season summary: theme + deadlines + counts. Routed through the
+            // canonical .info-list/.info-item/.info-label/.info-value treatment
+            // (R2-03) — the same label:value shape used by the recipient card,
+            // invite-code distributor, and now the invite-code redeemer below —
+            // instead of a bare, unlabeled-overline dt/dd grid.
+            <dl class="info-list" data-testid="season-summary">
                 {theme.as_ref().map(|theme_val| view! {
-                    <dt>{t!(i18n, season_theme_display_label)}</dt>
-                    <dd data-testid="season-theme">{theme_val.clone()}</dd>
+                    <div class="info-item">
+                        <dt class="info-label">{t!(i18n, season_theme_display_label)}</dt>
+                        <dd class="info-value" data-testid="season-theme">{theme_val.clone()}</dd>
+                    </div>
                 })}
-                <dt>{t!(i18n, season_signup_deadline_display)}</dt>
-                <dd data-testid="season-deadline">{signup_deadline_str.clone()}</dd>
-                <dt>{t!(i18n, season_confirm_deadline_display)}</dt>
-                <dd>{confirm_deadline_str.clone()}</dd>
+                <div class="info-item">
+                    <dt class="info-label">{t!(i18n, season_signup_deadline_display)}</dt>
+                    <dd class="info-value" data-testid="season-deadline">{signup_deadline_str.clone()}</dd>
+                </div>
+                <div class="info-item">
+                    <dt class="info-label">{t!(i18n, season_confirm_deadline_display)}</dt>
+                    <dd class="info-value">{confirm_deadline_str.clone()}</dd>
+                </div>
                 {if is_terminal {
                     ().into_any()
                 } else if launched {
                     view! {
-                        <dt>{t!(i18n, season_enrolled_label)}</dt>
-                        <dd>{enrolled_count.to_string()}</dd>
-                        <dt>{t!(i18n, season_confirmed_label)}</dt>
-                        <dd data-testid="confirmed-count">{confirmed_count.to_string()}</dd>
+                        <div class="info-item">
+                            <dt class="info-label">{t!(i18n, season_enrolled_label)}</dt>
+                            <dd class="info-value">{enrolled_count.to_string()}</dd>
+                        </div>
+                        <div class="info-item">
+                            <dt class="info-label">{t!(i18n, season_confirmed_label)}</dt>
+                            <dd class="info-value" data-testid="confirmed-count">{confirmed_count.to_string()}</dd>
+                        </div>
                     }.into_any()
                 } else {
                     // Pre-launch: enrolled/confirmed are structurally 0 (enrollment
@@ -582,8 +596,10 @@ fn render_active_season(
                     // size as the single meaningful metric — as a <dl> row, not a
                     // stray <p>. Reuses the existing bare-label key (uk.json:78).
                     view! {
-                        <dt>{t!(i18n, admin_pre_launch_participant_count)}</dt>
-                        <dd data-testid="pre-launch-participant-count">{participant_count.to_string()}</dd>
+                        <div class="info-item">
+                            <dt class="info-label">{t!(i18n, admin_pre_launch_participant_count)}</dt>
+                            <dd class="info-value" data-testid="pre-launch-participant-count">{participant_count.to_string()}</dd>
+                        </div>
                     }.into_any()
                 }}
             </dl>
@@ -1858,37 +1874,44 @@ fn InviteCodesSection(
                                                         }}
                                                     </span>
                                                     // Redeemer + timestamp (only when used).
-                                                    // Name and date on separate lines so a long
-                                                    // double-barrel name wraps within its own row
-                                                    // instead of pushing the date to a second line
-                                                    // and jaggedly varying card height (OV L11).
-                                                    <span
-                                                        class="invite-code-card-redeemer"
+                                                    // Routed through the canonical .info-list
+                                                    // label:value treatment (R2-03) — the same
+                                                    // shape as the distributor meta above, so
+                                                    // the two label:value pairs on the card
+                                                    // read as one idiom instead of two. Name
+                                                    // and date stay on separate lines within
+                                                    // the value cell so a long double-barrel
+                                                    // name wraps within its own row instead of
+                                                    // pushing the date to a second line and
+                                                    // jaggedly varying card height (OV L11).
+                                                    <dl
+                                                        class="info-list invite-code-card-redeemer"
                                                         data-testid="invite-code-redeemer-cell"
                                                     >
-                                                        {match (code.redeemer_name.clone(), code.redeemed_at.clone()) {
-                                                            (Some(name), Some(date_str)) => {
-                                                                view! {
-                                                                    <span class="invite-code-card-redeemer-name">
-                                                                        {name}
-                                                                    </span>
-                                                                    <small class="invite-code-card-redeemer-date">
-                                                                        {date_str}
-                                                                    </small>
-                                                                }
-                                                                    .into_any()
+                                                        {code.redeemer_name.clone().map(|name| {
+                                                            let redeemed_at = code.redeemed_at.clone();
+                                                            view! {
+                                                                <div class="info-item">
+                                                                    <dt class="info-label">
+                                                                        {t!(
+                                                                            i18n,
+                                                                            admin_invite_codes_redeemer_label
+                                                                        )}
+                                                                    </dt>
+                                                                    <dd class="info-value">
+                                                                        <span class="invite-code-card-redeemer-name">
+                                                                            {name}
+                                                                        </span>
+                                                                        {redeemed_at.map(|date_str| view! {
+                                                                            <small class="invite-code-card-redeemer-date">
+                                                                                {date_str}
+                                                                            </small>
+                                                                        })}
+                                                                    </dd>
+                                                                </div>
                                                             }
-                                                            (Some(name), None) => {
-                                                                view! {
-                                                                    <span class="invite-code-card-redeemer-name">
-                                                                        {name}
-                                                                    </span>
-                                                                }
-                                                                    .into_any()
-                                                            }
-                                                            _ => ().into_any(),
-                                                        }}
-                                                    </span>
+                                                        })}
+                                                    </dl>
                                                     // Revoke action (only for unused codes)
                                                     <span class="invite-code-card-action">
                                                         {if code.status == InviteCodeStatus::Unused {

@@ -182,6 +182,7 @@
   "admin_invite_codes_section_title": "Запрошення",
   "admin_invite_codes_generate_subsection_title": "Створити код",
   "admin_invite_codes_distributor_label": "Розповсюджувач",
+  "admin_invite_codes_redeemer_label": "Отримувач",
   "admin_invite_codes_generate_button": "Створити код",
   "admin_invite_codes_generated_label": "Новий код:",
   "admin_invite_codes_list_title": "Усі коди",
