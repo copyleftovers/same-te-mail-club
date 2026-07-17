@@ -1167,16 +1167,21 @@ const LABEL_RADIAL_GAP: f64 = 14.0;
 const ARROW_CLEARANCE: f64 = 5.0;
 /// Nodes within this many degrees of the vertical axis use middle text-anchor.
 const VERTICAL_AXIS_TOLERANCE_DEGREES: f64 = 20.0;
-/// Font size (SVG user units) for every node label. Held constant across
-/// cohort sizes — see `MIN_LABEL_HORIZONTAL_CLEARANCE`/`MIN_LABEL_VERTICAL_CLEARANCE`
-/// for why shrinking the canvas around a constant-size label (rather than
-/// shrinking the label itself) is what raises small-cohort legibility.
-const LABEL_FONT_SIZE: f64 = 12.0;
+/// Font size (SVG user units) at the smallest possible cohort. Small cohorts
+/// keep this floor — see `MIN_LABEL_HORIZONTAL_CLEARANCE`/
+/// `MIN_LABEL_VERTICAL_CLEARANCE` for why shrinking the canvas around a
+/// small-but-fixed label (rather than shrinking the label itself) is what
+/// raises small-cohort legibility. See `MAX_LABEL_FONT_SIZE` below for why
+/// the font can't stay constant all the way to `MAX_VALIDATED_COHORT_SIZE`
+/// (R2-02).
+const MIN_LABEL_FONT_SIZE: f64 = 12.0;
 /// Horizontal canvas clearance beyond the ring at `MAX_VALIDATED_COHORT_SIZE`,
 /// reserved for label text growing sideways from start/end-anchored nodes.
 /// Sized for the longest expected single-line label (a ~15-char half of a
-/// double-barrel name ≈ 112px at `LABEL_FONT_SIZE`, see the name-splitting
-/// comment below) plus safety margin.
+/// double-barrel name ≈ 112px at `MIN_LABEL_FONT_SIZE`, see the name-splitting
+/// comment below) plus safety margin. That margin is what absorbs
+/// `MAX_LABEL_FONT_SIZE` below (R2-02): the same label at the larger font
+/// measures ≈195px, still comfortably under this 226px clearance.
 const MAX_LABEL_HORIZONTAL_CLEARANCE: f64 = 226.0;
 /// Horizontal clearance at the smallest possible cohort. RV-06: the fixed
 /// (cohort-size-independent) worst-case clearance above dominates a small
@@ -1195,6 +1200,25 @@ const MAX_LABEL_VERTICAL_CLEARANCE: f64 = 151.0;
 /// height above and below its anchor plus font ascent/descent — comfortably
 /// under this floor — so shrinking it here carries no clipping risk.
 const MIN_LABEL_VERTICAL_CLEARANCE: f64 = 55.0;
+
+/// Reference viewBox widths at the cohort-size extremes, used only to derive
+/// `MAX_LABEL_FONT_SIZE` below — NOT consumed by `CycleGeometry`, which
+/// derives `half_width`/`half_height` independently per-field.
+const MIN_VIEWBOX_WIDTH: f64 =
+    2.0 * (MIN_RING_RADIUS + MIN_NODE_RADIUS + LABEL_RADIAL_GAP + MIN_LABEL_HORIZONTAL_CLEARANCE);
+const MAX_VIEWBOX_WIDTH: f64 =
+    2.0 * (MAX_RING_RADIUS + MAX_NODE_RADIUS + LABEL_RADIAL_GAP + MAX_LABEL_HORIZONTAL_CLEARANCE);
+/// Font size (SVG user units) at `MAX_VALIDATED_COHORT_SIZE`.
+///
+/// R2-02: `.cycle-viz`'s CSS width is capped independently of cohort size
+/// (`--size-cycle-viz` in `components.css`), so a label's ON-SCREEN size is
+/// `font-size × (rendered CSS width ÷ viewBox width)`. Holding font size
+/// constant while the viewBox itself grows toward `MAX_VALIDATED_COHORT_SIZE`
+/// shrinks that on-screen size — at n=12 this collapsed labels to an
+/// illegible ~3px cap-height. Scaling the font by the same ratio the viewBox
+/// grows by (`MAX_VIEWBOX_WIDTH / MIN_VIEWBOX_WIDTH`) keeps on-screen label
+/// size roughly constant across the whole cohort band instead.
+const MAX_LABEL_FONT_SIZE: f64 = MIN_LABEL_FONT_SIZE * (MAX_VIEWBOX_WIDTH / MIN_VIEWBOX_WIDTH);
 
 /// Linearly interpolate a geometry value from `at_min_cohort` (at
 /// `MIN_COHORT_SIZE`) to `at_max_cohort` (at `MAX_VALIDATED_COHORT_SIZE`),
@@ -1247,6 +1271,12 @@ fn label_vertical_clearance_for_cohort_size(n: usize) -> f64 {
     )
 }
 
+/// Node label font size for a cohort of `n` participants — see
+/// `MIN_LABEL_FONT_SIZE`/`MAX_LABEL_FONT_SIZE`.
+fn label_font_size_for_cohort_size(n: usize) -> f64 {
+    scale_for_cohort_size(n, MIN_LABEL_FONT_SIZE, MAX_LABEL_FONT_SIZE)
+}
+
 /// Every per-cohort SVG dimension for a cycle-ring, derived once so rendering
 /// and tests share one authoritative geometry (no duplicated arithmetic).
 #[derive(Clone, Copy)]
@@ -1255,6 +1285,7 @@ struct CycleGeometry {
     node_radius: f64,
     half_width: f64,
     half_height: f64,
+    label_font_size: f64,
 }
 
 impl CycleGeometry {
@@ -1263,11 +1294,13 @@ impl CycleGeometry {
         let node_radius = node_radius_for_cohort_size(n);
         let label_horizontal_clearance = label_horizontal_clearance_for_cohort_size(n);
         let label_vertical_clearance = label_vertical_clearance_for_cohort_size(n);
+        let label_font_size = label_font_size_for_cohort_size(n);
         Self {
             ring_radius,
             node_radius,
             half_width: ring_radius + node_radius + LABEL_RADIAL_GAP + label_horizontal_clearance,
             half_height: ring_radius + node_radius + LABEL_RADIAL_GAP + label_vertical_clearance,
+            label_font_size,
         }
     }
 
@@ -1290,16 +1323,20 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
         return view! { <div></div> }.into_any();
     }
 
-    // The whole canvas — ring radius, node size, and label clearances — scales
-    // together with cohort size (CycleGeometry), not just the ring radius: a
-    // small cohort gets a tight viewBox with a constant label font size (so
-    // effective on-screen labels grow, not shrink) while cohorts at
-    // MAX_VALIDATED_COHORT_SIZE+ reproduce the previously validated geometry.
+    // The whole canvas — ring radius, node size, label clearances, AND label
+    // font size — scales together with cohort size (CycleGeometry): a small
+    // cohort gets a tight viewBox so on-screen labels stay legible without
+    // needing a larger font, while the font itself also grows toward
+    // MAX_VALIDATED_COHORT_SIZE+ to counteract the larger viewBox rendering
+    // into the same fixed-width CSS box (R2-02) — ring/node geometry at
+    // MAX_VALIDATED_COHORT_SIZE+ still reproduces the previously validated
+    // layout unchanged.
     let geometry = CycleGeometry::for_cohort_size(n);
     let ring_radius = geometry.ring_radius;
     let node_radius = geometry.node_radius;
     let half_width = geometry.half_width;
     let half_height = geometry.half_height;
+    let label_font_size = geometry.label_font_size;
     let center_x = half_width;
     let center_y = half_height;
     let viewbox_width = geometry.viewbox_width();
@@ -1372,7 +1409,9 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
 
             // Split "Given-Name Surname-Name" into two lines at the first space.
             // Each line of a 30-char double-barrel name becomes ~15 chars ≈ 112px
-            // at LABEL_FONT_SIZE — fits within the per-node arc lane at n=15.
+            // at MIN_LABEL_FONT_SIZE (scaling up toward MAX_LABEL_FONT_SIZE at
+            // larger cohorts, see MAX_LABEL_HORIZONTAL_CLEARANCE) — fits within
+            // the per-node arc lane at n=15.
             let (line1, line2) = name
                 .find(' ')
                 .map_or((&name[..], ""), |pos| (&name[..pos], &name[pos + 1..]));
@@ -1400,7 +1439,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                     />
                     <text
                         text-anchor=anchor
-                        font-size=LABEL_FONT_SIZE
+                        font-size=label_font_size
                         font-weight="600"
                         fill="var(--color-text)"
                     >
@@ -2070,10 +2109,11 @@ fn ParticipantListSection(
 #[cfg(test)]
 mod tests {
     use super::{
-        CycleGeometry, MAX_LABEL_HORIZONTAL_CLEARANCE, MAX_LABEL_VERTICAL_CLEARANCE,
-        MAX_NODE_RADIUS, MAX_RING_RADIUS, MAX_VALIDATED_COHORT_SIZE, MIN_COHORT_SIZE,
-        MIN_LABEL_HORIZONTAL_CLEARANCE, MIN_LABEL_VERTICAL_CLEARANCE, MIN_NODE_RADIUS,
-        MIN_RING_RADIUS, label_horizontal_clearance_for_cohort_size,
+        CycleGeometry, MAX_LABEL_FONT_SIZE, MAX_LABEL_HORIZONTAL_CLEARANCE,
+        MAX_LABEL_VERTICAL_CLEARANCE, MAX_NODE_RADIUS, MAX_RING_RADIUS, MAX_VALIDATED_COHORT_SIZE,
+        MIN_COHORT_SIZE, MIN_LABEL_FONT_SIZE, MIN_LABEL_HORIZONTAL_CLEARANCE,
+        MIN_LABEL_VERTICAL_CLEARANCE, MIN_NODE_RADIUS, MIN_RING_RADIUS,
+        label_font_size_for_cohort_size, label_horizontal_clearance_for_cohort_size,
         label_vertical_clearance_for_cohort_size, node_radius_for_cohort_size,
         ring_radius_for_cohort_size,
     };
@@ -2166,6 +2206,52 @@ mod tests {
             label_vertical_clearance_for_cohort_size(MAX_VALIDATED_COHORT_SIZE),
             MAX_LABEL_VERTICAL_CLEARANCE
         ));
+    }
+
+    #[test]
+    fn label_font_size_scales_with_cohort_size() {
+        // R2-02: the label font must grow toward MAX_VALIDATED_COHORT_SIZE
+        // rather than stay fixed, so on-screen legibility doesn't shrink as
+        // the viewBox grows toward the max-cohort case.
+        assert!(approx_eq(
+            label_font_size_for_cohort_size(MIN_COHORT_SIZE),
+            MIN_LABEL_FONT_SIZE
+        ));
+        assert!(approx_eq(
+            label_font_size_for_cohort_size(MAX_VALIDATED_COHORT_SIZE),
+            MAX_LABEL_FONT_SIZE
+        ));
+        assert!(
+            MAX_LABEL_FONT_SIZE > MIN_LABEL_FONT_SIZE,
+            "label font must grow, not shrink or stay flat, across the cohort band"
+        );
+
+        let mut previous = label_font_size_for_cohort_size(MIN_COHORT_SIZE);
+        for n in (MIN_COHORT_SIZE + 1)..=MAX_VALIDATED_COHORT_SIZE {
+            let current = label_font_size_for_cohort_size(n);
+            assert!(current > previous, "label font must increase from n-1 to n");
+            assert!((MIN_LABEL_FONT_SIZE..=MAX_LABEL_FONT_SIZE).contains(&current));
+            previous = current;
+        }
+    }
+
+    #[test]
+    fn geometry_label_font_size_matches_standalone_function() {
+        // CycleGeometry must derive its font size from the same single
+        // function every other geometry dimension goes through — no
+        // duplicated arithmetic that could drift out of sync.
+        for n in [
+            MIN_COHORT_SIZE,
+            7,
+            MAX_VALIDATED_COHORT_SIZE,
+            MAX_VALIDATED_COHORT_SIZE + 3,
+        ] {
+            let geometry = CycleGeometry::for_cohort_size(n);
+            assert!(approx_eq(
+                geometry.label_font_size,
+                label_font_size_for_cohort_size(n)
+            ));
+        }
     }
 
     #[test]
