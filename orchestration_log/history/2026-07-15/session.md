@@ -98,3 +98,12 @@ Fix EVERY visual fault; PURE DISCOVERY (I own the inventory); scope = holistic a
 - Regressions: R2-01 CyGrotesk glyph є->с (latent app-wide, exposed by B2 CyGrotesk h1); R2-02 12-node cycle-viz labels illegible (B4/RV-06).
 - NEXT: re-run round-2 planner (root-cause R2-01 font: unicode-range/corrected-asset-in-same-te-landing/fonts vs NEEDS-NEW-ASSET) -> round-2 fix loop implement->spec->quality->integrate-on-both-green (regressions correct the round-1 change) -> re-capture+cohort -> re-verify to clean -> #5 CI preflight (SQLX_OFFLINE=true cargo clippy --no-default-features --features ssr + isolated e2e mode=full) -> close #4/#8 -> HOLD push.
 - Tasks #4/#8 in_progress. Wakes 9f41ad4e@03:07 + dee57390@03:37 (fired at this resume).
+
+## Checkpoint — 2026-07-17 08:08 (2nd session-limit resume)
+
+Round-2 fix loop progressed since the 03:08 resume; hit the 5h-window limit again mid-Wave-B-quality (reset 8am, resumed 08:08).
+
+- **Wave A (5 units) INTEGRATED → main `2b22431`**: R2-01 font unicode-range (`є` fixed app-wide incl home h1), R2-02 cycle-viz label font-scale (BOTH BLOCKERS fixed), R2-04 home saved-address footnote, R2-08 capture theme-fixture, R2-09 onboarding spacing. Each spec+quality gated + cherry-picked.
+- **Wave B (6 units, worktree agent-a57fea92322cdc117 @ `7e97f30`) DONE + spec-PASSED**; code-quality-review interrupted by the 2nd limit. Worktree INTACT (read-only reviewer failed, implementer already committed). Units: R2-03 season-meta+redeemer→.info-list, R2-05 unified SMS-trigger grammar (dropped bordered box), R2-06 amber attention-alert off error-red, R2-10 filter result-count (shared predicate), R2-11 removed redundant locked-step opacity (digit legible in dark), R2-12 datetime color-scheme. R2-07 dissolved (source-verified not-a-defect).
+- **NEXT (this resume):** re-run Wave B code-quality-review → cherry-pick `2b22431..worktree-agent-a57fea92322cdc117` → round-2 code-complete → full re-capture (rvfix2 + cohort rvcohort2) → round-3 holistic re-verify → #5 CI preflight → close #4/#8 → HOLD push.
+- **Lesson reinforced (TWICE this session):** mis-read the clock from cron-fire inference (thought ~01:57 then ~04:22; actual 22:07 then 08:08). ALWAYS `date` before any time-based decision.
