@@ -1194,8 +1194,18 @@ const MIN_NODE_RADIUS: f64 = 14.0;
 /// Node dot radius at `MAX_VALIDATED_COHORT_SIZE` — the previously-validated,
 /// collision-free size for a densely-packed 12-node ring.
 const MAX_NODE_RADIUS: f64 = 20.0;
-/// Gap from node edge to label anchor, measured radially outward.
-const LABEL_RADIAL_GAP: f64 = 14.0;
+/// Gap from node edge to label anchor at the smallest possible cohort,
+/// measured radially outward — see `MAX_LABEL_RADIAL_GAP` for why this grows
+/// alongside cohort size instead of staying fixed (R3-03).
+const MIN_LABEL_RADIAL_GAP: f64 = 14.0;
+/// Gap from node edge to label anchor at `MAX_VALIDATED_COHORT_SIZE`. A
+/// label's own glyph ascent grows with `MAX_LABEL_FONT_SIZE`, but a flat
+/// radial gap does not — at n=12 a fixed 14-unit gap left the first line of a
+/// two-line label's ascent reaching back into the node dot it labels (R3-03:
+/// "label drawn across its red node dot"). Widening the gap specifically at
+/// the large-cohort end, where the font is largest, fixes the overlap without
+/// disturbing the small-cohort gap (whose smaller font never produced it).
+const MAX_LABEL_RADIAL_GAP: f64 = 30.0;
 /// Clearance from node edge to arrow tip/tail so arrows don't overlap nodes.
 const ARROW_CLEARANCE: f64 = 5.0;
 /// Nodes within this many degrees of the vertical axis use middle text-anchor.
@@ -1210,12 +1220,19 @@ const VERTICAL_AXIS_TOLERANCE_DEGREES: f64 = 20.0;
 const MIN_LABEL_FONT_SIZE: f64 = 12.0;
 /// Horizontal canvas clearance beyond the ring at `MAX_VALIDATED_COHORT_SIZE`,
 /// reserved for label text growing sideways from start/end-anchored nodes.
-/// Sized for the longest expected single-line label (a ~15-char half of a
-/// double-barrel name ≈ 112px at `MIN_LABEL_FONT_SIZE`, see the name-splitting
-/// comment below) plus safety margin. That margin is what absorbs
-/// `MAX_LABEL_FONT_SIZE` below (R2-02): the same label at the larger font
-/// measures ≈195px, still comfortably under this 226px clearance.
-const MAX_LABEL_HORIZONTAL_CLEARANCE: f64 = 226.0;
+///
+/// R3-03: the name-splitting comment below halves a double-barrel name at its
+/// first space, but a given-name and a surname aren't equal-length halves —
+/// the 12-node capture fixture's longest half is a 19-character hyphenated
+/// surname ("Коваленко-Тимошенко"), not the ~15-character average this
+/// constant used to assume. At the ORIGINAL 226px clearance that 19-char half,
+/// rendered at `MAX_LABEL_FONT_SIZE`, measured ≈247px — wider than its own
+/// clearance, so it clipped mid-word against the SVG viewBox edge. 300px
+/// covers that worst-case half (≈247px) with a ~21% margin, and comfortably
+/// covers every other name in the fixture too (the widest is 21 characters,
+/// ≈273px). `MAX_LABEL_FONT_SIZE` no longer moves with this constant — see
+/// `FONT_SCALE_REFERENCE_MAX_VIEWBOX_WIDTH` below.
+const MAX_LABEL_HORIZONTAL_CLEARANCE: f64 = 300.0;
 /// Horizontal clearance at the smallest possible cohort. RV-06: the fixed
 /// (cohort-size-independent) worst-case clearance above dominates a small
 /// cohort's canvas — a small ring occupies only ~26% of it, reading as mostly
@@ -1234,13 +1251,23 @@ const MAX_LABEL_VERTICAL_CLEARANCE: f64 = 151.0;
 /// under this floor — so shrinking it here carries no clipping risk.
 const MIN_LABEL_VERTICAL_CLEARANCE: f64 = 55.0;
 
-/// Reference viewBox widths at the cohort-size extremes, used only to derive
+/// Reference viewBox width at the smallest cohort, used only to derive
 /// `MAX_LABEL_FONT_SIZE` below — NOT consumed by `CycleGeometry`, which
 /// derives `half_width`/`half_height` independently per-field.
-const MIN_VIEWBOX_WIDTH: f64 =
-    2.0 * (MIN_RING_RADIUS + MIN_NODE_RADIUS + LABEL_RADIAL_GAP + MIN_LABEL_HORIZONTAL_CLEARANCE);
-const MAX_VIEWBOX_WIDTH: f64 =
-    2.0 * (MAX_RING_RADIUS + MAX_NODE_RADIUS + LABEL_RADIAL_GAP + MAX_LABEL_HORIZONTAL_CLEARANCE);
+const MIN_VIEWBOX_WIDTH: f64 = 2.0
+    * (MIN_RING_RADIUS + MIN_NODE_RADIUS + MIN_LABEL_RADIAL_GAP + MIN_LABEL_HORIZONTAL_CLEARANCE);
+/// Reference viewBox width at `MAX_VALIDATED_COHORT_SIZE`, frozen at the
+/// R2-02-validated 900-unit canvas rather than derived from the live
+/// `MAX_LABEL_HORIZONTAL_CLEARANCE`/`MAX_LABEL_RADIAL_GAP` constants (R3-03).
+/// Those two constants now exist to reserve real drawing space for long
+/// labels — a concern independent of on-screen font legibility. Deriving this
+/// reference from them would couple the two: widening clearance to stop a
+/// clip would also inflate `MAX_LABEL_FONT_SIZE` below, which would then
+/// demand yet more clearance, in a feedback loop with no natural floor.
+/// Freezing this reference at the original validated value keeps the R2-02
+/// font-legibility fix exactly as verified, while letting clearance/gap be
+/// tuned purely for fit.
+const FONT_SCALE_REFERENCE_MAX_VIEWBOX_WIDTH: f64 = 900.0;
 /// Font size (SVG user units) at `MAX_VALIDATED_COHORT_SIZE`.
 ///
 /// R2-02: `.cycle-viz`'s CSS width is capped independently of cohort size
@@ -1249,9 +1276,11 @@ const MAX_VIEWBOX_WIDTH: f64 =
 /// constant while the viewBox itself grows toward `MAX_VALIDATED_COHORT_SIZE`
 /// shrinks that on-screen size — at n=12 this collapsed labels to an
 /// illegible ~3px cap-height. Scaling the font by the same ratio the viewBox
-/// grows by (`MAX_VIEWBOX_WIDTH / MIN_VIEWBOX_WIDTH`) keeps on-screen label
-/// size roughly constant across the whole cohort band instead.
-const MAX_LABEL_FONT_SIZE: f64 = MIN_LABEL_FONT_SIZE * (MAX_VIEWBOX_WIDTH / MIN_VIEWBOX_WIDTH);
+/// grows by (`FONT_SCALE_REFERENCE_MAX_VIEWBOX_WIDTH / MIN_VIEWBOX_WIDTH`)
+/// keeps on-screen label size roughly constant across the whole cohort band
+/// instead.
+const MAX_LABEL_FONT_SIZE: f64 =
+    MIN_LABEL_FONT_SIZE * (FONT_SCALE_REFERENCE_MAX_VIEWBOX_WIDTH / MIN_VIEWBOX_WIDTH);
 
 /// Linearly interpolate a geometry value from `at_min_cohort` (at
 /// `MIN_COHORT_SIZE`) to `at_max_cohort` (at `MAX_VALIDATED_COHORT_SIZE`),
@@ -1310,6 +1339,12 @@ fn label_font_size_for_cohort_size(n: usize) -> f64 {
     scale_for_cohort_size(n, MIN_LABEL_FONT_SIZE, MAX_LABEL_FONT_SIZE)
 }
 
+/// Radial gap from node edge to label anchor for a cohort of `n` participants
+/// — see `MIN_LABEL_RADIAL_GAP`/`MAX_LABEL_RADIAL_GAP`.
+fn label_radial_gap_for_cohort_size(n: usize) -> f64 {
+    scale_for_cohort_size(n, MIN_LABEL_RADIAL_GAP, MAX_LABEL_RADIAL_GAP)
+}
+
 /// Every per-cohort SVG dimension for a cycle-ring, derived once so rendering
 /// and tests share one authoritative geometry (no duplicated arithmetic).
 #[derive(Clone, Copy)]
@@ -1319,6 +1354,7 @@ struct CycleGeometry {
     half_width: f64,
     half_height: f64,
     label_font_size: f64,
+    label_radial_gap: f64,
 }
 
 impl CycleGeometry {
@@ -1328,12 +1364,14 @@ impl CycleGeometry {
         let label_horizontal_clearance = label_horizontal_clearance_for_cohort_size(n);
         let label_vertical_clearance = label_vertical_clearance_for_cohort_size(n);
         let label_font_size = label_font_size_for_cohort_size(n);
+        let label_radial_gap = label_radial_gap_for_cohort_size(n);
         Self {
             ring_radius,
             node_radius,
-            half_width: ring_radius + node_radius + LABEL_RADIAL_GAP + label_horizontal_clearance,
-            half_height: ring_radius + node_radius + LABEL_RADIAL_GAP + label_vertical_clearance,
+            half_width: ring_radius + node_radius + label_radial_gap + label_horizontal_clearance,
+            half_height: ring_radius + node_radius + label_radial_gap + label_vertical_clearance,
             label_font_size,
+            label_radial_gap,
         }
     }
 
@@ -1356,20 +1394,21 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
         return view! { <div></div> }.into_any();
     }
 
-    // The whole canvas — ring radius, node size, label clearances, AND label
-    // font size — scales together with cohort size (CycleGeometry): a small
-    // cohort gets a tight viewBox so on-screen labels stay legible without
-    // needing a larger font, while the font itself also grows toward
+    // The whole canvas — ring radius, node size, label clearances, radial gap,
+    // AND label font size — scales together with cohort size (CycleGeometry):
+    // a small cohort gets a tight viewBox so on-screen labels stay legible
+    // without needing a larger font, while the font itself also grows toward
     // MAX_VALIDATED_COHORT_SIZE+ to counteract the larger viewBox rendering
     // into the same fixed-width CSS box (R2-02) — ring/node geometry at
-    // MAX_VALIDATED_COHORT_SIZE+ still reproduces the previously validated
-    // layout unchanged.
+    // MAX_VALIDATED_COHORT_SIZE+ reproduces the previously validated radius,
+    // with the canvas widened (R3-03) to give long labels room to fit.
     let geometry = CycleGeometry::for_cohort_size(n);
     let ring_radius = geometry.ring_radius;
     let node_radius = geometry.node_radius;
     let half_width = geometry.half_width;
     let half_height = geometry.half_height;
     let label_font_size = geometry.label_font_size;
+    let label_radial_gap = geometry.label_radial_gap;
     let center_x = half_width;
     let center_y = half_height;
     let viewbox_width = geometry.viewbox_width();
@@ -1422,7 +1461,7 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
             let node_angle = (i as f64 / n as f64) * TAU - (PI / 2.0);
 
             // Place the label anchor point radially beyond the node edge.
-            let label_radius = ring_radius + node_radius + LABEL_RADIAL_GAP;
+            let label_radius = ring_radius + node_radius + label_radial_gap;
             let label_x = center_x + label_radius * node_angle.cos();
             let label_y = center_y + label_radius * node_angle.sin();
 
@@ -1441,10 +1480,9 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
             };
 
             // Split "Given-Name Surname-Name" into two lines at the first space.
-            // Each line of a 30-char double-barrel name becomes ~15 chars ≈ 112px
-            // at MIN_LABEL_FONT_SIZE (scaling up toward MAX_LABEL_FONT_SIZE at
-            // larger cohorts, see MAX_LABEL_HORIZONTAL_CLEARANCE) — fits within
-            // the per-node arc lane at n=15.
+            // The two halves aren't equal length — see MAX_LABEL_HORIZONTAL_CLEARANCE
+            // for the worst-case half actually observed (a 19-character hyphenated
+            // surname) and how the clearance is sized to fit it at MAX_LABEL_FONT_SIZE.
             let (line1, line2) = name
                 .find(' ')
                 .map_or((&name[..], ""), |pos| (&name[..pos], &name[pos + 1..]));
@@ -2177,13 +2215,13 @@ fn ParticipantListSection(
 #[cfg(test)]
 mod tests {
     use super::{
-        CycleGeometry, MAX_LABEL_FONT_SIZE, MAX_LABEL_HORIZONTAL_CLEARANCE,
+        CycleGeometry, MAX_LABEL_FONT_SIZE, MAX_LABEL_HORIZONTAL_CLEARANCE, MAX_LABEL_RADIAL_GAP,
         MAX_LABEL_VERTICAL_CLEARANCE, MAX_NODE_RADIUS, MAX_RING_RADIUS, MAX_VALIDATED_COHORT_SIZE,
-        MIN_COHORT_SIZE, MIN_LABEL_FONT_SIZE, MIN_LABEL_HORIZONTAL_CLEARANCE,
+        MIN_COHORT_SIZE, MIN_LABEL_FONT_SIZE, MIN_LABEL_HORIZONTAL_CLEARANCE, MIN_LABEL_RADIAL_GAP,
         MIN_LABEL_VERTICAL_CLEARANCE, MIN_NODE_RADIUS, MIN_RING_RADIUS,
         label_font_size_for_cohort_size, label_horizontal_clearance_for_cohort_size,
-        label_vertical_clearance_for_cohort_size, node_radius_for_cohort_size,
-        ring_radius_for_cohort_size,
+        label_radial_gap_for_cohort_size, label_vertical_clearance_for_cohort_size,
+        node_radius_for_cohort_size, ring_radius_for_cohort_size,
     };
 
     /// Two values are equal within sub-pixel tolerance (float positioning math).
@@ -2274,6 +2312,14 @@ mod tests {
             label_vertical_clearance_for_cohort_size(MAX_VALIDATED_COHORT_SIZE),
             MAX_LABEL_VERTICAL_CLEARANCE
         ));
+        assert!(approx_eq(
+            label_radial_gap_for_cohort_size(MIN_COHORT_SIZE),
+            MIN_LABEL_RADIAL_GAP
+        ));
+        assert!(approx_eq(
+            label_radial_gap_for_cohort_size(MAX_VALIDATED_COHORT_SIZE),
+            MAX_LABEL_RADIAL_GAP
+        ));
     }
 
     #[test]
@@ -2323,13 +2369,45 @@ mod tests {
     }
 
     #[test]
-    fn validated_cohort_geometry_is_unregressed() {
-        // RV-06 acceptance: the 12-node cohort must reproduce the exact
-        // previously-validated 900x750 canvas — this fix must change nothing
-        // at or above MAX_VALIDATED_COHORT_SIZE.
+    fn geometry_label_radial_gap_matches_standalone_function() {
+        // Same drift-guard as label font size, for the radial gap CycleGeometry
+        // added under R3-03.
+        for n in [
+            MIN_COHORT_SIZE,
+            7,
+            MAX_VALIDATED_COHORT_SIZE,
+            MAX_VALIDATED_COHORT_SIZE + 3,
+        ] {
+            let geometry = CycleGeometry::for_cohort_size(n);
+            assert!(approx_eq(
+                geometry.label_radial_gap,
+                label_radial_gap_for_cohort_size(n)
+            ));
+        }
+    }
+
+    #[test]
+    fn max_label_font_size_is_frozen_at_the_validated_reference() {
+        // R3-03: MAX_LABEL_FONT_SIZE must stay pinned to the R2-02-validated
+        // value regardless of how MAX_LABEL_HORIZONTAL_CLEARANCE or
+        // MAX_LABEL_RADIAL_GAP are tuned for label fit — see
+        // FONT_SCALE_REFERENCE_MAX_VIEWBOX_WIDTH. This guards against
+        // reintroducing the feedback loop the doc comment describes.
+        assert!(approx_eq(MAX_LABEL_FONT_SIZE, 12.0 * (900.0 / 516.0)));
+    }
+
+    #[test]
+    fn validated_cohort_geometry_reserves_r3_03_clearance() {
+        // The 12-node cohort's ring radius/node radius/font size stay exactly
+        // at their R2-02-validated values (asserted elsewhere in this module);
+        // the canvas itself widened under R3-03 to give long labels — and the
+        // larger radial gap — room to fit without clipping or overlapping
+        // their node. 900x750 was the pre-R3-03 canvas; 1080x782 is the
+        // canvas after MAX_LABEL_HORIZONTAL_CLEARANCE (226->300) and
+        // MAX_LABEL_RADIAL_GAP (14->30) were widened to fix the clip/overlap.
         let geometry = CycleGeometry::for_cohort_size(MAX_VALIDATED_COHORT_SIZE);
-        assert!(approx_eq(geometry.viewbox_width(), 900.0));
-        assert!(approx_eq(geometry.viewbox_height(), 750.0));
+        assert!(approx_eq(geometry.viewbox_width(), 1080.0));
+        assert!(approx_eq(geometry.viewbox_height(), 782.0));
     }
 
     #[test]
