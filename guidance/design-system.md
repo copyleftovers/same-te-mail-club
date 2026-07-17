@@ -108,7 +108,8 @@ All served as woff2-only with `font-display: swap`.
 |-------|------|--------|------|-------------|----------------|-----|
 | Page title | CyGrotesk | 900 | `clamp(1.8rem, 5vw, 2.8rem)` | 1.15 | -0.02em | Page-level headings (`<h1>`) |
 | Section heading | CyGrotesk | 900 | 1.3rem | **1.15** | -0.02em | Section titles, step headings. Landing page used `line-height: 1` which clips Cyrillic ascenders (confirmed: 2px overflow on all step headings). Use 1.15. |
-| Overline label | Mont | 600 | 0.8rem | 1.4 | 0.1em | Uppercase labels above sections |
+| Overline label | Mont | 600 | 0.8rem | 1.4 | 0.1em | Uppercase labels above sections (`.overline-label`) |
+| Info label | Mont | 600 | text-xs (0.75rem) | 1.4 | 0.04em | Data-pair labels inside `.info-list` (`.info-label`) — a distinct, smaller/tighter-tracked pairing than Overline label; the two are NOT the same token (Overline sits above a section heading, Info label sits above a data value) — do not merge |
 | Body | Mont | 400 | 1.05rem (16.8px) | 1.75 | normal | Paragraph text, descriptions |
 | Body emphasis | Mont | 600 | 1.05rem | 1.75 | normal | Highlighted sentences, punchlines |
 | UI label | Mont | 600 | text-sm (0.875rem) | 1.4 | normal | Form labels, button text, badges |
@@ -213,7 +214,9 @@ Pill shape. Variants via `data-status`. One coherent semantic colour system, map
 
 **M3 — `confirmed` is green, not gray.** The `confirmed` status was previously mapped to `--color-brand-gray` (terminal family). It was reclassified to `--color-badge-success` (green) because season-complete is a positive outcome, not a terminal/historical one. The CSS `.badge[data-status="confirmed"]` reflects this.
 
-**M1/M2 — forward-prep statuses.** `ready` and `pending` are badge statuses defined in CSS and this spec but not yet emitted by any component as a `.badge` — they are intentional forward-prep. (Note: the string `"pending"` at `stepper.rs:120` drives `.step-connector[data-status]` — a separate element with its own CSS rule, not `.badge[data-status="pending"]`.) `.admin-section` is the fully-consumed layout class for admin `<section>` wrappers; it appears here only so readers know it is surrounding layout, not a future badge status.
+**M1 — `ready` is now emitted.** The home assigning/in-progress badge (a passive, system-driven wait — not an actionable state) renders `.badge[data-status="ready"]` (R3-06), so `ready` is no longer forward-prep.
+
+**M2 — `pending` remains forward-prep.** `pending` is a badge status defined in CSS and this spec but not currently emitted by any component as a `.badge` — it stays intentional forward-prep. (Note: the string `"pending"` at `stepper.rs:120` drives `.step-connector[data-status]` — a separate element with its own CSS rule, not `.badge[data-status="pending"]`.) `.admin-section` is the fully-consumed layout class for admin `<section>` wrappers; it appears here only so readers know it is surrounding layout, not a future badge status.
 
 Mont 600, text-xs, uppercase, letter-spacing 0.02em.
 
