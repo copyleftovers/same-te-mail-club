@@ -279,7 +279,13 @@
     border-radius: var(--radius-md);
     padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 3);
     min-height: var(--size-touch-target);
-    transition: border-color 120ms ease, box-shadow 120ms ease;
+    /* R3-04: box-shadow is intentionally NOT in this transition. Focus/error
+       glow interpolates spread+alpha together from box-shadow:none, so a
+       shadow transitioned in over time is near-invisible for most of that
+       window — a real hazard for a state a user's eye finds instantly (focus)
+       or a screenshot lands in mid-flight. The glow must be fully present the
+       instant the state is true; only the border-color shift animates. */
+    transition: border-color 120ms ease;
   }
 
   .field-input:focus {
