@@ -940,6 +940,7 @@
   .info-label {
     font-size: var(--text-xs);
     font-weight: 600;
+    line-height: 1.4;
     text-transform: uppercase;
     letter-spacing: 0.04em; /* inherent: spec-defined info label tracking */
     color: var(--color-text-muted);
@@ -1281,7 +1282,10 @@
     font-size: var(--text-xs);
     background: oklch(from var(--color-border) l c h / 0.2);
     color: var(--color-text-muted);
-    transition: background 120ms ease, box-shadow 120ms ease;
+    /* box-shadow excluded from the transition for the same reason as
+       .field-input (see R3-04): the current-step glow ring must be present
+       the instant the step is current, not animate in from none. */
+    transition: background 120ms ease;
   }
 
   /* Completed step: green disc + white check glyph. Uses --color-badge-success

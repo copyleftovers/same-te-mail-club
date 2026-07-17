@@ -200,7 +200,7 @@ Pill shape. Variants via `data-status`. One coherent semantic colour system, map
 |--------|-----------|------|-----------------|---------|
 | active | `--color-badge-success` | white | 5.25:1 | Live participant |
 | confirmed | `--color-badge-success` | white | 5.25:1 | Season-complete milestone (a positive outcome → green, not terminal-gray) |
-| ready | `--color-badge-info` | `--color-brand-black` | 7.46:1 | Participant confirmed ready (info) |
+| ready | `--color-badge-info` | `--color-brand-black` | 7.46:1 | Participant confirmed ready (info); also the passive system-driven wait badge during assignment generation |
 | unused | `--color-badge-amber` | `--color-brand-black` | 11.15:1 | Open (actionable) invite code |
 | pending | `--color-badge-amber` | `--color-brand-black` | 11.15:1 | Pending action |
 | inactive | `--color-brand-gray` | white | 7.43:1 | Deactivated participant / cancelled-season terminal badge |
