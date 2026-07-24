@@ -1147,7 +1147,7 @@ fn render_cycle_visualization(
 
     view! {
         <div>
-            <h3>{t!(i18n, assignments_cycles_label)}</h3>
+            <h3 class="overline-label">{t!(i18n, assignments_cycles_label)}</h3>
             {cohorts_view}
         </div>
     }
@@ -1572,7 +1572,7 @@ fn SwapFormSection(
     let options_b = links;
     view! {
         <section data-testid="override-available">
-            <h3>{t!(i18n, assignments_swap_title)}</h3>
+            <h3 class="overline-label">{t!(i18n, assignments_swap_title)}</h3>
             <p>{t!(i18n, assignments_swap_description)}</p>
             <leptos::form::ActionForm action=swap_action>
                 <input type="hidden" name="season_id" value=season_id />
