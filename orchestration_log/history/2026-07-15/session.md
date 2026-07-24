@@ -139,3 +139,51 @@ Fresh full capture at a22ab3d: 164 shots (41×4) + INDEX. Cohort 12-node NOT re-
 **BINDING PROCESS (user directive, 13:12):** pixel-verify is PART OF per-unit review, before integration — never batched at round-end (batching wastes the full review+integration cost when a fix fails in pixels). A followed it (CDP pixel-verify pre-integration); B/C predate it.
 
 **RESUME (when user releases the hold):** round-4 re-verify — FOCUSED (A CDP-verified; confirm B redeemer-separation + R3-03 12-node-no-clip at 1080 [needs cohort re-capture], C heading/badge, + one cohesion + dark pass) → any residual through implement(worktree, pixel-verify-in-review)→spec→quality→integrate → #5 CI PREFLIGHT (`SQLX_OFFLINE=true cargo clippy --no-default-features --features ssr` + full isolated e2e mode=full) → close #4/#8 → HOLD push (user pushes). Keep re-verify agents FEW/light — the 5h window burned 3× on image-heavy fan-outs.
+
+## Checkpoint — 2026-07-24 21:52 (RV5 final residual round, mid-flight)
+
+Continuation of the 2026-07-15 multi-day visual campaign (session resumed 2026-07-24; user released the a33997a hold with "whatnow").
+
+### Narrative
+- Re-established ground truth: main `a33997a` (doc over code `a22ab3d`), clean, ahead 76, zero worktrees, zero crons. 164 current shots on disk (doc-only over a22ab3d). User dev server LIVE on :3000 → isolated harness only.
+- Ran the FINAL round-5 holistic re-verify: authored shared `RV5-CONTRACT.md` (opus), then a 12-agent assume-broken wave (7 Axis-A per-state + 5 Axis-B cross-page), both viewports both modes, on the 164 shots.
+- Result: **8 CLEAR + 4 residual reports.** Crucially the incoherence axes — cross-area cohesion, admin cohesion, dark, header — all CLEAR (the user's core "uncanny-valley" complaint class is clean).
+- Synthesis (`RESIDUAL-CATALOG-4.md`): **4 Major fix-units, 1 rejected.**
+  - RV5-01 admin `<h3>` sub-labels missing `overline-label` (src/admin/page.rs ~1149,~1575)
+  - RV5-03 admin create-season field error banner-only → add local `.field-error` (bool→Option<String>, matching onboarding.rs pattern)
+  - RV5-02 toast hardcoded success color → neutral (KISS, no ToastState enum)
+  - RV5-04 light `.alert` wash fails AA (~4.32:1) → alpha 0.1→0.05, computed 4.72:1
+  - REJECTED: OTP mobile error orphan-wrap (A1-01) — same class as a prior accepted cosmetic; fixing one sibling while leaving the other is inconsistent, not principled. My-eye-final: accepted.
+- Implemented all 4 in worktree `agent-a294c81da3ff60aca` (branch worktree-agent-a294c81da3ff60aca, HEAD **027586b**), 1 commit/unit in order 01→03→02→04, clippy-clean (SQLX_OFFLINE=true cargo clippy --no-default-features --features ssr, exit 0). tokens.css NOT touched (both CSS fixes via components.css).
+- Isolated-captured the worktree build (`rvfix5`, 164 shots in the worktree). **spec-review PASS with pixel verification** (reviews/spec-rv5.md) — all 4 verified in code AND pixels, no regression. code-quality-review IN FLIGHT (agent aa38965d882125d73 → reviews/quality-rv5.md).
+
+### Decisions
+| Decision | Rationale |
+|---|---|
+| Pixel-verify folded INTO spec-review (not batched after integrate) | User binding directive: batching pixels after reviewer+integrate cost kills momentum |
+| One implementer for all 4 units (3 files) | Tightly-related final polish; sanctioned bundling lever; still 1 commit/unit |
+| RV5-02 neutral toast, no enum | KISS/YAGNI — no status-differentiation need was reported |
+| OTP orphan-wrap rejected | Consistency with prior accepted cosmetic; my-eye-final |
+
+### Working state / RESUME (do in order)
+1. Read code-quality verdict `reviews/quality-rv5.md`. YES → continue; NO → SendMessage implementer a294c81da3ff60aca with findings.
+2. Fold doc-sync: `guidance/design-system.md` ".alert 0.1-alpha wash" line → 0.05 (stale after RV5-04). SendMessage implementer as a 5th commit.
+3. Integrate to main (ff/cherry-pick a33997a..HEAD; remove worktree agent-a294c81da3ff60aca).
+4. Full re-capture from MAIN + focused rendered re-verify of RV5 screens (admin-season-cancelled toast, admin-sms-report alert, admin-create-season-form__error, admin sub-labels, home-receipt-confirmed-thanks) both viewports both modes.
+5. CI preflight: `SQLX_OFFLINE=true cargo clippy --no-default-features --features ssr` + isolated e2e `mode=full`.
+6. **HOLD push — USER pushes, do NOT push.** Then session-close (codebase_state + deferred + conventions + this session.md).
+
+### Notes
+- Recurring "prompt-injection" flagged by ~5 subagents = harness AMBIENT context (fake date-change + Kiwi.com MCP) bleeding into their Read tool-output streams, misattributed to file reads. All agents correctly ignored it; all bound cleanly and produced valid work → manifesto/contract files are INTACT. Non-issue; documented so a future reader doesn't chase it.
+- 156-byte task-transcript stub is an UNRELIABLE liveness metric (5+ agents showed 156 and completed fine). Trust completion notifications, not file size.
+- Session-resume wakes armed: 01:50 + 02:20 (Jul 25), session-only crons. This durable checkpoint is the process-death recovery (crons die on process exit).
+
+## Checkpoint — 2026-07-25 01:59 (RV5 round CLOSED, HOLD push)
+
+RV5 residual round complete. Session hit a limit ~22:17 Jul 24 (final re-verify agent died mid-run, wrote nothing); resumed cleanly at the 01:50 Jul 25 reset and re-ran the re-verify.
+
+- Full round-5 re-verify (12 agents) → 8 CLEAR + 4 Major residuals (RV5-01..04). All 4 fixed, pixel-verified in spec-review, quality-passed, ff-integrated (main **acee94f**).
+- CI-preflight GREEN (clippy clean; e2e 116 pass / 2 skip / 0 fail). FINAL rendered re-verify CLEAR (reviews/rv5-final-verify.md), both viewports both modes.
+- **State: main acee94f, UNPUSHED (ahead 81), clean tree, zero worktrees, screenshots at acee94f (pristine 41). Push HELD — user pushes.**
+- The visual "fix every fault" campaign is at the my-eye-final bar: 41 states × 2 viewports × 2 modes swept assume-broken; residuals driven to zero.
+- Wakes/backstops cleared on standdown. Session-limit windows this session: reset 1:50am (hit once, resumed losslessly).

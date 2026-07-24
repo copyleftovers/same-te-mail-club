@@ -232,3 +232,21 @@ main @ **fc934d1**, UNPUSHED (ahead ~52 of origin/main), clean tree. Continuatio
 - **Round-2 residuals QUEUED (not yet fixed):** `recon/2026-07-15/RESIDUAL-CATALOG-2.md` = 12 units (2 blocker / 7 major / 3 minor). Blockers: R2-01 CyGrotesk renders Cyrillic `є` as `с` (font-glyph, latent app-wide incl home h1; needs root-cause: unicode-range fallback vs corrected asset vs new-asset), R2-02 12-node cycle-viz labels illegible (regression of RV-06). Majors: `.info-list` canonicalization incomplete (admin season-meta, invite redeemer, saved-address); two admin action-subgroup grammars; semantic-color misuse (error-red for a routine stat, deadline-callout border varies by state).
 - **Screenshots refreshed** at fc934d1: `end2end/screenshots/{light,dark}-{desktop,mobile}/` = 42 states/dir (41 main + `admin-cycle-viz-12-nodes` cohort) + INDEX.md. Gitignored.
 - **Guidance docs reconciled** (a152b39 + earlier): design-system.md, frontend-protocol.md, component-evaluation-framework.md synced to shipped behavior (grain blend, z-index, admin width, destructive-button table, auth-hero asset row).
+
+## Changes 2026-07-24/25 (RV5 final residual round — main @ acee94f, UNPUSHED, HOLD push)
+
+Session resumed 2026-07-24 (continuation of the 2026-07-15 campaign); ran the FINAL round-5 holistic re-verify and closed the residuals.
+
+- **Round-5 re-verify:** 12-agent two-axis assume-broken wave (7 Axis-A per-state + 5 Axis-B cross-page) on render a22ab3d, both viewports both modes → **8 CLEAR + 4 residual reports.** Cross-area cohesion / admin cohesion / dark / header axes ALL CLEAR (the user's core "uncanny-valley incoherence" complaint is clean). Synthesis → `recon/2026-07-15/RESIDUAL-CATALOG-4.md`: 4 Major, 1 rejected.
+- **4 fixes integrated (ff-merge a33997a→acee94f):**
+  - RV5-01 (0df65d7) `overline-label` on 2 admin `<h3>` sub-labels (src/admin/page.rs)
+  - RV5-03 (dae7ca8) admin create-season local `.field-error` under date fields (signup_error/confirm_error `bool`→`Option<String>`, matching onboarding.rs; banner + E2E assertion preserved)
+  - RV5-02 (9f7c1dd) toast decoupled from success color → neutral (KISS, no ToastState enum)
+  - RV5-04 (027586b) light `.alert` wash alpha 0.1→0.05 for WCAG AA (4.26:1→4.72:1); `.sms-report-result` left at 0.1
+  - acee94f docs(design-system) `.alert` wash 0.1→0.05 doc-sync (split from the untouched `.sms-report-result`)
+  - REJECTED: OTP mobile error orphan-wrap — my-eye-final accepted cosmetic (consistent with a prior accepted sibling).
+- **Gates:** each fix pixel-verified INSIDE spec-review (user directive) → spec PASS; quality Ready-to-merge YES.
+- **CI preflight GREEN:** `SQLX_OFFLINE=true cargo clippy --no-default-features --features ssr` clean; isolated e2e `mode=full` = **116 passed / 2 by-design skips / 0 failed** (cohort spec file-skipped).
+- **Final re-verify CLEAR** on integrated main (pristine visual-mode 41-set at acee94f), both viewports both modes — fixes present, no regression (`recon/2026-07-15/reviews/rv5-final-verify.md`).
+- **State:** main **acee94f**, UNPUSHED (ahead 81 of origin), clean tree, zero worktrees, screenshots refreshed to acee94f (41-set, gitignored). **Push HELD — user pushes.**
+- Note: mode=full capture yields 40 (`admin-no-season-create-form-available` unreachable once the lifecycle suite creates a season); visual-mode yields the pristine 41.
