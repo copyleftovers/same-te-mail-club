@@ -690,11 +690,12 @@
     }
   }
 
-  /* FU-05: shared feedback-panel shape for error (.alert) and success (.toast)
-     — filled wash background, semantic-colored text, same padding/radius/type
-     scale. One family, differentiated only by status color (plus the
-     elevation + slide animation .toast needs as a transient banner; see its
-     own rule further down). */
+  /* FU-05: shared feedback-panel shape for .alert and .toast — filled wash
+     background, same padding/radius/type scale (plus the elevation + slide
+     animation .toast needs as a transient banner; see its own rule further
+     down). RV5-02: .toast itself carries no status semantic — it reports on
+     every admin action, including destructive ones (cancel-season), so it is
+     neutral-toned rather than tied to a status color; see its own rule. */
   .alert,
   .toast {
     padding: var(--density-space-sm) var(--density-space-md);
@@ -732,17 +733,21 @@
     margin-bottom: var(--density-space-md);
   }
 
-  /* Light-mode .toast base: wash background + mode-invariant badge-success
-     text, plus the elevation/slide-animation a transient banner needs (an
-     inline alert is static, so .alert carries neither). Declared here,
-     immediately before the dark override below: both rules select .toast at
-     equal (0,1,0) specificity, so the cascade breaks the tie by source order.
-     A .toast color rule placed anywhere AFTER the dark block silently reverts
-     it — this is why the definition lives here and not in the Toast section
-     further down (see the comment there). */
+  /* Light-mode .toast base: RV5-02 — neutral wash + ambient --color-text, not
+     a status color. A toast reports on EVERY admin action, including
+     destructive ones (cancel-season), so tying its color to --color-success
+     made "Сезон скасовано!" pixel-identical to a routine "SMS надіслано!"
+     confirmation. Text-on-itself wash keeps contrast trivially high (computed
+     ~16:1) regardless of hue. Plus the elevation/slide-animation a transient
+     banner needs (an inline alert is static, so .alert carries neither).
+     Declared here, immediately before the dark override below: both rules
+     select .toast at equal (0,1,0) specificity, so the cascade breaks the tie
+     by source order. A .toast color rule placed anywhere AFTER the dark block
+     silently reverts it — this is why the definition lives here and not in
+     the Toast section further down (see the comment there). */
   .toast {
-    background: oklch(from var(--color-success) l c h / 0.1);
-    color: var(--color-badge-success);
+    background: oklch(from var(--color-text) l c h / 0.06);
+    color: var(--color-text);
     box-shadow: 0 4px 12px oklch(from var(--color-brand-black) l c h / 0.15); /* structural: elevation shadow */
     animation: toast-in 200ms ease;
   }
@@ -765,17 +770,18 @@
       background: var(--color-panel-dark);
       border-left: 3px solid var(--color-badge-amber); /* structural: 3px accent stripe */
     }
-    .sms-report-result,
-    .toast {
+    .sms-report-result {
       background: var(--color-panel-dark);
       border-left: 3px solid var(--color-success); /* structural: 3px accent stripe */
     }
-    /* --color-success reassigns lighter (0.72) here, giving 6.5:1 text-on-panel
-       contrast. The light-mode .toast rule above uses the mode-invariant
-       --color-badge-success instead: the semantic token's light value (0.58)
-       computes only 3.6:1 as text on a light wash — fails AA (needs 4.5:1). */
+    /* RV5-02: .toast has no status semantic (see light-mode rule above) —
+       neutral panel + border stripe, not the success green .sms-report-result
+       keeps. --color-border on the dark panel computes 3.5:1 (non-text
+       minimum); --color-text on the panel computes 14.2:1. */
     .toast {
-      color: var(--color-success);
+      background: var(--color-panel-dark);
+      border-left: 3px solid var(--color-border); /* structural: 3px neutral accent stripe */
+      color: var(--color-text);
     }
   }
 
