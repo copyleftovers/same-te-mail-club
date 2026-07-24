@@ -386,39 +386,42 @@ fn render_create_form(
     context: CreateFormContext,
 ) -> AnyView {
     let pending = create_action.pending();
-    // Per-field flags drive `aria-invalid` (the red border on the rejected
-    // input) only. RV-04: the error MESSAGE itself is shown once, in the
-    // page-wide `#action-error` banner below — a local text echo here would
-    // duplicate that same fact. `aria-describedby="action-error"` links each
-    // input to that single message, matching the pattern already used by the
-    // swap form's `sender-a`/`sender-b` selects.
-    let (signup_error, set_signup_error) = signal(false);
-    let (confirm_error, set_confirm_error) = signal(false);
+    // Per-field signals drive both `aria-invalid` (the red border) and a local
+    // `.field-error` message. RV5-03: every other field-specific error in the
+    // app (login OTP/invite-code, onboarding city/np-number) echoes its
+    // message locally under the field — this form was the sole exception,
+    // showing the message ONLY in the page-wide `#action-error` banner. The
+    // banner stays (visual-audit.spec.ts asserts it), so the message is now
+    // deliberately shown in both places, matching onboarding.rs's
+    // `city_error`/`np_error` shape.
+    let (signup_error, set_signup_error) = signal(Option::<String>::None);
+    let (confirm_error, set_confirm_error) = signal(Option::<String>::None);
 
     Effect::new(move |_| {
         if let Some(result) = create_action.value().get() {
             match result {
                 Ok(()) => {
-                    set_signup_error.set(false);
-                    set_confirm_error.set(false);
+                    set_signup_error.set(None);
+                    set_confirm_error.set(None);
                 }
                 Err(e) => {
                     let stripped = strip_server_error_prefix(&e);
-                    let (field, _msg) = parse_create_season_field_error(&stripped);
+                    let (field, display_msg) = parse_create_season_field_error(&stripped);
+                    let msg = display_msg.to_owned();
                     match field {
                         Some(CreateSeasonRejectedField::SignupDeadline) => {
-                            set_signup_error.set(true);
-                            set_confirm_error.set(false);
+                            set_signup_error.set(Some(msg));
+                            set_confirm_error.set(None);
                         }
                         Some(CreateSeasonRejectedField::ConfirmDeadline) => {
-                            set_signup_error.set(false);
-                            set_confirm_error.set(true);
+                            set_signup_error.set(None);
+                            set_confirm_error.set(Some(msg));
                         }
                         None => {
                             // Infra/auth/active-exists errors: no field border,
                             // shown on the page-wide banner instead.
-                            set_signup_error.set(false);
-                            set_confirm_error.set(false);
+                            set_signup_error.set(None);
+                            set_confirm_error.set(None);
                         }
                     }
                 }
@@ -448,8 +451,11 @@ fn render_create_form(
                             required=true
                             data-testid="signup-deadline-input"
                             aria-describedby="action-error"
-                            aria-invalid=move || signup_error.get().then_some("true")
+                            aria-invalid=move || signup_error.get().map(|_| "true")
                         />
+                        <p class="field-error" aria-live="assertive" data-testid="signup-deadline-error">
+                            {move || signup_error.get()}
+                        </p>
                     </div>
                     <div class="field">
                         <label class="field-label" for="confirm-deadline">
@@ -463,8 +469,11 @@ fn render_create_form(
                             required=true
                             data-testid="confirm-deadline-input"
                             aria-describedby="action-error"
-                            aria-invalid=move || confirm_error.get().then_some("true")
+                            aria-invalid=move || confirm_error.get().map(|_| "true")
                         />
+                        <p class="field-error" aria-live="assertive" data-testid="confirm-deadline-error">
+                            {move || confirm_error.get()}
+                        </p>
                     </div>
                     <div class="field">
                         <label class="field-label" for="theme">
