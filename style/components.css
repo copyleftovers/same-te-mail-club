@@ -704,8 +704,13 @@
     font-size: var(--text-sm);
   }
 
+  /* RV5-04: the 0.1-alpha wash measured 4.26:1 for --color-error text on this
+     background — below the 4.5:1 AA floor at 14px/600-weight (not "large
+     text" by WCAG's size threshold). 0.05 alpha keeps the wash treatment
+     (vs. dark mode's solid panel) while lightening the background enough to
+     clear AA; computed 4.72:1. */
   .alert {
-    background: oklch(from var(--color-error) l c h / 0.1);
+    background: oklch(from var(--color-error) l c h / 0.05);
     color: var(--color-error);
     margin-bottom: var(--density-space-md);
   }
