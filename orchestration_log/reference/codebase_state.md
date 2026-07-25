@@ -250,3 +250,9 @@ Session resumed 2026-07-24 (continuation of the 2026-07-15 campaign); ran the FI
 - **Final re-verify CLEAR** on integrated main (pristine visual-mode 41-set at acee94f), both viewports both modes — fixes present, no regression (`recon/2026-07-15/reviews/rv5-final-verify.md`).
 - **State:** main **acee94f**, UNPUSHED (ahead 81 of origin), clean tree, zero worktrees, screenshots refreshed to acee94f (41-set, gitignored). **Push HELD — user pushes.**
 - Note: mode=full capture yields 40 (`admin-no-season-create-form-available` unreachable once the lifecycle suite creates a season); visual-mode yields the pristine 41.
+
+## Update 2026-07-25 (campaign SHIPPED — origin/main @ c472bfc, CI GREEN)
+
+The entire visual campaign is PUSHED and CI-validated. origin/main @ **c472bfc** (in sync). CI run 30162383205: Check (fmt+clippy+test) ✓ + E2E (Playwright release) ✓. The RV5 residual round (acee94f) plus all prior unpushed rounds (since 2026-07-11 base d6a17f6, 153 commits) are now on origin.
+- Two empty trigger commits (fc322ed, c472bfc) sit atop the RV5 work — fallout of the [skip ci]-tip fumble (see conventions 2026-07-25 + session.md LEAVE). Harmless; not force-pushed out.
+- Screenshots refreshed to the acee94f render (41/mode, gitignored).

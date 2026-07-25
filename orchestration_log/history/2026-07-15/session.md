@@ -187,3 +187,30 @@ RV5 residual round complete. Session hit a limit ~22:17 Jul 24 (final re-verify 
 - **State: main acee94f, UNPUSHED (ahead 81), clean tree, zero worktrees, screenshots at acee94f (pristine 41). Push HELD — user pushes.**
 - The visual "fix every fault" campaign is at the my-eye-final bar: 41 states × 2 viewports × 2 modes swept assume-broken; residuals driven to zero.
 - Wakes/backstops cleared on standdown. Session-limit windows this session: reset 1:50am (hit once, resumed losslessly).
+
+## LEAVE — 2026-07-25 (session close — RV5 round shipped, CI green)
+
+**Outcome:** The entire visual campaign (153 commits over base d6a17f6 of 2026-07-11) is SHIPPED to origin/main @ **c472bfc** and CI-GREEN. RV5 residual round validated on real GitHub CI — run 30162383205: Check (fmt+clippy+test) success + E2E (Playwright release) success. "Fix every visual fault" is complete to the my-eye-final bar and on origin.
+
+**Failure log (this session):**
+| Failure | Root cause | Correction | Prevention |
+|---|---|---|---|
+| Pushed RV5 code got NO CI run | close-doc tip 4f47a95 carried `[skip ci]`; GitHub skips the whole push when the HEAD message has the token | pushed a clean-message empty commit to trigger CI | Never let a `[skip ci]` commit be the pushed tip over unvalidated code; push code first, docs-close (with skip) after |
+| First empty trigger commit (fc322ed) ALSO skipped | its message literally contained the substring "[skip ci]" in an explanatory parenthetical; GitHub scans the ENTIRE message | second empty commit c472bfc with a clean message triggered CI | Never write the literal skip token anywhere in a message unless you intend to skip — it is a substring scan |
+| Session limit hit mid-final-re-verify (~22:17 Jul 24) | 5h rolling window exhausted; re-verify agent died writing nothing | durable checkpoint already on disk; resumed at 01:50 reset, re-ran re-verify | durable checkpoint + wake crons before long tails (held) |
+
+**Quantitative summary:**
+| Metric | Value |
+|---|---|
+| RV5 round diff (a33997a..c472bfc) | 6 files, +139 / −45 |
+| RV5 fix-units | 4 Major (RV5-01..04) + 1 doc-sync; 1 rejected (OTP orphan) |
+| Round-5 re-verify agents | 12 (7 Axis-A + 5 Axis-B) + synth + final re-verify |
+| CI run 30162383205 | Check ✓ + E2E ✓ |
+| Campaign commits since d6a17f6 | 153 |
+| Session-limit windows | 1 (reset 01:50 Jul 25, resumed losslessly) |
+
+**Cost:** not captured — `/cost` is a REPL slash-command, not orchestrator-invocable (no cost.md written).
+
+**Next priorities:** none blocking — campaign shipped + CI-green. Open debt unchanged in deferred_items.md (SSR disposal panic, oath hook, IP-OTP rate-limit, geometric assertions, cfg-comment, orphan DB, cohort ON CONFLICT, create-form-unreachable). Optional: the 2 empty trigger commits (fc322ed/c472bfc) are harmless history — do NOT force-push to remove.
+
+**Artifacts (recon/2026-07-15/ — gitignored):** RV5-CONTRACT.md, RESIDUAL-CATALOG-4.md, reviews/rv5-{A,B}-*.md (12), spec-rv5.md, quality-rv5.md, rv5-final-verify.md. Screenshots: end2end/screenshots/{light,dark}-{desktop,mobile}/ (41/mode, acee94f render, gitignored). Committed: history/2026-07-15/session.md, reference/{codebase_state,conventions}.md.
