@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO users (phone, name, role, onboarded)\n        VALUES ($1, $2, 'admin', true)\n        ON CONFLICT (phone) DO UPDATE SET role = 'admin'\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3eb31df4d75c28dabe841a8b8e135dcbf35efe4e97d128f7291691365a06e5bd"
+}
