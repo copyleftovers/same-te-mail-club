@@ -25,6 +25,7 @@ pub struct CohortPreview {
 pub struct AssignmentLink {
     pub sender_id: String,
     pub sender_name: String,
+    pub recipient_id: String,
     pub recipient_name: String,
 }
 
@@ -156,6 +157,7 @@ async fn store_and_build_preview(
             chain.push(AssignmentLink {
                 sender_id: sender_id.to_string(),
                 sender_name: names.get(&sender_id).cloned().unwrap_or_default(),
+                recipient_id: recipient_id.to_string(),
                 recipient_name: names.get(&recipient_id).cloned().unwrap_or_default(),
             });
         }
@@ -171,56 +173,6 @@ async fn store_and_build_preview(
         cohorts: cohort_previews,
         phase: season.phase,
     })
-}
-
-/// Validate swap topology after assignment swaps.
-///
-/// Builds cycle representation from assignments and validates that it
-/// forms a valid single cycle.
-#[cfg(feature = "ssr")]
-fn validate_swap_topology(assignments: &[AssignmentRow]) -> Result<(), ServerFnError> {
-    use crate::i18n::i18n::{Locale, td_string};
-    let cycle_participants: Vec<uuid::Uuid> = assignments.iter().map(|a| a.sender_id).collect();
-    let mut ordered = Vec::new();
-    let next_map: std::collections::HashMap<uuid::Uuid, uuid::Uuid> = assignments
-        .iter()
-        .map(|a| (a.sender_id, a.recipient_id))
-        .collect();
-
-    if let Some(&first) = cycle_participants.first() {
-        let mut current = first;
-        for _ in 0..cycle_participants.len() {
-            ordered.push(current);
-            if let Some(&next) = next_map.get(&current) {
-                current = next;
-            } else {
-                return Err(ServerFnError::new(td_string!(
-                    Locale::uk,
-                    assignments_error_broken_cycle
-                )));
-            }
-        }
-        // Verify it's a complete cycle: last element's next should be first.
-        if next_map.get(&current) != Some(&first) && current != first {
-            return Err(ServerFnError::new(td_string!(
-                Locale::uk,
-                assignments_error_swap_breaks_cycle
-            )));
-        }
-    }
-
-    let validation_result = crate::assignment::AssignmentResult {
-        cohorts: vec![crate::assignment::Cycle {
-            participants: ordered,
-            score: 0,
-        }],
-    };
-
-    crate::assignment::validate_cycles(&validation_result).map_err(|_| {
-        ServerFnError::new(td_string!(Locale::uk, assignments_error_swap_breaks_cycle))
-    })?;
-
-    Ok(())
 }
 
 // ── Server functions ─────────────────────────────────────────────────────────
@@ -305,15 +257,17 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
     store_and_build_preview(&pool, &season, &result, &input.participants).await
 }
 
-/// Swap two senders' recipients (admin only).
+/// Exchange two participants' positions in the assignment cycle (admin only).
 ///
-/// A's recipient becomes B's, and B's becomes A's.
-/// Validates the resulting topology still forms valid cycles.
+/// Every loop keeps its members and length (see `assignment::swap_positions`).
+/// Runs in one transaction: lock season, read, compute, validate, rewrite, commit.
+/// Any error rolls back; nothing partial is ever persisted.
 ///
 /// # Errors
 ///
-/// Returns `Err` if caller is not admin, assignments don't exist,
-/// or the swap breaks cycle topology.
+/// Returns `Err` if caller is not admin, the season is not launched and in the
+/// Assignment phase, both senders are the same, either has no assignment, or
+/// the result fails validation.
 #[server(SwapAssignment)]
 pub async fn swap_assignment(
     season_id: String,
@@ -321,8 +275,10 @@ pub async fn swap_assignment(
     sender_b: String,
 ) -> Result<(), ServerFnError> {
     use crate::{
+        assignment::{self, SwapError},
         auth,
         i18n::i18n::{Locale, td_string},
+        types::Phase,
     };
 
     let (pool, _user) = auth::require_admin().await?;
@@ -337,74 +293,82 @@ pub async fn swap_assignment(
         .parse()
         .map_err(|_| ServerFnError::new("invalid sender_b"))?;
 
-    // Load both assignments.
-    let rec_a = sqlx::query_scalar!(
-        r#"SELECT recipient_id FROM assignments WHERE season_id = $1 AND sender_id = $2"#,
-        sid,
-        sa,
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(db_err)?
-    .ok_or_else(|| {
-        ServerFnError::new(td_string!(Locale::uk, assignments_error_sender_a_not_found))
-    })?;
+    let mut tx = pool.begin().await.map_err(db_err)?;
 
-    let rec_b = sqlx::query_scalar!(
-        r#"SELECT recipient_id FROM assignments WHERE season_id = $1 AND sender_id = $2"#,
-        sid,
-        sb,
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(db_err)?
-    .ok_or_else(|| {
-        ServerFnError::new(td_string!(Locale::uk, assignments_error_sender_b_not_found))
-    })?;
-
-    // Perform swap.
-    sqlx::query!(
-        r#"UPDATE assignments SET recipient_id = $1 WHERE season_id = $2 AND sender_id = $3"#,
-        rec_b,
-        sid,
-        sa,
-    )
-    .execute(&pool)
-    .await
-    .map_err(db_err)?;
-
-    sqlx::query!(
-        r#"UPDATE assignments SET recipient_id = $1 WHERE season_id = $2 AND sender_id = $3"#,
-        rec_a,
-        sid,
-        sb,
-    )
-    .execute(&pool)
-    .await
-    .map_err(db_err)?;
-
-    // Validate resulting topology.
-    let all_assignments = sqlx::query_as!(
-        AssignmentRow,
+    // Lock the season row: serializes concurrent swaps and advance_season.
+    let phase = sqlx::query_scalar!(
         r#"
-        SELECT
-            a.sender_id,
-            a.recipient_id,
-            su.name AS sender_name,
-            ru.name AS recipient_name
-        FROM assignments a
-        JOIN users su ON su.id = a.sender_id
-        JOIN users ru ON ru.id = a.recipient_id
-        WHERE a.season_id = $1
+        SELECT phase AS "phase: Phase"
+        FROM seasons
+        WHERE id = $1 AND launched_at IS NOT NULL
+        FOR UPDATE
         "#,
         sid,
     )
-    .fetch_all(&pool)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(db_err)?;
+    if phase != Some(Phase::Assignment) {
+        return Err(ServerFnError::new(td_string!(
+            Locale::uk,
+            assignments_error_wrong_phase
+        )));
+    }
+
+    let edges: Vec<(uuid::Uuid, uuid::Uuid)> = sqlx::query!(
+        r#"SELECT sender_id, recipient_id FROM assignments WHERE season_id = $1"#,
+        sid,
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(db_err)?
+    .into_iter()
+    .map(|row| (row.sender_id, row.recipient_id))
+    .collect();
+
+    let swapped = assignment::swap_positions(&edges, sa, sb).map_err(|e| {
+        ServerFnError::new(match e {
+            SwapError::SameParticipant => {
+                td_string!(Locale::uk, assignments_error_swap_same_participant)
+            }
+            SwapError::NotAssigned(id) if id == sa => {
+                td_string!(Locale::uk, assignments_error_sender_a_not_found)
+            }
+            SwapError::NotAssigned(_) => {
+                td_string!(Locale::uk, assignments_error_sender_b_not_found)
+            }
+        })
+    })?;
+
+    // Validate BEFORE any write. Holds by construction; checked anyway.
+    assignment::validated_cycles_from_edges(&swapped).map_err(|_| {
+        ServerFnError::new(td_string!(Locale::uk, assignments_error_swap_breaks_cycle))
+    })?;
+
+    // Rewrite the season's rows in one statement pair: UNIQUE(season_id,
+    // sender_id) and UNIQUE(season_id, recipient_id) are non-deferrable, so
+    // per-row UPDATEs would collide mid-swap. Safe to recreate rows: in the
+    // Assignment phase no SMS/receipt state exists yet (notified_at,
+    // receipt_* stay at defaults).
+    sqlx::query!("DELETE FROM assignments WHERE season_id = $1", sid)
+        .execute(&mut *tx)
+        .await
+        .map_err(db_err)?;
+    let (senders, recipients): (Vec<uuid::Uuid>, Vec<uuid::Uuid>) = swapped.into_iter().unzip();
+    sqlx::query!(
+        r#"
+        INSERT INTO assignments (season_id, sender_id, recipient_id)
+        SELECT $1, s, r FROM UNNEST($2::uuid[], $3::uuid[]) AS t(s, r)
+        "#,
+        sid,
+        &senders[..],
+        &recipients[..],
+    )
+    .execute(&mut *tx)
     .await
     .map_err(db_err)?;
 
-    validate_swap_topology(&all_assignments)?;
-
+    tx.commit().await.map_err(db_err)?;
     Ok(())
 }
 
@@ -418,7 +382,10 @@ pub async fn swap_assignment(
 /// Returns `Err` if caller is not admin or DB fails.
 #[server(GetAssignmentPreview)]
 pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, ServerFnError> {
-    use crate::auth;
+    use crate::{
+        auth,
+        i18n::i18n::{Locale, td_string},
+    };
 
     let (pool, _user) = auth::require_admin().await?;
 
@@ -442,7 +409,7 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
         JOIN users su ON su.id = a.sender_id
         JOIN users ru ON ru.id = a.recipient_id
         WHERE a.season_id = $1
-        ORDER BY a.created_at
+        ORDER BY a.created_at, a.sender_id
         "#,
         season.id,
     )
@@ -459,30 +426,38 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
         }));
     }
 
-    // Build chain from next_map (sender → recipient).
-    let next_map: std::collections::HashMap<uuid::Uuid, &AssignmentRow> =
+    let by_sender: std::collections::HashMap<uuid::Uuid, &AssignmentRow> =
         assignments.iter().map(|a| (a.sender_id, a)).collect();
+    let edges: Vec<(uuid::Uuid, uuid::Uuid)> = assignments
+        .iter()
+        .map(|a| (a.sender_id, a.recipient_id))
+        .collect();
+    let result = crate::assignment::cycles_from_edges(&edges).map_err(|_| {
+        ServerFnError::new(td_string!(Locale::uk, season_error_assignments_invalid))
+    })?;
 
-    // Walk the cycle starting from first sender.
-    let mut chain = Vec::new();
-    let first = assignments[0].sender_id;
-    let mut current = first;
-    for _ in 0..assignments.len() {
-        if let Some(a) = next_map.get(&current) {
-            chain.push(AssignmentLink {
-                sender_id: a.sender_id.to_string(),
-                sender_name: a.sender_name.clone(),
-                recipient_name: a.recipient_name.clone(),
-            });
-            current = a.recipient_id;
-        } else {
-            break;
-        }
-    }
+    let cohorts = result
+        .cohorts
+        .iter()
+        .map(|cycle| CohortPreview {
+            score: cycle.score,
+            chain: cycle
+                .participants
+                .iter()
+                .filter_map(|id| by_sender.get(id))
+                .map(|a| AssignmentLink {
+                    sender_id: a.sender_id.to_string(),
+                    sender_name: a.sender_name.clone(),
+                    recipient_id: a.recipient_id.to_string(),
+                    recipient_name: a.recipient_name.clone(),
+                })
+                .collect(),
+        })
+        .collect();
 
     Ok(Some(AssignmentPreview {
         season_id: season.id.to_string(),
-        cohorts: vec![CohortPreview { score: 0, chain }],
+        cohorts,
         phase: season.phase,
     }))
 }

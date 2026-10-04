@@ -352,6 +352,109 @@ pub fn validate_cycles(result: &AssignmentResult) -> Result<(), String> {
     Ok(())
 }
 
+/// Why a position swap was refused.
+#[derive(Debug, PartialEq, Eq)]
+pub enum SwapError {
+    /// Both slots name the same participant.
+    SameParticipant,
+    /// The participant has no assignment in this set.
+    NotAssigned(Uuid),
+}
+
+/// Exchange the positions of `a` and `b` in the assignment graph.
+///
+/// Every edge `s → r` becomes `σ(s) → σ(r)` where σ swaps `a` and `b`.
+/// Relabelling preserves the cycle structure exactly: every loop stays one
+/// loop of the same length, within or across cohorts.
+///
+/// # Errors
+///
+/// `SwapError::SameParticipant` if `a == b`; `SwapError::NotAssigned` if
+/// either is not a sender in `edges`.
+pub fn swap_positions(
+    edges: &[(Uuid, Uuid)],
+    a: Uuid,
+    b: Uuid,
+) -> Result<Vec<(Uuid, Uuid)>, SwapError> {
+    if a == b {
+        return Err(SwapError::SameParticipant);
+    }
+    for participant in [a, b] {
+        if !edges.iter().any(|&(sender, _)| sender == participant) {
+            return Err(SwapError::NotAssigned(participant));
+        }
+    }
+    let sigma = |u: Uuid| {
+        if u == a {
+            b
+        } else if u == b {
+            a
+        } else {
+            u
+        }
+    };
+    Ok(edges.iter().map(|&(s, r)| (sigma(s), sigma(r))).collect())
+}
+
+/// Recover the ordered cycles from sender → recipient edges.
+///
+/// Does not check cohort size or receiver uniqueness — see `validated_cycles_from_edges`.
+///
+/// # Errors
+///
+/// Returns `Err` if a sender appears twice, a recipient has no outgoing
+/// edge, or a walk re-enters a participant before closing its loop.
+pub fn cycles_from_edges(edges: &[(Uuid, Uuid)]) -> Result<AssignmentResult, String> {
+    let mut next: HashMap<Uuid, Uuid> = HashMap::with_capacity(edges.len());
+    for &(sender, recipient) in edges {
+        if next.insert(sender, recipient).is_some() {
+            return Err(format!("participant {sender} has more than one assignment"));
+        }
+    }
+    let mut visited = std::collections::HashSet::with_capacity(edges.len());
+    let mut cohorts = Vec::new();
+    for &(start, _) in edges {
+        if visited.contains(&start) {
+            continue;
+        }
+        let mut participants = Vec::new();
+        let mut current = start;
+        loop {
+            if !visited.insert(current) {
+                return Err(format!("participant {current} is reached twice"));
+            }
+            participants.push(current);
+            let Some(&recipient) = next.get(&current) else {
+                return Err(format!("participant {current} has no assignment"));
+            };
+            if recipient == start {
+                break;
+            }
+            current = recipient;
+        }
+        cohorts.push(Cycle {
+            participants,
+            score: 0,
+        });
+    }
+    Ok(AssignmentResult { cohorts })
+}
+
+/// Recover cycles from edges and validate them as a releasable assignment set.
+///
+/// # Errors
+///
+/// Returns `Err` if `edges` is empty, does not decompose into loops, or any
+/// loop fails `validate_cycles`.
+pub fn validated_cycles_from_edges(edges: &[(Uuid, Uuid)]) -> Result<AssignmentResult, String> {
+    if edges.is_empty() {
+        return Err("no assignments".to_owned());
+    }
+    let result = cycles_from_edges(edges)?;
+    validate_cycles(&result)?;
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -660,5 +763,122 @@ mod tests {
             !adjacent,
             "high-weight pair should be non-adjacent with enough alternatives"
         );
+    }
+
+    // ── swap_positions / cycles_from_edges ───────────────────────────────────
+
+    fn ring_edges(ids: &[Uuid]) -> Vec<(Uuid, Uuid)> {
+        (0..ids.len())
+            .map(|i| (ids[i], ids[(i + 1) % ids.len()]))
+            .collect()
+    }
+
+    #[test]
+    fn swap_positions_preserves_single_loop_for_every_pair() {
+        for n in 3..=11 {
+            let ids = make_uuids(n);
+            for i in 0..n {
+                for j in (i + 1)..n {
+                    let swapped =
+                        swap_positions(&ring_edges(&ids), ids[i], ids[j]).expect("valid swap");
+                    let result = validated_cycles_from_edges(&swapped).expect("single loop");
+                    assert_eq!(result.cohorts.len(), 1, "n={n} i={i} j={j}");
+                    assert_eq!(result.cohorts[0].participants.len(), n);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn swap_positions_exchanges_the_two_positions() {
+        let ids = make_uuids(4); // a→b→c→d→a
+        let (a, b, c, d) = (ids[0], ids[1], ids[2], ids[3]);
+        let mut swapped = swap_positions(&ring_edges(&ids), a, c).expect("valid swap");
+        swapped.sort();
+        let mut expected = vec![(c, b), (b, a), (a, d), (d, c)]; // c→b→a→d→c
+        expected.sort();
+        assert_eq!(swapped, expected);
+    }
+
+    #[test]
+    fn swap_positions_adjacent_pair_never_self_assigns() {
+        let ids = make_uuids(3);
+        let swapped = swap_positions(&ring_edges(&ids), ids[0], ids[1]).expect("valid swap");
+        assert!(swapped.iter().all(|(s, r)| s != r));
+        assert!(validated_cycles_from_edges(&swapped).is_ok());
+    }
+
+    #[test]
+    fn swap_positions_across_cohorts_keeps_both_loops() {
+        let left = make_uuids(3);
+        let right = make_uuids(4);
+        let mut edges = ring_edges(&left);
+        edges.extend(ring_edges(&right));
+        let swapped = swap_positions(&edges, left[0], right[2]).expect("valid swap");
+        let result = validated_cycles_from_edges(&swapped).expect("two loops");
+        let mut sizes: Vec<usize> = result
+            .cohorts
+            .iter()
+            .map(|c| c.participants.len())
+            .collect();
+        sizes.sort_unstable();
+        assert_eq!(sizes, vec![3, 4]);
+    }
+
+    #[test]
+    fn swap_positions_rejects_same_participant() {
+        let ids = make_uuids(3);
+        assert_eq!(
+            swap_positions(&ring_edges(&ids), ids[0], ids[0]),
+            Err(SwapError::SameParticipant)
+        );
+    }
+
+    #[test]
+    fn swap_positions_rejects_unassigned_participant() {
+        let ids = make_uuids(3);
+        let stranger = Uuid::new_v4();
+        assert_eq!(
+            swap_positions(&ring_edges(&ids), ids[0], stranger),
+            Err(SwapError::NotAssigned(stranger))
+        );
+    }
+
+    #[test]
+    fn cycles_from_edges_recovers_each_cohort() {
+        let mut edges = ring_edges(&make_uuids(3));
+        edges.extend(ring_edges(&make_uuids(5)));
+        let result = cycles_from_edges(&edges).expect("decomposes");
+        assert_eq!(result.cohorts.len(), 2);
+    }
+
+    #[test]
+    fn cycles_from_edges_rejects_dangling_recipient() {
+        let ids = make_uuids(4);
+        let edges = vec![(ids[0], ids[1]), (ids[1], ids[2]), (ids[2], ids[3])];
+        assert!(cycles_from_edges(&edges).is_err());
+    }
+
+    #[test]
+    fn cycles_from_edges_rejects_duplicate_sender() {
+        let ids = make_uuids(3);
+        let mut edges = ring_edges(&ids);
+        edges.push((ids[0], ids[2]));
+        assert!(cycles_from_edges(&edges).is_err());
+    }
+
+    #[test]
+    fn recipient_exchange_splits_the_loop() {
+        // Regression: the old swap semantics (exchange two senders' recipients).
+        let ids = make_uuids(5);
+        let mut edges = ring_edges(&ids);
+        edges[0].1 = ids[3];
+        edges[2].1 = ids[1];
+        assert!(validated_cycles_from_edges(&edges).is_err());
+    }
+
+    #[test]
+    fn validated_cycles_from_edges_rejects_empty() {
+        assert!(validated_cycles_from_edges(&[]).is_err());
     }
 }

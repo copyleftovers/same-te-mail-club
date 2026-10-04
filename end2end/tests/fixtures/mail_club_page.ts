@@ -488,13 +488,36 @@ export class MailClubPage {
     await this.page.getByTestId("sender-a-input").selectOption({ label: senderNameA });
     await this.page.getByTestId("sender-b-input").selectOption({ label: senderNameB });
     // The swap action returns (). The preview Resource refetches via swap_action.version()
-    // and re-renders the cycle visualization — use URL-filtered POST wait then
-    // assert cycle-visualization visible to confirm refetch completed.
+    // and re-renders the cycle visualization — use URL-filtered POST wait.
     await this.clickAndWaitForResponse(
       this.page.getByTestId("swap-button"),
       "swap_assignment",
     );
-    await expect(this.page.getByTestId("cycle-visualization")).toBeVisible();
+    // The caller asserts the graph change via readCycleEdges() + expect.poll.
+    await expect(this.page.getByTestId("action-error")).toBeEmpty();
+  }
+
+  /**
+   * Read the assignment graph from the admin cycle visualization's link list.
+   * Returns "senderId>recipientId" strings, sorted (order-independent).
+   */
+  async readCycleEdges(): Promise<string[]> {
+    const links = this.page.getByTestId("cycle-link");
+    await expect(links.first()).toBeAttached();
+    const count = await links.count();
+    const edges: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const link = links.nth(i);
+      edges.push(`${await link.getAttribute("data-sender-id")}>${await link.getAttribute("data-recipient-id")}`);
+    }
+    return edges.sort();
+  }
+
+  /** Sender UUID for a participant name, from the cycle link list. */
+  async cycleSenderId(name: string): Promise<string> {
+    const link = this.page.getByTestId("cycle-link").and(this.page.locator(`[data-sender-name="${name}"]`));
+    await expect(link).toBeAttached();
+    return (await link.getAttribute("data-sender-id")) as string;
   }
 
   async expectCycleVisualization() {

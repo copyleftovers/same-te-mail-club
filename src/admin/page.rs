@@ -1561,6 +1561,21 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
                 {arrows}
                 {nodes}
             </svg>
+            <ol class="sr-only" data-testid="cycle-link-list">
+                {chain
+                    .iter()
+                    .map(|link| view! {
+                        <li
+                            data-testid="cycle-link"
+                            data-sender-id=link.sender_id.clone()
+                            data-sender-name=link.sender_name.clone()
+                            data-recipient-id=link.recipient_id.clone()
+                        >
+                            {link.sender_name.clone()} " → " {link.recipient_name.clone()}
+                        </li>
+                    })
+                    .collect_view()}
+            </ol>
         </figure>
     }
     .into_any()

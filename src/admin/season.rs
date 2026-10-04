@@ -139,7 +139,8 @@ pub async fn launch_season() -> Result<(), ServerFnError> {
 ///
 /// # Errors
 ///
-/// Returns `Err` if caller is not admin, no active launched season, or transition is invalid.
+/// Returns `Err` if caller is not admin, no active launched season, transition is invalid,
+/// or, when leaving the Assignment phase, the stored assignments are missing or not valid loops.
 #[server]
 pub async fn advance_season() -> Result<(), ServerFnError> {
     use crate::{
@@ -162,6 +163,23 @@ pub async fn advance_season() -> Result<(), ServerFnError> {
         .phase
         .try_advance()
         .map_err(|e| AppError::from(e).into_server_fn_error())?;
+
+    // Release guard: leaving Assignment publishes the graph to participants.
+    if season.phase == Phase::Assignment {
+        let edges: Vec<(uuid::Uuid, uuid::Uuid)> = sqlx::query!(
+            r#"SELECT sender_id, recipient_id FROM assignments WHERE season_id = $1"#,
+            season.id,
+        )
+        .fetch_all(&pool)
+        .await
+        .map_err(db_err)?
+        .into_iter()
+        .map(|row| (row.sender_id, row.recipient_id))
+        .collect();
+        crate::assignment::validated_cycles_from_edges(&edges).map_err(|_| {
+            ServerFnError::new(td_string!(Locale::uk, season_error_assignments_invalid))
+        })?;
+    }
 
     sqlx::query!(
         r#"UPDATE seasons SET phase = $1 WHERE id = $2"#,
