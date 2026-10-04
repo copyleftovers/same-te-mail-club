@@ -1,17 +1,19 @@
-# Implementation Plan: Launch Blockers T0, U1–U4
+# Implementation Plan: Launch Blockers T0, T1, U1–U4, A1
 
 **CANONICAL COPY:** `orchestration_log/history/2026-10-04/plans/PLAN-W1.md` (tracked). `orchestration_log/recon/2026-10-04/fix/PLAN.md` is a byte-identical mirror for convenience; if they ever differ, the tracked file wins — edit only the tracked file, then re-copy.
 
-HEAD at planning: `1a3c8a5`. Evidence: `readiness/l-toolchain.md` + `readiness/logs/l-*.log` (T0), `readiness/d-ops.md` (F1/F2/F5), `readiness/g-authverify.md` (1b), `readiness/i-swapverify.md`, `readiness/a-scope.md` (3.3 rows). Every claim below re-verified against source at HEAD.
+HEAD at planning: `1a3c8a5`. Evidence: `readiness/l-toolchain.md` + `readiness/logs/l-*.log` (T0), `readiness/n-panic.md` + `logs/n-*.log` (T1), `readiness/f-e2e.md` § attr: leak check (A1), `readiness/d-ops.md` (F1/F2/F5), `readiness/g-authverify.md` (1b), `readiness/i-swapverify.md`, `readiness/a-scope.md` (3.3 rows). Every claim below re-verified against source at HEAD.
 
 ## Preamble
 
 | Unit | Blocker | Verified at |
 |---|---|---|
 | T0 | HEAD does not build: SSR bin and wasm hydrate lib overflow rustc's default `recursion_limit` (128) at codegen. CI is false-green since 2026-07-10: Check never runs codegen; `cargo leptos end-to-end` exits 0 on build failure and skips Playwright. | `readiness/l-toolchain.md`; `src/main.rs:1`, `src/lib.rs:1-2` (no limit); `.github/workflows/ci.yml:39-56` (no build step), `:125` |
+| T1 | Concurrent SSR load kills the server: leptos_i18n 0.6.1 `context.rs:213` reads a disposed signal in a detached tokio task; `[profile.release] panic = "abort"` turns the task panic into process death (prod builds the same profile). | `Cargo.toml:95-104,127`; `src/app.rs:73`; `n-panic.md` |
 | U1 | Self-registration skips OTP: `register_with_code` / `validate_invite_code` trust a raw, unsigned `pending_phone=<phone>` cookie. curl with any phone + one invite code creates the account. Invite redemption is unthrottled (~39,800-code space). | `src/pages/login.rs:208-219` (cookie = normalized phone), `:320-328`, `:391-399`, `:485-496` |
 | U2 | `SAMETE_TEST_MODE=true` = OTP `000000` for every phone incl. admin + OTP rate limit off. No boot guard. Read ad hoc at 5 sites. Undocumented. | `src/auth.rs:77,121`, `src/pages/home.rs:180,398,521`, `src/config.rs` (no check), `README.md:185-192` |
 | U3 | No production path to the first admin; invite codes require an admin to exist (circular). | `migrations/20260314000003…:5` (`distributor_id NOT NULL`), `src/admin/invite_codes.rs:90`, only admin insert = `seed/test_admin.sql` |
+| A1 | `attr:aria-busy` on 13 native `<button>`s emits a literal `attr:aria-busy` attribute during pending; `aria-busy` never reaches assistive tech. | `src/admin/page.rs:497,675,705,753,865,906,955,992,1102,1647,1748,2016,2171`; `f-e2e.md` attr: leak check |
 | U4 | `swap_assignment` exchanges two senders' recipients. Math: in one cycle this always splits it (or self-loops); first UPDATE also violates non-deferrable `UNIQUE(season_id, recipient_id)`; three statements on the pool, no tx, validation after writes; `validate_swap_topology` treats all rows as one cohort; `advance_season` never re-validates; E2E 3.3 asserts only that the viz renders. | `src/admin/assignments.rs:184-226,318-416,435-488`, `migrations/20260314000002…:56-67`, `src/admin/season.rs:144-174`, `end2end/tests/mail_club.spec.ts:649-654`, `fixtures/mail_club_page.ts:483-498` |
 
 Story 3.3 (spec/technical/User Stories.md:228-241): "swap individual sender→recipient pairings while maintaining cycle integrity"; AC "Swaps must preserve the single-loop topology"; "organizer sees the full graph for each cohort". The only swap of two people that preserves every loop is **exchanging their positions in the cycle** (conjugating the sender→recipient map by the transposition (a b)). U4 implements exactly that.
@@ -19,6 +21,8 @@ Story 3.3 (spec/technical/User Stories.md:228-241): "swap individual sender→re
 ## Design decisions (final — do not revisit)
 
 - **T0:** `#![recursion_limit = "256"]` in both crate roots (per-root attribute; 256 = rustc's suggested value, 192 also passes, 256 adds headroom). No toolchain pin (unpinned stable surfaced the defect; a pin hides it). Check job gains real codegen builds of the SSR bin and wasm lib. One guard script `scripts/assert-playwright-ran.sh` (fresh `end2end/results.json` with >0 executed tests and 0 failures) called by every `cargo leptos end-to-end` just recipe — CI's E2E job runs `just e2e-release`, so one home covers local and CI. `isolated-capture.sh` deletes the release artifacts before building and requires them after.
+- **T1:** `panic = "unwind"` in `[profile.release]` (server bin) + explicit `panic = "abort"` in `[profile.wasm-release]` (WASM size unchanged). No `[patch.crates-io]`: conventions forbid it without the crate's own suite, and upstream 0.6.2 has the same code. Regression probe `scripts/ssr-stress.sh`, shown RED with the abort binary and GREEN with the unwind binary.
+- **A1:** bare `aria-busy` at all 13 sites. Proof: a compiled-artifact string gate plus one E2E test that holds the server response with `page.route`.
 - **U1:** Server-side `registration_tickets` table is the sole authority. On OTP success for an unknown phone the server inserts `(sha256(token), phone, expires_at = now()+10min, invite_attempts = 0)` and sets cookie `registration_ticket=<random 32-byte base64url token>`. The phone is read ONLY from the ticket row. Registration consumes the row (`DELETE … RETURNING phone`) inside the registration transaction. Throttle falls out of the same row: each invalid/used/revoked code submission increments `invite_attempts`; a ticket with `invite_attempts >= 5` resolves to nothing → user must re-verify via OTP (itself limited to 5/h/phone). No U1b.
 - **U2:** `Config.sms: SmsMode { Live{token,sender} | DryRun{test_mode} }` — test mode is unrepresentable with live SMS. Boot refuses `SAMETE_TEST_MODE=true` without `SAMETE_SMS_DRY_RUN=true`, and refuses test mode on a non-loopback bind address (prod container binds `0.0.0.0`; `just e2e`, CI, `isolated-capture.sh`, `just dev` all bind `127.0.0.1`). All 5 env reads replaced by `Config::test_mode()`.
 - **U3:** Idempotent startup bootstrap from `SAMETE_ADMIN_PHONE` + `SAMETE_ADMIN_NAME` (both or neither; phone normalized via `phone::normalize`; invalid → boot refuses). Upsert: insert admin, or promote existing user with that phone to admin. Documented in README + `.env.example`.
@@ -29,18 +33,24 @@ Story 3.3 (spec/technical/User Stories.md:228-241): "swap individual sender→re
 | Unit | Files written |
 |---|---|
 | T0 | `src/main.rs`, `src/lib.rs`, `scripts/assert-playwright-ran.sh` (new), `scripts/isolated-capture.sh`, `justfile`, `.github/workflows/ci.yml` |
+| T1 | `Cargo.toml`, `scripts/ssr-stress.sh` (new), `orchestration_log/reference/deferred_items.md` |
+| A1 | `src/admin/page.rs`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/mail_club.spec.ts` |
 | U1 | `migrations/20261004000001_registration_tickets.sql` (new), `src/auth.rs`, `src/pages/login.rs`, `.sqlx/*`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/mail_club.spec.ts` |
 | U2 | `src/config.rs`, `src/main.rs`, `src/sms.rs`, `src/auth.rs`, `src/pages/login.rs`, `src/pages/home.rs`, `README.md`, `.env.example` |
 | U3 | `src/config.rs`, `src/main.rs`, `src/db.rs`, `.sqlx/*`, `README.md`, `.env.example` |
 | U4 | `src/assignment.rs`, `src/admin/assignments.rs`, `src/admin/season.rs`, `src/admin/page.rs`, `locales/uk.json`, `.sqlx/*`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/visual-audit.spec.ts` |
 
-Overlaps: U1∩U2 = `auth.rs`, `login.rs`. U2∩U3 = `config.rs`, `main.rs`, `README.md`, `.env.example`. U1∩U4 = POM + `mail_club.spec.ts` (disjoint regions: Epic 1 vs Epic 3 / invite vs assignment POM sections) + `.sqlx/` (distinct query files). U3∩U1/U4 = `.sqlx/` only.
+Overlaps: U1∩U2 = `auth.rs`, `login.rs`. U2∩U3 = `config.rs`, `main.rs`, `README.md`, `.env.example`. U1∩U4 = POM + `mail_club.spec.ts` (disjoint regions: Epic 1 vs Epic 3 / invite vs assignment POM sections) + `.sqlx/` (distinct query files). U3∩U1/U4 = `.sqlx/` only. T1 shares no file with any unit. A1∩U4 = `src/admin/page.rs` (U4: `render_cycle_ring`; A1: 13 button attribute tokens, one inside U4-untouched `SwapFormSection`). A1∩U1/U4 = POM + `mail_club.spec.ts` (A1: invite-codes POM section + one Epic 1 test).
 
 **Order:**
-- **Wave 0:** T0 alone, integrated to main BEFORE any U-unit worktree is created (every U-unit's build and E2E gate depend on it). T0∩U2/U3 = `src/main.rs` (T0 adds lines 1–6 only; U2/U3 branch from post-T0 main, no conflict).
-- **Wave A (parallel, three worktrees from post-T0 main):** U1, U3, U4.
+- **Wave 0 (sequential):** T0, then T1. T1's worktree branches from main after T0 is integrated: T1's build, E2E and stress gates need T0's recursion fix and guard. Their write-sets are disjoint. Both are integrated before any U-unit worktree is created. T0∩U2/U3 = `src/main.rs` (T0 adds lines 1–6 only; U2/U3 branch from post-T0 main, so no conflict).
+- **Wave A (parallel, three worktrees from post-T0+T1 main):** U1, U3, U4.
 - **Integrate wave A** in order U4 → U3 → U1 (each: rebase onto updated main; textual conflicts in `.sqlx/` or test files → resolve, then re-run that unit's sqlx regeneration + all gates).
-- **Wave B:** U2, branched from main AFTER U1 and U3 are integrated (U2 edits the post-U1 `auth.rs`/`login.rs` and post-U3 `config.rs`/`main.rs`/`README.md`/`.env.example`).
+- **Wave B (parallel, two worktrees from main after U4, U3 and U1 are integrated):** U2 (edits post-U1 `auth.rs`/`login.rs` and post-U3 `config.rs`/`main.rs`/`README.md`/`.env.example`) ∥ A1 (edits post-U4 `page.rs` and post-U1/U4 POM + spec). U2∩A1 = ∅. Integrate A1 → U2.
+
+```
+T0 ──► T1 ──► { U1 ∥ U3 ∥ U4 } ──(integrate U4→U3→U1)──► { U2 ∥ A1 } ──(integrate A1→U2)──► Global Gates
+```
 - After the last integration, the orchestrator runs the Global Gates on main.
 
 ## Shared environment (every unit)
@@ -92,7 +102,11 @@ TW=/root/.cache/cargo-leptos/tailwindcss-v4.2.1/tailwindcss-v4.2.1
 cmp -s "$TW/tailwindcss-linux-x64" "$TW/tailwindcss-linux-x64-musl" && echo tailwind-shim-ok \
   || cp "$TW/tailwindcss-linux-x64" "$TW/tailwindcss-linux-x64-musl"
 ```
-Never run `npx playwright install`. Baseline for `bash scripts/isolated-capture.sh <suffix> full` on post-T0 main: **116 passed, 2 skipped, 0 failed** — U-unit E2E counts are relative to this.
+Browser-path check (`readiness/n-panic.md` reports the `pwb` shim pointing at a non-existent `/opt/.../1208/chrome-linux`, while its runs passed with `/opt/pw-browsers`). Run this once per container and use whichever path prints `launch-ok`, trying the shim first:
+```bash
+(cd end2end && node -e 'require("@playwright/test").chromium.launch().then(b=>{console.log("launch-ok");return b.close()})')
+```
+If the shim fails, `export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` and rerun. If neither prints `launch-ok`, report BLOCKED. Never run `npx playwright install`. Baseline for `bash scripts/isolated-capture.sh <suffix> full` on post-T0 main: **116 passed, 2 skipped, 0 failed** — U-unit E2E counts are relative to this.
 
 E2E gate (isolated harness — own port + own DB `samete_e2e_<unit>`; requires release build; run in background, output to file, never pipe through `tail`/`head`):
 ```bash
@@ -281,6 +295,148 @@ grep -c "recursion_limit" src/main.rs src/lib.rs
 
 ## T0 Definition of Done (in addition to the common DoD)
 Commit message: `fix(build): raise recursion_limit and make CI/E2E fail on build failure`. Write-set exactly: `src/main.rs`, `src/lib.rs`, `scripts/assert-playwright-ran.sh` (new), `scripts/isolated-capture.sh`, `justfile`, `.github/workflows/ci.yml`. Report all sabotage outputs verbatim.
+
+---
+
+# T1 — Server survives the leptos_i18n disposed-signal panic (Wave 0, after T0)
+
+## Why This Matters
+Under concurrent load the production server process dies. `leptos_i18n` 0.6.1 `context.rs:213` (reached from `src/app.rs:73` `provide_i18n_context()`) reads `locale_signal.get()` inside `Effect::new_isomorphic`. On the server that effect's first run happens in a detached tokio task, which can be polled after `leptos_integration_utils` force-disposes the request Owner. The read then panics with `Tried to access a reactive value that has already been disposed`. Under `[profile.release] panic = "abort"` (Cargo.toml:98) that task panic aborts the whole server. The Dockerfile builds `cargo leptos build --release`, so production has the same exposure. Evidence: `readiness/n-panic.md`, `logs/n-stress-abort-debuginfo-backtrace.log` (8/8 server lifetimes killed), `logs/n-stress-unwind.log` (unwind: 4 panics absorbed, server keeps serving 200s), E2E crashes 4/5 on the cargo-leptos path.
+
+## Decision (final)
+`[profile.release] panic = "unwind"` for the server, with `panic = "abort"` set explicitly in `[profile.wasm-release]`. Verified wiring: `[package.metadata.leptos]` has `lib-profile-release = "wasm-release"` (Cargo.toml:127) and no `bin-profile-release`, so the server bin uses `release` and the WASM lib uses `wasm-release`, which `inherits = "release"`. Without the explicit override the WASM would inherit unwind and grow. Rejected: `[patch.crates-io]` of leptos_i18n with `try_get()`. conventions.md forbids a patch without running the patched crate's own suite, it is a vendored fork to maintain, and 0.6.2 upstream has the same code. Unwind confines every future task panic of this class, and it is a two-line change. The upstream fix stays out of scope.
+
+## What You Must Do
+
+### T1.0 Record the RED baseline and WASM size BEFORE editing (on post-T0 main, in the T1 worktree)
+```bash
+cargo leptos build --release > /tmp/t1-build-before.log 2>&1; echo "build=$?"
+brotli -c -q 11 target/site/pkg/samete.wasm | wc -c > /tmp/t1-wasm-br-before.txt
+sha256sum target/site/pkg/samete.wasm | cut -d' ' -f1 > /tmp/t1-wasm-sha-before.txt
+cp target/release/samete /tmp/t1-samete-abort
+cat /tmp/t1-wasm-br-before.txt
+```
+**REQUIRED:** `build=0` and a byte count (≈471 KB, i.e. 460000–490000). Keep `/tmp/t1-samete-abort` for the RED gate.
+
+### T1.1 `Cargo.toml`
+Exact final form of the two profiles:
+```toml
+[profile.release]
+strip = true
+lto = "thin"
+# WHY: unwind on the server. leptos_i18n 0.6.x's SSR isomorphic effect
+# (context.rs:213) can read a disposed signal in a detached tokio task after the
+# request Owner is dropped; under abort that panic kills the whole server, under
+# unwind tokio confines it to the task. WASM keeps abort (wasm-release below).
+panic = "unwind"
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = 'z'
+lto = true
+codegen-units = 1
+# WHY: explicit — `inherits = "release"` would otherwise pull in unwind and grow the WASM.
+panic = "abort"
+```
+No other Cargo.toml change. `Cargo.lock` must not change.
+
+### T1.2 `scripts/ssr-stress.sh` (new, `chmod +x`) — the regression probe
+```bash
+#!/usr/bin/env bash
+# SSR concurrency stress: bursts of client-aborted requests at SSR routes, then a
+# liveness check after every round.
+#
+# WHY: leptos_i18n 0.6.x's server-side isomorphic effect (context.rs:213) can read a
+# disposed signal in a detached tokio task once the request Owner is disposed. With
+# panic = "abort" that kills the server; with unwind the panic stays in the task.
+# This is the fast repro (orchestration_log/recon/2026-10-04/readiness/n-panic.md).
+#
+# Usage: scripts/ssr-stress.sh <port> <server-log-file> [rounds=80]
+# Exit 0 = server alive after all rounds; exit 1 = server died.
+set -uo pipefail
+
+port="${1:?usage: scripts/ssr-stress.sh <port> <server-log-file> [rounds]}"
+log="${2:?usage: scripts/ssr-stress.sh <port> <server-log-file> [rounds]}"
+rounds="${3:-80}"
+
+panics() { grep -c "panicked" "$log" || true; }
+
+for round in $(seq 1 "$rounds"); do
+    pids=()
+    for path in / /admin /onboarding /login; do
+        for timeout in 0.003 0.006 0.01 0.02 0.04 0.08; do
+            curl -s -o /dev/null -b session=stresstoken123 --max-time "$timeout" "http://127.0.0.1:${port}${path}" & pids+=($!)
+            curl -s -o /dev/null --max-time "$timeout" "http://127.0.0.1:${port}${path}" & pids+=($!)
+        done
+    done
+    wait "${pids[@]}" 2>/dev/null
+    if ! curl -sf -o /dev/null --max-time 5 "http://127.0.0.1:${port}/login"; then
+        echo "DEAD at round ${round}; panics logged: $(panics)"
+        exit 1
+    fi
+done
+echo "ALIVE after ${rounds} rounds; panics logged: $(panics)"
+```
+
+### T1.3 Build after the change
+```bash
+cargo leptos build --release > /tmp/t1-build-after.log 2>&1; echo "build=$?"
+brotli -c -q 11 target/site/pkg/samete.wasm | wc -c > /tmp/t1-wasm-br-after.txt
+sha256sum target/site/pkg/samete.wasm | cut -d' ' -f1 > /tmp/t1-wasm-sha-after.txt
+paste /tmp/t1-wasm-br-before.txt /tmp/t1-wasm-br-after.txt
+```
+
+### T1.4 `orchestration_log/reference/deferred_items.md`
+ONLY after every T1 gate below is green: delete the whole line beginning `- Leptos SSR reactive-disposal panic` (resolve = delete, per conventions 2026-07-13). No other edit to that file.
+
+## Verification Gates (T1)
+Profile wiring:
+```bash
+awk '/^\[profile.release\]/,/^$/' Cargo.toml | grep -c 'panic = "unwind"'
+awk '/^\[profile.wasm-release\]/,/^$/' Cargo.toml | grep -c 'panic = "abort"'
+grep -c '^bin-profile-release' Cargo.toml; grep -c '^lib-profile-release = "wasm-release"' Cargo.toml
+git diff --quiet Cargo.lock && echo lock-unchanged
+```
+**REQUIRED:** `1`, `1`, `0`, `1`, `lock-unchanged`.
+
+WASM size (must not regress):
+```bash
+echo "before=$(cat /tmp/t1-wasm-br-before.txt) after=$(cat /tmp/t1-wasm-br-after.txt)"
+[ "$(cat /tmp/t1-wasm-br-after.txt)" -le "$(cat /tmp/t1-wasm-br-before.txt)" ] && echo wasm-ok
+```
+**REQUIRED:** `wasm-ok`. Paste both numbers in the report. The expected outcome is identical sizes, and identical `sha256` (`cmp /tmp/t1-wasm-sha-before.txt /tmp/t1-wasm-sha-after.txt`), since the effective wasm profile did not change. Report a sha mismatch as a concern, not a failure.
+
+Stress server launcher (used by RED and GREEN; `<BIN>` and `<N>` vary):
+```bash
+export T1DB=postgres://samete:samete@localhost:5432/samete_t1
+DATABASE_URL=$T1DB sqlx database drop -y; DATABASE_URL=$T1DB sqlx database create
+DATABASE_URL=$T1DB sqlx migrate run && psql $T1DB -f seed/test_admin.sql
+LEPTOS_SITE_ADDR=127.0.0.1:3971 LEPTOS_SITE_ROOT=target/site LEPTOS_SITE_PKG_DIR=pkg LEPTOS_OUTPUT_NAME=samete \
+  DATABASE_URL=$T1DB SAMETE_SMS_DRY_RUN=true <BIN> > /tmp/t1-server-<N>.log 2>&1 &
+SRV=$!; until curl -sf -o /dev/null http://127.0.0.1:3971/login; do sleep 0.5; done
+bash scripts/ssr-stress.sh 3971 /tmp/t1-server-<N>.log 80; echo "stress=$?"
+kill $SRV 2>/dev/null; wait $SRV 2>/dev/null
+```
+RED (before; `<BIN>=/tmp/t1-samete-abort`, `<N>=red1..red3`): run up to 3 times and stop at the first `DEAD`.
+**REQUIRED:** at least one run prints `DEAD at round … panics logged: ≥1` with `stress=1`, and `grep -m1 "already been disposed" /tmp/t1-server-redK.log` matches. If all 3 runs print ALIVE, STOP: report BLOCKED (the probe did not reproduce, so the GREEN gate would prove nothing).
+GREEN (after; `<BIN>=./target/release/samete`, `<N>=green1..green3`): run all 3.
+**REQUIRED:** all 3 print `ALIVE after 80 rounds` with `stress=0`. The sum of `panics logged` across the 3 runs must be ≥ 1, which proves the trigger fired and was absorbed. If the sum is 0, run 3 more. If the sum is still 0, report BLOCKED.
+
+E2E on the path that crashes most (cargo-leptos end-to-end, own port + own DB, with T0's guard). Run 3 times:
+```bash
+export T1E=postgres://samete:samete@localhost:5432/samete_t1e2e
+DATABASE_URL=$T1E sqlx database drop -y; DATABASE_URL=$T1E sqlx database create
+DATABASE_URL=$T1E sqlx migrate run && psql $T1E -f seed/test_admin.sql
+touch target/e2e-start.marker
+DATABASE_URL=$T1E LEPTOS_SITE_ADDR=127.0.0.1:3972 CAPTURE_BASE_URL=http://127.0.0.1:3972 \
+  SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release > /tmp/t1-e2e-K.log 2>&1
+bash scripts/assert-playwright-ran.sh target/e2e-start.marker; echo "guard=$?"
+```
+**REQUIRED (each of 3 runs, fresh DB each time):** `guard=0` and `playwright ran: … unexpected=0`. `grep -c ERR_CONNECTION_REFUSED /tmp/t1-e2e-K.log` = `0`. Plus the isolated-harness E2E gate: 116 passed / 2 skipped.
+Standard gates.
+After green: T1.4, then `grep -c "reactive-disposal" orchestration_log/reference/deferred_items.md` → **REQUIRED:** `0`.
+
+Commit: `fix(build): unwind panics on the server so a task panic cannot kill it`. Write-set: `Cargo.toml`, `scripts/ssr-stress.sh` (new), `orchestration_log/reference/deferred_items.md`.
 
 ---
 
@@ -1656,6 +1812,95 @@ sqlx regeneration, standard gates, E2E gate (titles `3.3 — admin swaps two ass
 
 ---
 
+# A1 — `aria-busy` instead of a leaked `attr:aria-busy` (Wave B, after U4 and U1 are integrated)
+
+## Why This Matters
+`attr:`-prefixed attributes on NATIVE elements emit a literal attribute named `attr:aria-busy` (Leptos 0.8; empirically confirmed in `readiness/f-e2e.md` § "attr: leak check": `"attr:aria-busy=true"` on `create-season-button` in pending state). Screen readers never get `aria-busy` during any admin loading state.
+
+## What You Must Do
+Exhaustive site list (verified `grep -rn "attr:" src --include=*.rs` = these 13 lines, all `<button>` native elements in `src/admin/page.rs`; no other `attr:` exists app-wide). Line numbers are at HEAD `1a3c8a5`; after U4 they shift, so locate each by its signal name:
+
+| # | testid (button) | line @1a3c8a5 | signal |
+|---|---|---|---|
+| 1 | `create-season-button` | 497 | `pending` |
+| 2 | `launch-button` | 675 | `launch_pending` |
+| 3 | `advance-button` | 705 | `advance_pending` |
+| 4 | cancel confirm | 753 | `cancel_pending` |
+| 5 | season-open SMS | 865 | `season_open_pending` |
+| 6 | confirm-nudge SMS | 906 | `confirm_nudge_pending` |
+| 7 | assignment SMS | 955 | `assignment_pending` |
+| 8 | receipt-nudge SMS | 992 | `receipt_nudge_pending` |
+| 9 | `generate-button` | 1102 | `generate_pending` |
+| 10 | `swap-button` | 1647 | `swap_pending` |
+| 11 | `generate-code-button` | 1748 | `generate_pending` |
+| 12 | `invite-code-revoke-button` | 2016 | `revoke_pending` |
+| 13 | deactivate | 2171 | `deactivate_pending` |
+
+At each site replace the prefix only:
+```rust
+attr:aria-busy=move || X_pending.get().then_some("true")
+// becomes
+aria-busy=move || X_pending.get().then_some("true")
+```
+Exactly one token changes per line (`attr:aria-busy` → `aria-busy`); the closure is untouched. Before editing, re-run `grep -rn "attr:" src --include=*.rs`. If it now lists a site not in the table (added by U1–U4), fix it the same way and add it to the report.
+
+### A1 E2E — the pending state is held deterministically
+POM (`end2end/tests/fixtures/mail_club_page.ts`), admin invite-codes section:
+```ts
+  /**
+   * Story 1.5 a11y: while generate_invite_code is in flight the button carries a
+   * bare aria-busy="true" (never a literal "attr:aria-busy"). The server response
+   * is held via page.route until the assertion is done, then released.
+   */
+  async expectGenerateCodeBusyWhilePending() {
+    await this.page.goto("/admin");
+    const button = this.page.getByTestId("generate-code-button");
+    await expect(button).toBeEnabled();
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await this.page.route("**/*generate_invite_code*", async (route) => {
+      await held;
+      await route.continue();
+    });
+    await button.click();
+    await expect(button).toHaveAttribute("aria-busy", "true");
+    expect(await button.getAttribute("attr:aria-busy")).toBeNull();
+    release();
+    await expect(this.page.getByTestId("generated-code-display")).toBeVisible();
+    await expect(button).not.toHaveAttribute("aria-busy", "true");
+    await this.page.unroute("**/*generate_invite_code*");
+  }
+```
+(The `getAttribute` call runs while the response is held, so the DOM cannot change under it. Playwright has no web-first assertion for an attribute's absence by name. This is the one sanctioned non-retrying read.)
+Spec (`end2end/tests/mail_club.spec.ts`), in Epic 1 directly after `"1.6 — admin revokes an unused code"`:
+```ts
+    test("1.5 — generate button exposes aria-busy while pending", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      await app.expectGenerateCodeBusyWhilePending();
+    });
+```
+That test generates one extra unused code. No later test counts unused codes; it is left as is.
+
+## Verification Gates (A1)
+```bash
+grep -rn "attr:" src --include=*.rs | wc -l
+grep -rn "aria-busy=move" src/admin/page.rs | wc -l
+```
+**REQUIRED:** `0`, then `13` (or 13 + any extra sites found and reported).
+Compiled-artifact gate (the attribute name is a string literal in both the server binary and the WASM; deterministic, no timing):
+```bash
+cargo leptos build --release > /tmp/a1-build.log 2>&1; echo "build=$?"
+grep -c -a "attr:aria-busy" target/release/samete target/site/pkg/samete.wasm
+grep -c -a "aria-busy" target/release/samete target/site/pkg/samete.wasm
+```
+**REQUIRED:** `build=0`; first grep `0` for both files; second grep ≥ `1` for both files. Run the first grep on post-U4/U1 main BEFORE the edit too, and paste it: it is expected ≥ `1` in at least one file (RED proof).
+Standard gates; isolated E2E gate (baseline + U1's 4 + this 1). The new title `1.5 — generate button exposes aria-busy while pending` must pass in all 3 runs.
+
+Commit: `fix(a11y): emit bare aria-busy on admin submit buttons`. Write-set: `src/admin/page.rs`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/mail_club.spec.ts`.
+
+---
+
 ## Testing Decisions
 - Behavior tested through public pure interfaces; DB-bound server fns are covered by E2E (project rule: DB = E2E).
 - `auth`: `generate_token`, `extract_cookie` (unit). Ticket lifecycle (create/resolve/consume/attempts) — E2E (forged cookie, throttle, existing registration tests).
@@ -1699,7 +1944,7 @@ No "allow test mode in prod" override var, no warning-only fallback instead of r
 No new `#[allow(clippy::…)]` without a one-line WHY comment. No `#[cfg]` tokens inside `view!`. No `attr:`-prefixed attributes on native elements. Every new `pub fn` returning `Result` has a `# Errors` doc section (clippy pedantic `missing_errors_doc`).
 
 ### BANNED: scope creep
-No changes to: `request_otp` outcome enum, IP rate limiting, OTP hashing, Dockerfile, CI workflow, assignment generation, swap form markup, visual-audit captures (only the A40 comment text changes). Out-of-scope findings → report in DONE_WITH_CONCERNS, do not fix.
+No changes to: `request_otp` outcome enum, IP rate limiting, OTP hashing, Dockerfile, CI workflow, assignment generation, swap form markup (A1's `aria-busy` token is the only swap-form change), visual-audit captures (only the A40 comment text changes), `[patch.crates-io]` or any dependency version (T1). Out-of-scope findings → report in DONE_WITH_CONCERNS, do not fix.
 
 ## Definition of Done (per unit; binary)
 1. Every "What You Must Do" step applied; no step skipped or substituted.
@@ -1708,10 +1953,10 @@ No changes to: `request_otp` outcome enum, IP rate limiting, OTP hashing, Docker
 4. `.sqlx/` regenerated with `-- --features ssr` (U1, U3, U4) and committed; `SQLX_OFFLINE=true` clippy passes.
 5. E2E gate green 3 consecutive times via `scripts/isolated-capture.sh e2e_<unit> full`; new/changed titles listed as passed.
 6. `git status --short` clean after commit; exactly the unit's write-set files changed (`git diff --stat main...HEAD`).
-7. One-line conventional commit(s) in the worktree; report the SHA(s). Suggested messages: `fix(build): raise recursion_limit and make CI/E2E fail on build failure` (T0), `fix(auth): require server-side registration ticket for self-registration` (U1), `fix(config): confine test mode to dry-run SMS and loopback bind` (U2), `feat(admin): bootstrap first admin from env at startup` (U3), `fix(assignments): make swap a transactional position exchange and guard release` (U4).
+7. One-line conventional commit(s) in the worktree; report the SHA(s). Suggested messages: `fix(build): raise recursion_limit and make CI/E2E fail on build failure` (T0), `fix(build): unwind panics on the server so a task panic cannot kill it` (T1), `fix(a11y): emit bare aria-busy on admin submit buttons` (A1), `fix(auth): require server-side registration ticket for self-registration` (U1), `fix(config): confine test mode to dry-run SMS and loopback bind` (U2), `feat(admin): bootstrap first admin from env at startup` (U3), `fix(assignments): make swap a transactional position exchange and guard release` (U4).
 8. Report status: DONE / DONE_WITH_CONCERNS / BLOCKED with gate evidence. A gate failing twice → STOP and report BLOCKED (task, failing output, attempts).
 
-## Global Gates (orchestrator, on main after U2 integration)
+## Global Gates (orchestrator, on main after the last Wave B integration)
 ```bash
 SQLX_OFFLINE=true cargo build --no-default-features --features ssr --bin samete
 SQLX_OFFLINE=true cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate
@@ -1719,5 +1964,6 @@ SQLX_OFFLINE=true cargo clippy --no-default-features --features ssr -- -D warnin
 cargo test && SQLX_OFFLINE=true cargo test --features ssr
 bash scripts/isolated-capture.sh e2e_final full > /tmp/e2e_final.log 2>&1; echo "exit=$?"
 grep -rn "pending_phone\|SAMETE_TEST_MODE" src/ | grep -v "src/config.rs\|src/main.rs"
+grep -rn "attr:" src --include=*.rs | wc -l
 ```
-**REQUIRED:** both builds exit 0; clippy clean; tests ok; `exit=0` with `120 passed`, `2 skipped`, 0 failed (T0 baseline 116 + U1's 4 new tests); last grep zero matches.
+**REQUIRED:** both builds exit 0; clippy clean; tests ok; `exit=0` with `121 passed`, `2 skipped`, 0 failed (T0 baseline 116 + U1's 4 + A1's 1); the pending_phone/TEST_MODE grep has zero matches; the `attr:` count is `0`.
