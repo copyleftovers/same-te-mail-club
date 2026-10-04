@@ -1,11 +1,14 @@
-# Implementation Plan: Launch Blockers U1–U4
+# Implementation Plan: Launch Blockers T0, U1–U4
 
-HEAD at planning: `1a3c8a5`. Evidence: `readiness/d-ops.md` (F1/F2/F5), `readiness/g-authverify.md` (1b), `readiness/i-swapverify.md`, `readiness/a-scope.md` (3.3 rows). Every claim below re-verified against source at HEAD.
+**CANONICAL COPY:** `orchestration_log/history/2026-10-04/plans/PLAN-W1.md` (tracked). `orchestration_log/recon/2026-10-04/fix/PLAN.md` is a byte-identical mirror for convenience; if they ever differ, the tracked file wins — edit only the tracked file, then re-copy.
+
+HEAD at planning: `1a3c8a5`. Evidence: `readiness/l-toolchain.md` + `readiness/logs/l-*.log` (T0), `readiness/d-ops.md` (F1/F2/F5), `readiness/g-authverify.md` (1b), `readiness/i-swapverify.md`, `readiness/a-scope.md` (3.3 rows). Every claim below re-verified against source at HEAD.
 
 ## Preamble
 
 | Unit | Blocker | Verified at |
 |---|---|---|
+| T0 | HEAD does not build: SSR bin and wasm hydrate lib overflow rustc's default `recursion_limit` (128) at codegen. CI is false-green since 2026-07-10: Check never runs codegen; `cargo leptos end-to-end` exits 0 on build failure and skips Playwright. | `readiness/l-toolchain.md`; `src/main.rs:1`, `src/lib.rs:1-2` (no limit); `.github/workflows/ci.yml:39-56` (no build step), `:125` |
 | U1 | Self-registration skips OTP: `register_with_code` / `validate_invite_code` trust a raw, unsigned `pending_phone=<phone>` cookie. curl with any phone + one invite code creates the account. Invite redemption is unthrottled (~39,800-code space). | `src/pages/login.rs:208-219` (cookie = normalized phone), `:320-328`, `:391-399`, `:485-496` |
 | U2 | `SAMETE_TEST_MODE=true` = OTP `000000` for every phone incl. admin + OTP rate limit off. No boot guard. Read ad hoc at 5 sites. Undocumented. | `src/auth.rs:77,121`, `src/pages/home.rs:180,398,521`, `src/config.rs` (no check), `README.md:185-192` |
 | U3 | No production path to the first admin; invite codes require an admin to exist (circular). | `migrations/20260314000003…:5` (`distributor_id NOT NULL`), `src/admin/invite_codes.rs:90`, only admin insert = `seed/test_admin.sql` |
@@ -15,6 +18,7 @@ Story 3.3 (spec/technical/User Stories.md:228-241): "swap individual sender→re
 
 ## Design decisions (final — do not revisit)
 
+- **T0:** `#![recursion_limit = "256"]` in both crate roots (per-root attribute; 256 = rustc's suggested value, 192 also passes, 256 adds headroom). No toolchain pin (unpinned stable surfaced the defect; a pin hides it). Check job gains real codegen builds of the SSR bin and wasm lib. One guard script `scripts/assert-playwright-ran.sh` (fresh `end2end/results.json` with >0 executed tests and 0 failures) called by every `cargo leptos end-to-end` just recipe — CI's E2E job runs `just e2e-release`, so one home covers local and CI. `isolated-capture.sh` deletes the release artifacts before building and requires them after.
 - **U1:** Server-side `registration_tickets` table is the sole authority. On OTP success for an unknown phone the server inserts `(sha256(token), phone, expires_at = now()+10min, invite_attempts = 0)` and sets cookie `registration_ticket=<random 32-byte base64url token>`. The phone is read ONLY from the ticket row. Registration consumes the row (`DELETE … RETURNING phone`) inside the registration transaction. Throttle falls out of the same row: each invalid/used/revoked code submission increments `invite_attempts`; a ticket with `invite_attempts >= 5` resolves to nothing → user must re-verify via OTP (itself limited to 5/h/phone). No U1b.
 - **U2:** `Config.sms: SmsMode { Live{token,sender} | DryRun{test_mode} }` — test mode is unrepresentable with live SMS. Boot refuses `SAMETE_TEST_MODE=true` without `SAMETE_SMS_DRY_RUN=true`, and refuses test mode on a non-loopback bind address (prod container binds `0.0.0.0`; `just e2e`, CI, `isolated-capture.sh`, `just dev` all bind `127.0.0.1`). All 5 env reads replaced by `Config::test_mode()`.
 - **U3:** Idempotent startup bootstrap from `SAMETE_ADMIN_PHONE` + `SAMETE_ADMIN_NAME` (both or neither; phone normalized via `phone::normalize`; invalid → boot refuses). Upsert: insert admin, or promote existing user with that phone to admin. Documented in README + `.env.example`.
@@ -24,6 +28,7 @@ Story 3.3 (spec/technical/User Stories.md:228-241): "swap individual sender→re
 
 | Unit | Files written |
 |---|---|
+| T0 | `src/main.rs`, `src/lib.rs`, `scripts/assert-playwright-ran.sh` (new), `scripts/isolated-capture.sh`, `justfile`, `.github/workflows/ci.yml` |
 | U1 | `migrations/20261004000001_registration_tickets.sql` (new), `src/auth.rs`, `src/pages/login.rs`, `.sqlx/*`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/mail_club.spec.ts` |
 | U2 | `src/config.rs`, `src/main.rs`, `src/sms.rs`, `src/auth.rs`, `src/pages/login.rs`, `src/pages/home.rs`, `README.md`, `.env.example` |
 | U3 | `src/config.rs`, `src/main.rs`, `src/db.rs`, `.sqlx/*`, `README.md`, `.env.example` |
@@ -32,7 +37,8 @@ Story 3.3 (spec/technical/User Stories.md:228-241): "swap individual sender→re
 Overlaps: U1∩U2 = `auth.rs`, `login.rs`. U2∩U3 = `config.rs`, `main.rs`, `README.md`, `.env.example`. U1∩U4 = POM + `mail_club.spec.ts` (disjoint regions: Epic 1 vs Epic 3 / invite vs assignment POM sections) + `.sqlx/` (distinct query files). U3∩U1/U4 = `.sqlx/` only.
 
 **Order:**
-- **Wave A (parallel, three worktrees from main):** U1, U3, U4.
+- **Wave 0:** T0 alone, integrated to main BEFORE any U-unit worktree is created (every U-unit's build and E2E gate depend on it). T0∩U2/U3 = `src/main.rs` (T0 adds lines 1–6 only; U2/U3 branch from post-T0 main, no conflict).
+- **Wave A (parallel, three worktrees from post-T0 main):** U1, U3, U4.
 - **Integrate wave A** in order U4 → U3 → U1 (each: rebase onto updated main; textual conflicts in `.sqlx/` or test files → resolve, then re-run that unit's sqlx regeneration + all gates).
 - **Wave B:** U2, branched from main AFTER U1 and U3 are integrated (U2 edits the post-U1 `auth.rs`/`login.rs` and post-U3 `config.rs`/`main.rs`/`README.md`/`.env.example`).
 - After the last integration, the orchestrator runs the Global Gates on main.
@@ -67,19 +73,214 @@ Standard gates (run from the worktree root, in this order, after the unit's last
 cargo fmt --all -- --check
 SQLX_OFFLINE=true cargo clippy --features ssr --no-default-features -- -D warnings
 SQLX_OFFLINE=true cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings
+SQLX_OFFLINE=true cargo build --no-default-features --features ssr --bin samete
+SQLX_OFFLINE=true cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate
 cargo test 2>&1 | grep -E "^test result"
 SQLX_OFFLINE=true cargo test --features ssr 2>&1 | grep -E "^test result"
 ```
-**REQUIRED OUTPUT:** fmt prints nothing, exit 0. Both clippy runs end with `Finished` and contain zero `warning:`/`error:` lines. Every `test result:` line reads `ok.` with `0 failed`.
+**REQUIRED OUTPUT:** fmt prints nothing, exit 0. Both clippy runs and both builds end with `Finished` and contain zero `warning:`/`error:` lines. Every `test result:` line reads `ok.` with `0 failed`.
+
+E2E container recipe (this cloud container; verified by the readiness E2E agent — apply before any E2E command):
+```bash
+# Playwright 1.58 expects the chrome-headless-shell layout; /opt/pw-browsers lacks it.
+# A shim dir with chromium_headless_shell-1208 (+ ffmpeg symlink) already exists:
+export PLAYWRIGHT_BROWSERS_PATH=/tmp/claude-0/-home-user-same-te-mail-club/eeccd659-50b4-54c7-87fc-f4a8a8b2e54c/scratchpad/pwb
+ls "$PLAYWRIGHT_BROWSERS_PATH"            # REQUIRED: chromium_headless_shell-1208  ffmpeg-1011
+# cargo-leptos runs the musl tailwind binary, which does not execute here; it was
+# replaced by the glibc build. Verify (re-apply with the cp if the check fails):
+TW=/root/.cache/cargo-leptos/tailwindcss-v4.2.1/tailwindcss-v4.2.1
+cmp -s "$TW/tailwindcss-linux-x64" "$TW/tailwindcss-linux-x64-musl" && echo tailwind-shim-ok \
+  || cp "$TW/tailwindcss-linux-x64" "$TW/tailwindcss-linux-x64-musl"
+```
+Never run `npx playwright install`. Baseline for `bash scripts/isolated-capture.sh <suffix> full` on post-T0 main: **116 passed, 2 skipped, 0 failed** — U-unit E2E counts are relative to this.
 
 E2E gate (isolated harness — own port + own DB `samete_e2e_<unit>`; requires release build; run in background, output to file, never pipe through `tail`/`head`):
 ```bash
-export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+# PLAYWRIGHT_BROWSERS_PATH + tailwind shim from the container recipe above
 [ -d end2end/node_modules ] || (cd end2end && npm ci)
 bash scripts/isolated-capture.sh e2e_<unit> full > /tmp/e2e_<unit>.log 2>&1; echo "exit=$?" >> /tmp/e2e_<unit>.log
 grep -E "exit=|[0-9]+ (passed|failed|flaky|skipped)" /tmp/e2e_<unit>.log
 ```
 **REQUIRED OUTPUT:** `exit=0`; a `N passed` line; NO `failed` line; NO `flaky` line; `2 skipped`. Every new/changed test title named in the unit appears with a pass mark in the list output (`grep -F "<title>" /tmp/e2e_<unit>.log`). If `orchestration_log/recon/2026-10-04/readiness/f-e2e.md` exists and records a different working recipe for this container, use that recipe's environment deltas (e.g. browser path) — the pass criteria above stay identical. Stability: run the E2E gate 3 times; all 3 must meet the criteria.
+
+---
+
+# T0 — Build actually compiles; CI and harnesses cannot go false-green (RUNS FIRST)
+
+## Why This Matters
+HEAD does not build. `cargo build` of the SSR bin and of the wasm hydrate lib fail with `error: queries overflow the depth limit!` (rustc default `recursion_limit` 128 exceeded by layout of Leptos `into_any` async blocks; trigger commit `ee816fd`; reproduced on rustc 1.97.0/1.97.1/1.99.0 — `readiness/l-toolchain.md`, `readiness/logs/l-debug-bin-1.99.0.log`, `l-wasm-lib-debug-1.99.0.log`). `cargo clippy`/`cargo test` never run codegen, so the Check job stays green. `cargo leptos end-to-end` exits 0 on build failure and skips Playwright, so the E2E job has reported success with zero tests since 2026-07-10 (runs 29118276831 … 30162383205). Every later unit's E2E gate depends on a build that works and a harness that cannot lie.
+
+## What You Must Do
+
+### T0.1 `src/main.rs` — line 1, before `#[cfg(feature = "ssr")]`
+```rust
+// WHY: rustc lays out Leptos `into_any` async blocks during codegen; the login view
+// tree instantiated by this bin exceeds the default limit of 128 ("queries overflow the
+// depth limit!", depth +130 on rustc 1.97–1.99). 256 = rustc's own suggested value
+// (192 also passes; 256 leaves headroom for view growth). The limit is per crate root:
+// the lib needs its own (src/lib.rs).
+#![recursion_limit = "256"]
+```
+
+### T0.2 `src/lib.rs` — line 1, before the existing `// Leptos components return views…` comment
+```rust
+// WHY: the wasm `hydrate` export instantiates `into_any::hydrate_async` over deep admin
+// views (invite-code list); layout depth exceeds the default limit of 128. Same value
+// and reason as src/main.rs (separate crate root, separate limit).
+#![recursion_limit = "256"]
+```
+No other change to either file.
+
+### T0.3 `scripts/assert-playwright-ran.sh` (new, `chmod +x`)
+```bash
+#!/usr/bin/env bash
+# Fail unless Playwright actually ran during this E2E invocation.
+#
+# WHY: `cargo leptos end-to-end` exits 0 when the cargo build fails and then never
+# starts Playwright — CI was false-green from 2026-07-10 to 2026-07-25 with zero
+# tests executed. Playwright's JSON reporter (end2end/playwright.config.ts) writes
+# end2end/results.json on every run; a fresh file with >0 executed tests is the proof.
+#
+# Usage (from repo root): scripts/assert-playwright-ran.sh <start-marker>
+#   <start-marker> — a file touched BEFORE the E2E command started.
+set -euo pipefail
+
+marker="${1:?usage: scripts/assert-playwright-ran.sh <start-marker>}"
+results="end2end/results.json"
+
+[ -f "$results" ] \
+    || { echo "FATAL: $results missing — Playwright never ran (build failure?)"; exit 1; }
+[ "$results" -nt "$marker" ] \
+    || { echo "FATAL: $results predates this run — Playwright never ran (build failure?)"; exit 1; }
+
+node -e '
+const s = require(process.argv[1]).stats;
+console.log(`playwright ran: expected=${s.expected} unexpected=${s.unexpected} flaky=${s.flaky} skipped=${s.skipped}`);
+if (s.expected + s.unexpected + s.flaky === 0) {
+    console.error("FATAL: Playwright executed 0 tests");
+    process.exit(1);
+}
+if (s.unexpected > 0) {
+    console.error("FATAL: Playwright reported failures");
+    process.exit(1);
+}
+' "$PWD/$results"
+```
+
+### T0.4 `justfile` — guard every `cargo leptos end-to-end` recipe
+Each of `e2e-dev`, `e2e-single`, `e2e-rerun`, `e2e-release` gets one line before and one line after its `cargo leptos end-to-end …` line (the end-to-end line itself is unchanged). Exact final form of `e2e-release` (apply the same two lines to the other three):
+```just
+e2e-release: _kill-stale db-reset db-seed
+    mkdir -p target && touch target/e2e-start.marker
+    SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
+    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+```
+Add above `e2e: e2e-release` a comment line: `# All end-to-end recipes assert Playwright actually ran: cargo leptos end-to-end exits 0 on build failure.`
+
+### T0.5 `.github/workflows/ci.yml`
+1. Check job: insert directly after the step `cargo clippy (hydrate / WASM)` (features match `[package.metadata.leptos]` `bin-features = ["ssr"]`, `bin-default-features = false`, `lib-features = ["hydrate"]`):
+```yaml
+      # clippy/test never run codegen, so recursion/layout overflows in Leptos views
+      # only surface in a real build (see src/main.rs recursion_limit WHY).
+      - name: cargo build (SSR bin — codegen)
+        run: cargo build --no-default-features --features ssr --bin samete
+
+      - name: cargo build (hydrate lib, wasm — codegen)
+        run: cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate
+```
+2. E2E job: the step `Run E2E tests (release)` stays `run: just e2e-release` — the guard lives in the recipe (T0.4), one home for local and CI. Do NOT add a second copy of the check in ci.yml.
+
+### T0.6 `scripts/isolated-capture.sh` — stale-binary blind spot
+The harness runs Playwright directly (exit code already propagates; screenshot floor exists), but it serves whatever `target/release/samete` exists: if `cargo leptos build --release` fails without a non-zero exit, a stale binary from an earlier build would be tested. Replace the line `cargo leptos build --release` with:
+```bash
+# Remove the artifacts first so a failed build cannot leave a stale binary/WASM to be
+# served: cargo leptos has been observed to exit 0 on cargo build failure.
+rm -f target/release/samete target/site/pkg/samete.wasm
+cargo leptos build --release
+[ -x target/release/samete ] && [ -f target/site/pkg/samete.wasm ] \
+    || { echo "[isolated-capture] FATAL: release build produced no binary/WASM — build failed"; exit 1; }
+```
+
+## Verification Gates (T0)
+Build gates (the CI Check steps, run exactly):
+```bash
+SQLX_OFFLINE=true cargo build --no-default-features --features ssr --bin samete > /tmp/t0-bin.log 2>&1; echo "exit=$?"
+SQLX_OFFLINE=true cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate > /tmp/t0-wasm.log 2>&1; echo "exit=$?"
+grep -c "overflow the depth limit" /tmp/t0-bin.log /tmp/t0-wasm.log
+```
+**REQUIRED OUTPUT:** `exit=0`, `exit=0`, both counts `0`.
+```bash
+grep -n "recursion_limit" src/main.rs src/lib.rs
+```
+**REQUIRED:** exactly `src/main.rs:6:#![recursion_limit = "256"]` and `src/lib.rs:4:#![recursion_limit = "256"]` (line numbers after the WHY comments above).
+```bash
+grep -c "assert-playwright-ran.sh target/e2e-start.marker" justfile
+grep -c "touch target/e2e-start.marker" justfile
+grep -c "cargo leptos end-to-end" justfile
+```
+**REQUIRED:** `4`, `4`, `4`.
+```bash
+grep -n "cargo build --no-default-features --features ssr --bin samete\|cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate\|just e2e-release" .github/workflows/ci.yml
+```
+**REQUIRED:** exactly three matches (two in the Check job, `just e2e-release` once in the E2E job).
+```bash
+python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml'))" && echo yaml-ok
+```
+**REQUIRED:** `yaml-ok`.
+Standard gates (Shared environment).
+
+Positive E2E gates (both paths, after T0.1–T0.6):
+1. Isolated harness: the E2E gate from Shared environment with `<unit>=t0`. **REQUIRED:** `exit=0`, `116 passed`, `2 skipped`, no `failed`/`flaky`.
+2. end-to-end path with the guard, on an own port and own DB (do NOT use `just e2e*`: they kill :3000 and reset `samete`):
+```bash
+export T0DB=postgres://samete:samete@localhost:5432/samete_t0e2e
+DATABASE_URL=$T0DB sqlx database drop -y; DATABASE_URL=$T0DB sqlx database create
+DATABASE_URL=$T0DB sqlx migrate run && psql $T0DB -f seed/test_admin.sql
+mkdir -p target && touch target/e2e-start.marker
+DATABASE_URL=$T0DB LEPTOS_SITE_ADDR=127.0.0.1:3961 CAPTURE_BASE_URL=http://127.0.0.1:3961 \
+  SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true \
+  cargo leptos end-to-end --release > /tmp/t0-e2e-pos.log 2>&1
+bash scripts/assert-playwright-ran.sh target/e2e-start.marker; echo "guard=$?"
+DATABASE_URL=$T0DB sqlx database drop -y
+```
+**REQUIRED:** `playwright ran: expected=116 unexpected=0 flaky=0 skipped=2` (if the line reports a different `expected` with `unexpected=0`, paste it — the isolated-harness count above is the authority) and `guard=0`.
+
+Sabotage gates (prove each guard turns RED on a broken build; run AFTER committing T0 so the revert is `git checkout`):
+```bash
+sed -i '/^#!\[recursion_limit/d' src/main.rs src/lib.rs     # reintroduce the real defect
+git diff --stat                                              # must show src/main.rs, src/lib.rs
+```
+(a) CI Check steps:
+```bash
+SQLX_OFFLINE=true cargo build --no-default-features --features ssr --bin samete > /tmp/t0-sab-bin.log 2>&1; echo "exit=$?"
+SQLX_OFFLINE=true cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate > /tmp/t0-sab-wasm.log 2>&1; echo "exit=$?"
+grep -c "overflow the depth limit" /tmp/t0-sab-bin.log /tmp/t0-sab-wasm.log
+```
+**REQUIRED:** `exit=101`, `exit=101`, both counts ≥ `1`.
+(b) end-to-end guard (the CI E2E path):
+```bash
+touch target/e2e-start.marker
+SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true DATABASE_URL=postgres://unused LEPTOS_SITE_ADDR=127.0.0.1:3962 \
+  cargo leptos end-to-end --release > /tmp/t0-sab-e2e.log 2>&1; echo "leptos_exit=$?"
+bash scripts/assert-playwright-ran.sh target/e2e-start.marker; echo "guard=$?"
+```
+**REQUIRED:** `leptos_exit=0` is acceptable (that is the defect being guarded), the guard prints `FATAL: end2end/results.json predates this run — Playwright never ran (build failure?)` (or `… missing …`), and `guard=1`.
+(c) isolated harness:
+```bash
+bash scripts/isolated-capture.sh t0sab full > /tmp/t0-sab-iso.log 2>&1; echo "exit=$?"
+grep -c "release build produced no binary/WASM" /tmp/t0-sab-iso.log
+```
+**REQUIRED:** `exit=` non-zero and count `1` (or the build step itself exits non-zero first; then paste the failing line — either way exit ≠ 0 and no Playwright line `passed` appears: `grep -c " passed" /tmp/t0-sab-iso.log` = `0`).
+Revert and prove clean:
+```bash
+git checkout -- src/main.rs src/lib.rs
+git status --short
+grep -c "recursion_limit" src/main.rs src/lib.rs
+```
+**REQUIRED:** `git status --short` prints nothing; counts `1` and `1`. Then rerun the T0 build gates once more: `exit=0`, `exit=0`.
+
+## T0 Definition of Done (in addition to the common DoD)
+Commit message: `fix(build): raise recursion_limit and make CI/E2E fail on build failure`. Write-set exactly: `src/main.rs`, `src/lib.rs`, `scripts/assert-playwright-ran.sh` (new), `scripts/isolated-capture.sh`, `justfile`, `.github/workflows/ci.yml`. Report all sabotage outputs verbatim.
 
 ---
 
@@ -1507,14 +1708,16 @@ No changes to: `request_otp` outcome enum, IP rate limiting, OTP hashing, Docker
 4. `.sqlx/` regenerated with `-- --features ssr` (U1, U3, U4) and committed; `SQLX_OFFLINE=true` clippy passes.
 5. E2E gate green 3 consecutive times via `scripts/isolated-capture.sh e2e_<unit> full`; new/changed titles listed as passed.
 6. `git status --short` clean after commit; exactly the unit's write-set files changed (`git diff --stat main...HEAD`).
-7. One-line conventional commit(s) in the worktree; report the SHA(s). Suggested messages: `fix(auth): require server-side registration ticket for self-registration` (U1), `fix(config): confine test mode to dry-run SMS and loopback bind` (U2), `feat(admin): bootstrap first admin from env at startup` (U3), `fix(assignments): make swap a transactional position exchange and guard release` (U4).
+7. One-line conventional commit(s) in the worktree; report the SHA(s). Suggested messages: `fix(build): raise recursion_limit and make CI/E2E fail on build failure` (T0), `fix(auth): require server-side registration ticket for self-registration` (U1), `fix(config): confine test mode to dry-run SMS and loopback bind` (U2), `feat(admin): bootstrap first admin from env at startup` (U3), `fix(assignments): make swap a transactional position exchange and guard release` (U4).
 8. Report status: DONE / DONE_WITH_CONCERNS / BLOCKED with gate evidence. A gate failing twice → STOP and report BLOCKED (task, failing output, attempts).
 
 ## Global Gates (orchestrator, on main after U2 integration)
 ```bash
+SQLX_OFFLINE=true cargo build --no-default-features --features ssr --bin samete
+SQLX_OFFLINE=true cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate
 SQLX_OFFLINE=true cargo clippy --no-default-features --features ssr -- -D warnings
 cargo test && SQLX_OFFLINE=true cargo test --features ssr
 bash scripts/isolated-capture.sh e2e_final full > /tmp/e2e_final.log 2>&1; echo "exit=$?"
 grep -rn "pending_phone\|SAMETE_TEST_MODE" src/ | grep -v "src/config.rs\|src/main.rs"
 ```
-**REQUIRED:** clippy clean; tests ok; `exit=0` with 0 failed (baseline + 4 passed); last grep zero matches.
+**REQUIRED:** both builds exit 0; clippy clean; tests ok; `exit=0` with `120 passed`, `2 skipped`, 0 failed (T0 baseline 116 + U1's 4 new tests); last grep zero matches.
