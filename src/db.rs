@@ -27,3 +27,27 @@ pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
 pub async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::migrate::MigrateError> {
     sqlx::migrate!().run(pool).await
 }
+
+/// Ensure the configured first admin exists: insert it, or promote the
+/// existing user with that phone to admin. Idempotent; runs at every boot.
+///
+/// # Errors
+///
+/// Returns `Err` on database failure.
+pub async fn ensure_admin(
+    pool: &PgPool,
+    admin: &crate::config::AdminBootstrap,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        INSERT INTO users (phone, name, role, onboarded)
+        VALUES ($1, $2, 'admin', true)
+        ON CONFLICT (phone) DO UPDATE SET role = 'admin'
+        "#,
+        admin.phone,
+        admin.name,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
