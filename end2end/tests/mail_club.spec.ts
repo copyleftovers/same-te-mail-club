@@ -36,6 +36,8 @@ const EXTRA_PHONES = {
   INVALID_CODE_TEST: "+380670000005",
   USED_CODE_TEST: "+380670000006",
   REVOKED_CODE_TEST: "+380670000007",
+  FORGED_COOKIE_TEST: "+380670000008",
+  THROTTLE_TEST: "+380670000009",
 };
 
 const NAMES = {
@@ -61,12 +63,20 @@ const SEASON_THEME = "Перший сезон";
 // Invite codes generated during the test run.
 // Populated in "1.5 — admin generates invite codes" and consumed by subsequent
 // self-registration and rejection tests. Module-level so serial tests share state.
-const CODES: { A: string; B: string; C: string; DEACTIVATE: string; REVOKED: string } = {
+const CODES: {
+  A: string;
+  B: string;
+  C: string;
+  DEACTIVATE: string;
+  REVOKED: string;
+  FORGE: string;
+} = {
   A: "",
   B: "",
   C: "",
   DEACTIVATE: "",
   REVOKED: "",
+  FORGE: "",
 };
 
 test.describe.serial("The Mail Club", () => {
@@ -171,6 +181,47 @@ test.describe.serial("The Mail Club", () => {
       // Code was already used — must show error.
       await expect(page.getByTestId("invite-code-error")).toBeVisible();
       await expect(page.getByTestId("legal-name-input")).not.toBeVisible();
+    });
+
+    test("setup — generate invite code for registration-security tests", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      CODES.FORGE = await app.generateInviteCode();
+      expect(CODES.FORGE.length).toBeGreaterThan(0);
+    });
+
+    // Story 1.1 security AC: registration requires a server-verified OTP for that phone
+    test("1.1 — forged registration cookie cannot create an account", async ({ page, request }) => {
+      const app = new MailClubPage(page);
+      const setCookie = await app.forgeRegistration(request, EXTRA_PHONES.FORGED_COOKIE_TEST, CODES.FORGE);
+      expect(setCookie).not.toMatch(/session=[^;]+/);
+      // The phone is still unregistered: a real OTP verify routes it to the invite step.
+      await app.reachInviteCodeStep(EXTRA_PHONES.FORGED_COOKIE_TEST);
+      await expect(page.getByTestId("invite-code-step")).toBeVisible();
+      // The code was not consumed.
+      await app.login(ADMIN_PHONE);
+      await app.expectInviteCodeStatus(CODES.FORGE, "unused");
+    });
+
+    // Story 1.1 security AC: invite-code guessing is throttled per OTP verification
+    test("1.1 — invite code attempts are throttled per verification", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.reachInviteCodeStep(EXTRA_PHONES.THROTTLE_TEST);
+      for (let i = 0; i < 5; i++) {
+        await app.submitInviteCode(`wrong-guess-${i}`);
+        await expect(page.getByTestId("invite-code-error")).not.toBeEmpty();
+      }
+      // A valid unused code is now refused: the ticket is exhausted.
+      await app.submitInviteCode(CODES.FORGE);
+      await expect(page.getByTestId("invite-code-error")).toContainText("Почни спочатку");
+      await expect(page.getByTestId("legal-name-input")).not.toBeVisible();
+    });
+
+    test("setup — revoke registration-security invite code", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      await app.revokeInviteCode(CODES.FORGE);
+      await app.expectInviteCodeStatus(CODES.FORGE, "revoked");
     });
 
     // Story 1.2: Sign in with phone number

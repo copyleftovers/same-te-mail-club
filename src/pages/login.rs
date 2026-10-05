@@ -115,9 +115,9 @@ pub async fn request_otp(phone: String) -> Result<RequestOtpOutcome, ServerFnErr
 /// - Account exists but deactivated → redirect to `/login` silently (no cookie set).
 ///   The user sees the login page with no indication of why — prevents phone enumeration
 ///   from the invite-code registration path.
-/// - No account → set a short-lived `pending_phone` cookie (HttpOnly, 5 min)
-///   containing the verified phone, redirect to `/login` so the UI can show
-///   the invite code step
+/// - No account → store a registration ticket server-side, set the opaque
+///   `registration_ticket` cookie (HttpOnly, 10 min), redirect to `/login?pending=1`
+///   so the UI can show the invite code step
 ///
 /// Uses `leptos_axum::redirect` so the browser follows the 302 — this works
 /// for both native form POST (before WASM) and `ActionForm` (after WASM,
@@ -148,9 +148,9 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
     // OTP valid. Now check for any existing user row (any status) for this phone.
     // We must distinguish three cases:
     //   1. Active user → create session, redirect to home/admin
-    //   2. Deactivated user → redirect to /login without setting pending_phone cookie
+    //   2. Deactivated user → redirect to /login without issuing a registration ticket
     //      (prevents leaking that the phone exists via the invite-code error path)
-    //   3. Unknown phone → set pending_phone cookie, redirect to /login for invite step
+    //   3. Unknown phone → issue registration ticket, redirect to /login for invite step
     let existing_status: Option<String> = sqlx::query_scalar!(
         r#"SELECT status::TEXT FROM users WHERE phone = $1"#,
         normalized,
@@ -197,7 +197,7 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
             Ok(true)
         }
         Some(_) => {
-            // Deactivated user — redirect silently without setting pending_phone.
+            // Deactivated user — redirect silently without issuing a registration ticket.
             // This prevents a deactivated phone from entering the invite-code
             // registration path, which would hit a UNIQUE constraint and reveal
             // that the phone was already registered.
@@ -205,13 +205,14 @@ pub async fn verify_otp_code(phone: String, code: String) -> Result<bool, Server
             Ok(false)
         }
         None => {
-            // Unknown phone — set pending_phone HttpOnly cookie (server-side auth token
-            // for validate_invite_code and register_with_code) AND redirect to
-            // /login?pending=1 (client-side signal for UI routing). Dual mechanism:
-            // cookie = security, query param = UI.
+            // Unknown phone passed OTP: record server-side proof and hand the
+            // client an opaque token. The phone is never read back from the client.
+            let raw_ticket = auth::create_registration_ticket(&pool, &normalized)
+                .await
+                .map_err(|e| ServerFnError::new(e.to_string()))?;
             let response_options =
                 leptos::prelude::expect_context::<leptos_axum::ResponseOptions>();
-            let cookie = set_cookie_header("pending_phone", &normalized, 300);
+            let cookie = set_cookie_header(REGISTRATION_COOKIE, &raw_ticket, 600);
             response_options.append_header(
                 axum::http::header::SET_COOKIE,
                 axum::http::HeaderValue::from_str(&cookie)
@@ -292,7 +293,7 @@ async fn verify_otp_for_phone(pool: &sqlx::PgPool, phone: &str, code: &str) -> R
 
 /// Validate an invite code without redeeming it.
 ///
-/// Checks that the `pending_phone` cookie exists (phone was OTP-verified) and
+/// Checks that the registration ticket (phone was OTP-verified) is live and
 /// that the given code exists in `invite_codes` with status `'unused'`.
 ///
 /// This is an advisory check — it provides early UX feedback so the user
@@ -305,7 +306,7 @@ async fn verify_otp_for_phone(pool: &sqlx::PgPool, phone: &str, code: &str) -> R
 /// # Errors
 ///
 /// Returns `Err` if:
-/// - the `pending_phone` cookie is absent (phone not OTP-verified)
+/// - the ticket is unknown, expired, or exhausted (5 invalid codes)
 /// - the code is empty
 /// - no `invite_codes` row matches the code
 /// - the matching code is not in `'unused'` status
@@ -317,15 +318,14 @@ pub async fn validate_invite_code(code: String) -> Result<String, ServerFnError>
     let pool = leptos::context::use_context::<sqlx::PgPool>()
         .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
 
-    // Require that the phone was OTP-verified (pending_phone cookie present)
     let parts = leptos::context::use_context::<http::request::Parts>()
         .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-    if extract_pending_phone_cookie(&parts).is_none() {
-        return Err(ServerFnError::new(td_string!(
-            Locale::uk,
-            auth_phone_not_verified
-        )));
-    }
+    let not_verified = || ServerFnError::new(td_string!(Locale::uk, auth_phone_not_verified));
+    let ticket =
+        crate::auth::extract_cookie(&parts, REGISTRATION_COOKIE).ok_or_else(not_verified)?;
+    crate::auth::registration_ticket_phone(&pool, &ticket)
+        .await
+        .map_err(|_| not_verified())?;
 
     let code = code.trim().to_owned();
     if code.is_empty() {
@@ -343,33 +343,29 @@ pub async fn validate_invite_code(code: String) -> Result<String, ServerFnError>
     .await
     .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
 
-    match status {
-        None => Err(ServerFnError::new(td_string!(
-            Locale::uk,
-            auth_invite_code_invalid
-        ))),
-        Some(InviteCodeStatus::Used) => Err(ServerFnError::new(td_string!(
-            Locale::uk,
-            auth_invite_code_used
-        ))),
-        Some(InviteCodeStatus::Revoked) => Err(ServerFnError::new(td_string!(
-            Locale::uk,
-            auth_invite_code_revoked
-        ))),
-        Some(InviteCodeStatus::Unused) => Ok(code),
-    }
+    let rejection = match status {
+        Some(InviteCodeStatus::Unused) => return Ok(code),
+        None => td_string!(Locale::uk, auth_invite_code_invalid),
+        Some(InviteCodeStatus::Used) => td_string!(Locale::uk, auth_invite_code_used),
+        Some(InviteCodeStatus::Revoked) => td_string!(Locale::uk, auth_invite_code_revoked),
+    };
+    crate::auth::record_failed_invite_attempt(&pool, &ticket)
+        .await
+        .map_err(crate::error::AppError::into_server_fn_error)?;
+    Err(ServerFnError::new(rejection))
 }
 
 /// Complete self-registration using an invite code.
 ///
 /// Atomically:
-/// 1. Reads the `pending_phone` cookie (set by `verify_otp_code` on new-phone verify)
+/// 1. Consumes the registration ticket (issued by `verify_otp_code` on new-phone verify)
+///    and takes the OTP-verified phone from it
 /// 2. Locks the invite code row (`SELECT ... FOR UPDATE`)
 /// 3. Verifies it is unused
 /// 4. Inserts the new user (with the OTP-verified phone and provided name)
 /// 5. Marks the code as used with redeemer + timestamp
 /// 6. Creates a session and sets the session cookie
-/// 7. Clears the `pending_phone` cookie
+/// 7. Clears the `registration_ticket` cookie
 /// 8. Redirects to `/onboarding`
 ///
 /// On error: redirects back to `/login?pending=1` (user retries).
@@ -380,7 +376,7 @@ pub async fn validate_invite_code(code: String) -> Result<String, ServerFnError>
 /// All outcomes are redirects — the function never returns errors to the client.
 #[server(RegisterWithCode)]
 pub async fn register_with_code(code: String, name: String) -> Result<(), ServerFnError> {
-    use crate::{auth, phone as phone_mod};
+    use crate::auth;
 
     let pool = leptos::context::use_context::<sqlx::PgPool>()
         .ok_or_else(|| ServerFnError::new("no database pool in context"))?;
@@ -388,12 +384,7 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
     let parts = leptos::context::use_context::<http::request::Parts>()
         .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
 
-    let Some(pending_phone) = extract_pending_phone_cookie(&parts) else {
-        leptos_axum::redirect("/login");
-        return Ok(());
-    };
-
-    let Ok(normalized) = phone_mod::normalize(&pending_phone) else {
+    let Some(ticket) = auth::extract_cookie(&parts, REGISTRATION_COOKIE) else {
         leptos_axum::redirect("/login");
         return Ok(());
     };
@@ -404,31 +395,36 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
         return Ok(());
     }
 
-    // Atomically lock code, create user, mark code used
     let Ok(mut tx) = pool.begin().await else {
         leptos_axum::redirect("/login?pending=1");
         return Ok(());
     };
 
-    let Ok(Some(code_row)) = sqlx::query!(
+    // The phone comes ONLY from the server-side ticket. Consumed in this tx;
+    // any early return drops the tx, rolling the ticket back.
+    let Ok(phone) = auth::consume_registration_ticket(&mut tx, &ticket).await else {
+        leptos_axum::redirect("/login");
+        return Ok(());
+    };
+
+    let code_row = sqlx::query!(
         r#"SELECT id, status AS "status: String" FROM invite_codes WHERE code = $1 FOR UPDATE"#,
         code,
     )
     .fetch_optional(&mut *tx)
-    .await
-    else {
+    .await;
+    let Ok(Some(code_row)) = code_row.map(|row| row.filter(|r| r.status == "unused")) else {
+        drop(tx);
+        if let Err(e) = auth::record_failed_invite_attempt(&pool, &ticket).await {
+            tracing::warn!(error = %e, "failed to record invite attempt");
+        }
         leptos_axum::redirect("/login?pending=1");
         return Ok(());
     };
 
-    if code_row.status != "unused" {
-        leptos_axum::redirect("/login?pending=1");
-        return Ok(());
-    }
-
     let Ok(user_id) = sqlx::query_scalar!(
         r#"INSERT INTO users (phone, name) VALUES ($1, $2) RETURNING id"#,
-        normalized,
+        phone,
         name,
     )
     .fetch_one(&mut *tx)
@@ -438,15 +434,22 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
         return Ok(());
     };
 
-    let _ = sqlx::query!(
+    let Ok(_) = sqlx::query!(
         r#"UPDATE invite_codes SET status = 'used', redeemer_id = $1, redeemed_at = now() WHERE id = $2"#,
         user_id,
         code_row.id,
     )
     .execute(&mut *tx)
-    .await;
+    .await
+    else {
+        leptos_axum::redirect("/login?pending=1");
+        return Ok(());
+    };
 
-    let _ = tx.commit().await;
+    let Ok(()) = tx.commit().await else {
+        leptos_axum::redirect("/login?pending=1");
+        return Ok(());
+    };
 
     let Ok(raw_token) = auth::create_session(&pool, user_id).await else {
         leptos_axum::redirect("/login");
@@ -462,7 +465,7 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
             .map_err(|e| ServerFnError::new(format!("invalid cookie: {e}")))?,
     );
 
-    let clear_cookie = set_cookie_header("pending_phone", "", 0);
+    let clear_cookie = set_cookie_header(REGISTRATION_COOKIE, "", 0);
     () = response_options.append_header(
         axum::http::header::SET_COOKIE,
         axum::http::HeaderValue::from_str(&clear_cookie)
@@ -473,6 +476,10 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
     Ok(())
 }
 
+/// Cookie carrying the opaque registration-ticket token (never the phone).
+#[cfg(feature = "ssr")]
+const REGISTRATION_COOKIE: &str = "registration_ticket";
+
 /// Build a `Set-Cookie` header value with the project's standard attributes.
 ///
 /// All cookies in this module share `HttpOnly; Secure; SameSite=Strict; Path=/`.
@@ -480,34 +487,6 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
 #[cfg(feature = "ssr")]
 fn set_cookie_header(name: &str, value: &str, max_age: u32) -> String {
     format!("{name}={value}; HttpOnly; Secure; SameSite=Strict; Max-Age={max_age}; Path=/")
-}
-
-/// Extract the `pending_phone` cookie value from request parts.
-#[cfg(feature = "ssr")]
-fn extract_pending_phone_cookie(parts: &http::request::Parts) -> Option<String> {
-    let cookie_header = parts.headers.get(http::header::COOKIE)?.to_str().ok()?;
-    for pair in cookie_header.split(';') {
-        let pair = pair.trim();
-        if let Some(value) = pair.strip_prefix("pending_phone=") {
-            return Some(value.to_owned());
-        }
-    }
-    None
-}
-
-/// Check whether the current request has a `pending_phone` cookie set,
-/// indicating the user has verified their phone but not yet completed registration.
-///
-/// This is called as a server Resource on page load so the login page can
-/// render the correct initial step during SSR.
-#[server(CheckPendingRegistration)]
-// `async` is required by the `#[server]` macro even though this function has no
-// await points — the macro generates an async trait impl that requires it.
-#[allow(clippy::unused_async)]
-pub async fn check_pending_registration() -> Result<bool, ServerFnError> {
-    let parts = leptos::context::use_context::<http::request::Parts>()
-        .ok_or_else(|| ServerFnError::new("no request parts in context"))?;
-    Ok(extract_pending_phone_cookie(&parts).is_some())
 }
 
 /// Logout by clearing the session cookie and deleting the session from the database.
@@ -555,7 +534,7 @@ pub async fn logout() -> Result<(), ServerFnError> {
 /// Step 1 — Phone: user enters phone, `request_otp` sends OTP and returns outcome.
 /// Step 2 — OTP: user enters OTP code (native form POST via `VerifyOtpCode::url()`).
 ///   - Existing account: server sets session + redirects to `/` or `/admin`
-///   - New phone: server sets `pending_phone` cookie + redirects back to `/login`
+///   - New phone: server issues a registration ticket + redirects back to `/login`
 /// Step 3 — Invite code (new phones only): user enters invite code; on submit,
 ///   the code is stored client-side and the name step appears.
 /// Step 4 — Name (new phones only): user enters their full name; `RegisterWithCode`
@@ -565,9 +544,6 @@ pub async fn logout() -> Result<(), ServerFnError> {
 /// Step visibility is controlled by `style:display` toggling. The four steps are
 /// mutually exclusive and never unmounted — toggling avoids DOM churn and maintains
 /// form state across re-renders.
-///
-/// Cookie detection for step 3/4 is done via a server Resource (`check_pending_registration`)
-/// called on page load. This works during SSR and after hydration.
 #[component]
 pub fn LoginPage() -> impl IntoView {
     let request_action = ServerAction::<RequestOtp>::new();
@@ -1062,7 +1038,7 @@ where
         // Native POST form — not ActionForm — because register_with_code sets
         // a session cookie via ResponseOptions, which only works for full HTTP
         // responses (not fetch-intercepted ActionForm responses).
-        <form method="post" action=RegisterWithCode::url()>
+        <form method="post" data-testid="register-form" action=RegisterWithCode::url()>
             // Hidden input carries the code from step 3 into the form submission
             <input
                 type="hidden"
