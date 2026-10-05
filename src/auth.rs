@@ -490,7 +490,11 @@ mod tests {
     fn generate_token_is_43_url_safe_characters() {
         let token = generate_token();
         assert_eq!(token.len(), 43);
-        assert!(token.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
+        assert!(
+            token
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        );
     }
 
     #[test]
@@ -501,7 +505,10 @@ mod tests {
     #[test]
     fn extract_cookie_finds_named_cookie_among_several() {
         let parts = parts_with_cookie("session=abc; registration_ticket=xyz");
-        assert_eq!(extract_cookie(&parts, "registration_ticket").as_deref(), Some("xyz"));
+        assert_eq!(
+            extract_cookie(&parts, "registration_ticket").as_deref(),
+            Some("xyz")
+        );
         assert_eq!(extract_cookie(&parts, "session").as_deref(), Some("abc"));
     }
 
@@ -514,7 +521,11 @@ mod tests {
 
     #[test]
     fn extract_cookie_returns_none_without_cookie_header() {
-        let parts = http::Request::builder().body(()).expect("request builds").into_parts().0;
+        let parts = http::Request::builder()
+            .body(())
+            .expect("request builds")
+            .into_parts()
+            .0;
         assert_eq!(extract_cookie(&parts, "session"), None);
     }
 
