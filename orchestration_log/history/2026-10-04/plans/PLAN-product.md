@@ -3,6 +3,10 @@
 Binding read by author: first-principles, simple-made-easy, kiss, yagni, correct-by-construction, stop-yapping; defensive-planning skill.
 Executors: sonnet implementers, one unit each, isolated worktree, spec-review → quality-review → orchestrator integrates. Guidance-doc unit (P-DOC) = opus (conventions.md hard override).
 
+**Parallelism (binding, `orchestration_log/recon/2026-10-04/fix/prompts/_parallelism.md`):** every unit is its own concurrent lane from `claude/loving-johnson-7l8hn5`. A unit merges an existing branch only when it needs a symbol that branch already holds (see Base recipes). Shared files never order units; integration unions `locales/uk.json` keys and POM methods, regenerates `.sqlx/`, and re-runs gates. Each unit is integrated and reviewed as soon as it finishes.
+
+**Build env (every cargo command):** `export CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0`. Until T0's `#![recursion_limit = "256"]` is on the working branch, add that line at the top of `src/lib.rs` and `src/main.rs` LOCALLY for builds only. NEVER commit it (`git diff --cached src/lib.rs src/main.rs` must not show it).
+
 ## Preamble
 
 `orchestration_log/history/2026-10-04/plans/PLAN-blockers.md` (T0, T1, U1 registration tickets, U2 test-mode confinement, U3 admin bootstrap, U4 swap, A1) fixes launch blockers. This plan removes product dead ends a participant or the solo organizer hits every season. Each unit's dependencies on blocker units are named symbols (see Dependency graph). Evidence verified against source at HEAD `1a3c8a5` before planning (file:line below). Line numbers drift as other units merge: locate code by SYMBOL, never by line.
@@ -18,7 +22,7 @@ Executors: sonnet implementers, one unit each, isolated worktree, spec-review �
 | Forwarding protocol (Product Spec §Non-compliance, §Contiguous failures) computed mentally | `AssignmentLink` has no receipt status | P-F |
 | Zero meetup info anywhere; Story 2.1 AC "expected meetup window" | `grep -rni meetup src migrations` = 0 | P-M1, P-M2 |
 | Branch cannot be changed after onboarding (Stories 1.3 AC3, 2.1 AC2) | `render_enrollment_open` `Some(existing_address)` arm renders only hidden inputs; no settings route | P-H3 |
-| Copy: pen-pal framing, false "після реєстрації", "кілька хвилин", phantom "сторінка Розподілу", phantom "налаштування акаунту", thin shipping guidance | `uk.json` keys listed in P-U0 | P-U0 |
+| Copy: pen-pal framing, false "після реєстрації", "кілька хвилин", phantom "сторінка Розподілу", phantom "налаштування акаунту", thin shipping guidance | `uk.json` keys listed in P-COPY | P-COPY |
 | Vacuous E2E assertions | `mail_club.spec.ts` titles listed in P-V / P-H3 / P-M2 | P-V, P-H3, P-M2 |
 
 ## Design decisions (final — do not revisit)
@@ -30,7 +34,7 @@ Executors: sonnet implementers, one unit each, isolated worktree, spec-review �
 | D3 | Receipt transitions live in one rule: `ReceiptStatus::can_transition_to` (types.rs). `Received` is final. | Rules gathered, not scattered. A mistaken "received" causes no false alarm → no correction path needed (YAGNI). |
 | D4 | **Include C3 + a-scope Gap 4.** New `HomeState::NotParticipating`; `confirm_ready` errors when not enrolled. | Kills a false promise shown to every non-participant every season. |
 | D5 | **Include C4.** `SAMETE_SITE_URL` env, required (https) when SMS are live, defaulted in dry-run; appended to all 4 participant SMS. OTP SMS untouched. | Every SMS currently leads nowhere clickable. Cost: Cyrillic UCS-2 bodies + ~25-char URL ≈ 2 segments (~$0.05/SMS, ≈ $3/season at 15 people × 4 SMS) — accepted. |
-| D6 | **Include C10** as one i18n-only unit (P-U0) that also adds EVERY new key of this plan. | Single writer of `locales/uk.json` → no cross-unit conflicts. Unused keys compile fine; orphan gate at the end. |
+| D6 | **Include C10** as P-COPY (value changes of existing keys only). Each unit adds its OWN new keys (Key ownership table in P-COPY). | Integration unions JSON keys; no unit waits on strings. Orphan gate at the end. |
 | D7 | **Include C5 + a-scope "notes + who"** as a season roster table in the admin season card (P-R). | Removes the organizer's DB dependency for nudging and forwarding. No new CSS: reuses `.data-table`. |
 | D8 | Roster status is an enum with notes inside the variants that can carry them. Badge mapping: Unconfirmed/AwaitingReceipt → `pending` (amber, open), Confirmed → `ready` (blue), Received → `confirmed` (green), NotReceived → `error` (red — a delivery failure; the amber `.alert` count banner stays as is). | Correct by construction; badge families per design-system §Badges. |
 | D9 | **Include C6** as a pure function over the cycle chain (P-F). Request = (first failed sender of each contiguous failed block) → (recipient of the block's last failed sender). No requests when nobody or everybody failed. | Product Spec rule is mechanical; pure fn is unit-testable exhaustively. |
@@ -47,57 +51,44 @@ Executors: sonnet implementers, one unit each, isolated worktree, spec-review �
 
 | Unit | Files written |
 |---|---|
-| P-U0 | `locales/uk.json` |
+| P-COPY | `locales/uk.json` (existing values only) |
 | P-S | `src/config.rs`, `src/admin/sms.rs`, `README.md` |
 | P-V | `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/fixtures/capture-constants.ts` |
-| P-H1 | `src/pages/home.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts` |
-| P-R | `src/admin/state.rs`, `src/admin/page.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/visual-audit.spec.ts` |
-| P-F | `src/admin/assignments.rs`, `src/admin/page.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/visual-audit.spec.ts` |
-| P-H2 | `src/types.rs`, `src/pages/home.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/visual-audit.spec.ts` |
-| P-H3 | `src/pages/home.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/visual-audit.spec.ts` |
-| P-M1 | `migrations/20261004000002_add_season_meetup_details.sql` (new), `src/admin/season.rs`, `src/admin/state.rs`, `src/admin/page.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/visual-audit.spec.ts` |
-| P-M2 | `src/pages/home.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts` |
+| P-H1 | `locales/uk.json` (own keys), `src/pages/home.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts` |
+| P-R | `locales/uk.json` (own keys), `src/admin/state.rs`, `src/admin/page.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/visual-audit.spec.ts` |
+| P-F | `locales/uk.json` (own keys), `src/admin/assignments.rs`, `src/admin/page.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/visual-audit.spec.ts` |
+| P-H2 | `locales/uk.json` (own keys), `src/types.rs`, `src/pages/home.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/visual-audit.spec.ts` |
+| P-H3 | `locales/uk.json` (own keys), `src/pages/home.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/visual-audit.spec.ts` |
+| P-M1 | `locales/uk.json` (own keys), `migrations/20261004000002_add_season_meetup_details.sql` (new), `src/admin/season.rs`, `src/admin/state.rs`, `src/admin/page.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/visual-audit.spec.ts` |
+| P-M2 | `locales/uk.json` (own keys), `migrations/20261004000002_add_season_meetup_details.sql` (identical copy of P-M1's file), `src/pages/home.rs`, `.sqlx/*`, `end2end/tests/mail_club.spec.ts`, `end2end/tests/fixtures/mail_club_page.ts` |
 | P-DOC (opus) | `guidance/design-system.md` |
 
-## Dependency graph (symbol dependencies only)
+## Base recipes (every unit = one concurrent lane)
 
-Units run in parallel worktrees unless a row below names a symbol the unit cannot compile or test without. Shared files are NOT dependencies: integration merges resolve overlapping edits (E2E tests are inserted by title anchor; uk.json/POM additions are additive).
+Default base: `git checkout -b <unit-branch> claude/loving-johnson-7l8hn5`. Extra merges only where a needed symbol already exists on a branch:
 
-| Unit | Hard dependencies (unit → symbol that forces it) |
-|---|---|
-| P-U0 | none |
-| P-S | U2 (PLAN-blockers.md) → `config::SmsMode`, U2 test helper `config_with` |
-| P-V | U1 (PLAN-blockers.md) → registration-ticket redirect behavior asserted by `1.1 — unregistered phone is routed to the invite-code step` and `6.1 — deactivated participant cannot sign in` |
-| P-H1 | P-U0 → keys `home_not_participating_*`, `home_error_not_enrolled`; U2 → `home.rs` `test_mode()` helper; U1 → POM `selfRegister` (ticket flow) |
-| P-R | P-U0 → keys `admin_roster_*` |
-| P-F | P-U0 → keys `admin_forwarding_*`; U4 → `AssignmentLink.recipient_id`, POM `cycleSenderId`, `cycle-link` testids |
-| P-H2 | P-U0 → `home_receipt_timing_hint`, `home_received_after_all_button`; P-R → POM `expectRosterStatus`/`expectRosterNote`; P-F → testid `forwarding-requests` + test title `2.4 — admin is told who should forward mail to the participant who got nothing` (the correction test must run after the forwarding assertion in the serial chain) |
-| P-H3 | P-U0 → `home_change_address_button`, `home_enrolled_address` |
-| P-M1 | P-U0 → `admin_meetup_*`, `season_error_meetup_*`; U1 → migration `20261004000001` (P-M1's migration must sort after it) |
-| P-M2 | P-M1 → column `seasons.meetup_details` (sqlx compile-time check), spec const `MEETUP_DETAILS`, POM `setMeetupDetails`; P-H1 → `HomeState::NotParticipating`; P-H2 → `HomeState::Delivery`; P-H3 → `HomeState::Enrolled { city, branch_number }`; P-V → `formatDateUk` |
-| P-DOC (opus) | P-R → `render_roster` (the doc describes it) |
+| Unit | Base | Symbols used from other units (contract) |
+|---|---|---|
+| P-COPY | default | none |
+| P-S | default | none. Written against the current `Config` (`sms_dry_run: bool`). Contract with U2 (PLAN-blockers.md): `site_url_from_var(raw, sms_live: bool)` takes a bool, so after U2 merges the call site becomes `site_url_from_var(…, matches!(sms, SmsMode::Live { .. }))` and U2's test helper `config_with` gains `site_url: String::new()` — integrator edits, two lines. |
+| P-V | default | none (all POM methods/testids it uses exist at HEAD) |
+| P-H1 | default | none. Keeps the existing `test_mode` line in `resolve_preparation_state` untouched; U2's replacement merges cleanly. |
+| P-R | default | none |
+| P-F | default + `git merge --no-edit worktree-agent-a46c4c68440f8d984` | U4 (on that branch @066ebf2): `AssignmentLink.recipient_id`, `cycles_from_edges`-based `get_assignment_preview`, testids `cycle-link`, POM `cycleSenderId` |
+| P-H2 | default | P-R POM `expectRosterStatus`/`expectRosterNote` and P-F testid `forwarding-requests`: copy the POM methods verbatim from P-R §R.4 / P-H2 §H2.3 into this branch (integration keeps one copy). `expectNoForwardingRequests` is vacuous until P-F is merged → the integrator re-runs `2.4 — participant corrects a not-received report when mail arrives late` once both P-H2 and P-F are on the working branch. |
+| P-H3 | default | none |
+| P-M1 | default | none (migration `20261004000002` sorts after U1's planned `20261004000001`) |
+| P-M2 | default | P-M1 column `seasons.meetup_details`: P-M2 adds the IDENTICAL migration file (§M1.1 exact name + SQL) so sqlx compiles; identical files merge cleanly. Spec const `MEETUP_DETAILS` + POM `setMeetupDetails`/`expectMeetupDetailsSaved`: copy verbatim from §M1.5 (integration keeps one). `HomeState` variants from P-H1/P-H2/P-H3 and `formatDateUk` from P-V: write `shows_meetup` and tests against the variants present on the base; the exhaustive match forces the integrator to add the arms listed in §M2.1's final form when those units merge. `formatDateUk`: copy verbatim from §V.1 if absent. |
+| P-DOC (opus) | default | describes `render_roster` exactly as specified in §R.3 |
 
-```
-P-U0 ──┬── P-H1 ──────────────┐
-       ├── P-R ──┐            │
-       ├── P-F ──┴── P-H2 ────┤
-       ├── P-H3 ──────────────┼── P-M2
-       └── P-M1 ──────────────┘
-P-S (needs U2)   P-V (needs U1) ──┘ (P-M2 uses formatDateUk)
-P-R ── P-DOC
-```
-Integration: any order that respects the table; each unit rebases onto current main before review and re-runs its gates.
+E2E chain order (serial suite, by title anchor): when several units insert after the same title, the integrator orders them R → F → H2 (roster/forwarding assertions precede the correction test that clears them).
 
 ## Pre-flight gate (EVERY unit, before any edit)
-
-Verify each symbol listed for the unit in the table above exists on the branch point, e.g.:
 ```bash
 git log --oneline -1
-grep -c "pub fn test_mode" src/config.rs                    # U2 symbol (P-S, P-H1)
-grep -c "pub recipient_id: String" src/admin/assignments.rs  # U4 symbol (P-F)
-ls migrations | grep -c registration_tickets                 # U1 symbol (P-V, P-H1, P-M1)
+git status --short
 ```
-**REQUIRED:** every check for the unit's listed dependencies prints ≥ `1` (for P-unit dependencies: `grep -c` of the named symbol/key/title in the named file ≥ `1`). Any `0` → STOP, report BLOCKED naming the missing symbol.
+**REQUIRED:** base = the recipe above; clean tree. P-F additionally: `grep -c "pub recipient_id: String" src/admin/assignments.rs` → `1`.
 
 ## Shared environment (every unit)
 
@@ -110,7 +101,7 @@ until pg_isready -h localhost -p 5432; do sleep 1; done
 ```
 **REQUIRED:** `localhost:5432 - accepting connections`.
 
-Per-unit sibling DB (`<unit>` = `pu0|ps|pv|ph1|pr|pf|ph2|ph3|pm1|pm2`):
+Per-unit sibling DB (`<unit>` = `pcopy|ps|pv|ph1|pr|pf|ph2|ph3|pm1|pm2`):
 ```bash
 export DATABASE_URL=postgres://samete:samete@localhost:5432/samete_<unit>
 sqlx database drop -y; sqlx database create && sqlx migrate run
@@ -147,7 +138,7 @@ export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 bash scripts/isolated-capture.sh e2e_<unit>_<run> full > /tmp/e2e_<unit>_<run>.log 2>&1; echo "exit=$?" >> /tmp/e2e_<unit>_<run>.log
 grep -E "exit=|[0-9]+ (passed|failed|flaky|skipped)" /tmp/e2e_<unit>_<run>.log
 ```
-Run with `run_in_background`; read the log with `grep`/`tail` on the FILE. **REQUIRED:** `exit=0`; one `N passed` line with N = baseline passed + unit E2E delta; no `failed`; no `flaky`; `2 skipped`. Every title named in the unit appears passed (`grep -F "<title>" /tmp/e2e_<unit>_<run>.log`). Runs `<run>` = 1,2,3 — all three must pass (P-U0: one run). Record the E2E baseline passed count on the unit's branch point (orchestrator supplies it in the dispatch; if absent, run the gate once on the branch point before editing).
+Run with `run_in_background`; read the log with `grep`/`tail` on the FILE. **REQUIRED:** `exit=0`; one `N passed` line with N = baseline passed + unit E2E delta; no `failed`; no `flaky`; `2 skipped`. Every title named in the unit appears passed (`grep -F "<title>" /tmp/e2e_<unit>_<run>.log`). Runs `<run>` = 1,2,3 — all three must pass (P-COPY: one run). Record the E2E baseline passed count on the unit's branch point (orchestrator supplies it in the dispatch; if absent, run the gate once on the branch point before editing).
 
 Pixel evidence (units with UI change): after run 3, list the PNGs named in the unit under `end2end/screenshots/{light-desktop,light-mobile,dark-desktop,dark-mobile}/` (`ls … | grep <name>`); the spec-reviewer reads them at native resolution, both viewports, both modes.
 
@@ -157,10 +148,10 @@ Read hygiene: chunked reads ≤400 lines; never read `node_modules`, `target`, `
 
 ---
 
-# P-U0 — i18n foundation + copy fixes
+# P-COPY — Participant/organizer copy fixes
 
 ## Why This Matters
-Single writer of this plan's `locales/uk.json` keys; fixes identity-contradicting and false copy (j-feel P6–P9, O7; a-scope).
+Fixes identity-contradicting and false copy (j-feel P6–P9, O7; a-scope).
 
 ## What You Must Do
 1. Replace the VALUES of these existing keys (key names unchanged), exactly:
@@ -176,7 +167,21 @@ Single writer of this plan's `locales/uk.json` keys; fixes identity-contradictin
 "sms_assignment_body": "Твій отримувач уже відомий — дивись, кому надсилати:",
 "sms_receipt_nudge_body": "Отримав(ла) лист? Підтверди тут:"
 ```
-2. Append these NEW keys, in this order, as the last entries of the object (preserve valid JSON: comma after the previous last entry):
+2. No key added or removed. No Rust/TS change.
+
+## Key ownership (each owning unit appends ITS keys as the last entries of `locales/uk.json`, exact strings below)
+
+| Owner | Keys |
+|---|---|
+| P-H1 | `home_not_participating_heading`, `home_not_participating_body`, `home_error_not_enrolled` |
+| P-H2 | `home_receipt_timing_hint`, `home_received_after_all_button` |
+| P-H3 | `home_change_address_button`, `home_enrolled_address` |
+| P-M2 | `home_enroll_confirm_deadline`, `home_meetup_label` |
+| P-M1 | `admin_meetup_label`, `admin_meetup_placeholder`, `admin_meetup_hint`, `admin_meetup_save_button`, `admin_meetup_saving_loading`, `admin_meetup_saved_toast`, `season_error_meetup_too_long`, `season_error_no_season_for_meetup` |
+| P-R | `admin_roster_title`, `admin_roster_note_column`, `admin_roster_status_*` (5) |
+| P-F | `admin_forwarding_title`, `admin_forwarding_description`, `admin_forwarding_request` |
+
+Exact strings:
 ```json
 "home_not_participating_heading": "Цей сезон — без тебе",
 "home_not_participating_body": "Ти не береш участі в поточному сезоні. Коли відкриється реєстрація на наступний — надішлемо SMS.",
@@ -206,20 +211,16 @@ Single writer of this plan's `locales/uk.json` keys; fixes identity-contradictin
 "admin_forwarding_description": "Хтось не надіслав свій лист. Попроси першого учасника кожного зламаного відрізка переслати отриманий лист далі:",
 "admin_forwarding_request": "{{ from }} → {{ to }}"
 ```
-3. No other key added, removed, renamed, or re-valued. No Rust/TS change.
 
 ## Verification Gates
 ```bash
 python3 -c "import json;d=json.load(open('locales/uk.json'));print(len(d))"
-```
-**REQUIRED:** previous count + 27.
-```bash
 git diff --stat
 ```
-**REQUIRED:** only `locales/uk.json`.
-Standard gates (bare/ssr deltas 0). E2E gate ×1 (delta 0) — proves no copy-regex test broke.
+**REQUIRED:** count unchanged vs base; only `locales/uk.json`.
+Standard gates (deltas 0). E2E gate ×1 (delta 0).
 
-Commit: `fix(i18n): correct participant copy and add product strings`
+Commit: `fix(i18n): correct participant and organizer copy`
 
 ---
 
@@ -229,45 +230,41 @@ Commit: `fix(i18n): correct participant copy and add product strings`
 SMS are the only push channel; a monthly web app without a link loses participants. (j-feel P11/C4.)
 
 ## What You Must Do
-### S.1 `src/config.rs` (post-U2/U3 shape: `Config { database_url, sms: SmsMode, admin_bootstrap, … }`) — TDD
-Step 1 — add to the existing `#[cfg(test)] mod tests` (red):
+### S.1 `src/config.rs` (current shape: `Config { database_url, turbosms_token, turbosms_sender, sms_dry_run }`) — TDD
+Step 1 — add a `#[cfg(test)] mod tests` (create it if absent) with (red):
 ```rust
     #[test]
     fn site_url_defaults_in_dry_run() {
         assert_eq!(
-            site_url_from_var(None, &SmsMode::DryRun { test_mode: false }).ok().as_deref(),
+            site_url_from_var(None, false).ok().as_deref(),
             Some(DRY_RUN_SITE_URL)
         );
     }
 
     #[test]
     fn site_url_required_for_live_sms() {
-        let live = SmsMode::Live { token: "t".into(), sender: "s".into() };
-        assert!(matches!(site_url_from_var(None, &live), Err(ConfigError::MissingSiteUrl)));
+        assert!(matches!(site_url_from_var(None, true), Err(ConfigError::MissingSiteUrl)));
     }
 
     #[test]
     fn site_url_trims_whitespace_and_trailing_slash() {
-        let live = SmsMode::Live { token: "t".into(), sender: "s".into() };
         assert_eq!(
-            site_url_from_var(Some(" https://club.example.ua/ ".into()), &live).ok().as_deref(),
+            site_url_from_var(Some(" https://club.example.ua/ ".into()), true).ok().as_deref(),
             Some("https://club.example.ua")
         );
     }
 
     #[test]
     fn site_url_rejects_plain_http() {
-        let dry = SmsMode::DryRun { test_mode: true };
-        assert!(matches!(site_url_from_var(Some("http://club.example.ua".into()), &dry), Err(ConfigError::InvalidSiteUrl(_))));
+        assert!(matches!(site_url_from_var(Some("http://club.example.ua".into()), false), Err(ConfigError::InvalidSiteUrl(_))));
     }
 
     #[test]
     fn site_url_rejects_bare_scheme() {
-        let dry = SmsMode::DryRun { test_mode: false };
-        assert!(matches!(site_url_from_var(Some("https://".into()), &dry), Err(ConfigError::InvalidSiteUrl(_))));
+        assert!(matches!(site_url_from_var(Some("https://".into()), false), Err(ConfigError::InvalidSiteUrl(_))));
     }
 ```
-Add `site_url_from_var` and `DRY_RUN_SITE_URL` to the test module's `use super::{…}`. Update the U2 test helper `config_with` literal to include `site_url: String::new(),`.
+Test module imports: `use super::{ConfigError, DRY_RUN_SITE_URL, site_url_from_var};`.
 Step 2 — `SQLX_OFFLINE=true cargo test --features ssr config::tests` → **REQUIRED:** compile error (red).
 Step 3 — implement:
 ```rust
@@ -276,11 +273,12 @@ const DRY_RUN_SITE_URL: &str = "http://127.0.0.1:3000";
 
 /// Parse `SAMETE_SITE_URL`: required (https) when SMS are live; dry-run defaults
 /// to [`DRY_RUN_SITE_URL`]. Trailing `/` and surrounding whitespace are trimmed.
-fn site_url_from_var(raw: Option<String>, sms: &SmsMode) -> Result<String, ConfigError> {
+fn site_url_from_var(raw: Option<String>, sms_live: bool) -> Result<String, ConfigError> {
     let Some(raw) = raw else {
-        return match sms {
-            SmsMode::DryRun { .. } => Ok(DRY_RUN_SITE_URL.to_owned()),
-            SmsMode::Live { .. } => Err(ConfigError::MissingSiteUrl),
+        return if sms_live {
+            Err(ConfigError::MissingSiteUrl)
+        } else {
+            Ok(DRY_RUN_SITE_URL.to_owned())
         };
     };
     let url = raw.trim().trim_end_matches('/');
@@ -304,7 +302,7 @@ fn site_url_from_var(raw: Option<String>, sms: &SmsMode) -> Result<String, Confi
     /// Public https URL of the app, appended to every participant SMS.
     pub site_url: String,
 ```
-`from_env`: after `sms` is computed: `let site_url = site_url_from_var(std::env::var("SAMETE_SITE_URL").ok(), &sms)?;` and add `site_url` to the `Self { … }` literal. Extend the `from_env` doc with one sentence on `SAMETE_SITE_URL`.
+`from_env`: after `sms_dry_run` is computed: `let site_url = site_url_from_var(std::env::var("SAMETE_SITE_URL").ok(), !sms_dry_run)?;` and add `site_url` to the `Self { … }` literal. Extend the `from_env` doc with one sentence on `SAMETE_SITE_URL`.
 Step 4 — rerun step-2 command → **REQUIRED:** `ok`, the 5 new tests pass.
 
 ### S.2 `src/admin/sms.rs` — TDD
@@ -464,6 +462,7 @@ Commit: `test(e2e): assert actual effects for login, deadline, cancel and deacti
 Non-participants are told assignment is minutes away (C3) and non-enrolled users get a live confirm CTA that silently no-ops (a-scope Gap 4).
 
 ## What You Must Do
+Keys: append to `locales/uk.json` exactly the keys owned by P-H1 (P-COPY §Key ownership, exact strings there). Edit no other key.
 ### H1.1 TDD — pure helpers in `src/pages/home.rs`
 Step 1 — extend `mod tests` `use super::{…}` with `Participation, assignment_state, preparation_state, HomeState` and add (red):
 ```rust
@@ -736,6 +735,7 @@ Commit: `feat(home): show non-participants a not-participating state and reject 
 Organizer sees integers only; nudging and forwarding require names, phones and the participant's note (j-feel O1/C5; a-scope Gap 3).
 
 ## What You Must Do
+Keys: append to `locales/uk.json` exactly the keys owned by P-R (P-COPY §Key ownership, exact strings there). Edit no other key.
 ### R.1 TDD — `src/admin/state.rs`
 Step 1 — append (red):
 ```rust
@@ -1044,6 +1044,7 @@ Commit: `feat(admin): show season roster with receipt status and notes`
 When a sender fails, the organizer must ask the right person to forward the right mail — mechanical, error-prone under pressure (j-feel O2/C6).
 
 ## What You Must Do
+Keys: append to `locales/uk.json` exactly the keys owned by P-F (P-COPY §Key ownership, exact strings there). Edit no other key.
 ### F.1 TDD — `src/admin/assignments.rs` (shared code, runs under bare `cargo test`)
 `AssignmentLink` add last field:
 ```rust
@@ -1272,6 +1273,7 @@ Commit: `feat(admin): show forwarding requests for failed deliveries`
 C1 dead end (address disappears on own receipt) + C2 irreversible false alarm.
 
 ## What You Must Do
+Keys: append to `locales/uk.json` exactly the keys owned by P-H2 (P-COPY §Key ownership, exact strings there). Edit no other key.
 ### H2.1 TDD — `src/types.rs`
 Step 1 — add to `mod tests` (red):
 ```rust
@@ -1465,7 +1467,7 @@ Spec:
 - `"home screen — delivery phase prompt shown"` body: login A, goHome, `await app.expectReceiptPrompt();`.
 - `"2.4 — participant confirms receipt (received)"`: after `confirmReceipt(true)` add `await app.expectAssignmentVisible();` (C1 effect).
 - `"2.4 — participant reports not received with note"`: after `confirmReceipt(false, …)` add `await app.expectAssignmentVisible();` and `await app.expectReceiptCorrectionAvailable();`.
-- Insert after `"2.4 — admin is told who should forward mail to the participant who got nothing"`:
+- Insert after `"2.4 — admin sees not-received alert"` (integrator places it after P-R's and P-F's tests that share this anchor):
 ```ts
     // Late arrival: the not-received report is reversible; forwarding signal clears.
     test("2.4 — participant corrects a not-received report when mail arrives late", async ({ page }) => {
@@ -1505,6 +1507,7 @@ Commit: `feat(home): keep recipient card after receipt and allow late-arrival co
 Stories 1.3 AC3 / 2.1 AC2: a wrong branch today needs organizer SQL and mail goes to the wrong office.
 
 ## What You Must Do
+Keys: append to `locales/uk.json` exactly the keys owned by P-H3 (P-COPY §Key ownership, exact strings there). Edit no other key.
 ### H3.1 `src/pages/home.rs`
 - `HomeState::Enrolled` becomes `Enrolled { confirm_deadline: String, city: String, branch_number: i32 }` (doc: "Enrollment phase, participant IS enrolled; shows the address they enrolled with."). In `resolve_enrollment_state`, the `enrolled` branch loads the address with `fetch_one` (enrollment requires an address):
 ```rust
@@ -1632,6 +1635,7 @@ Commit: `feat(home): let participants change their branch during enrollment`
 The meetup is the ritual's payoff; Story 2.1 promises the meetup window; organizer otherwise messages everyone.
 
 ## What You Must Do
+Keys: append to `locales/uk.json` exactly the keys owned by P-M1 (P-COPY §Key ownership, exact strings there). Edit no other key.
 ### M1.1 Migration (exact)
 `migrations/20261004000002_add_season_meetup_details.sql`:
 ```sql
@@ -1859,6 +1863,7 @@ Commit: `feat(admin): let the organizer announce the season meetup`
 Participants learn the meetup in-app; Story 2.1 timeline (signup deadline, creation deadline, meetup).
 
 ## What You Must Do
+Keys: append to `locales/uk.json` exactly the keys owned by P-M2 (P-COPY §Key ownership, exact strings there). Edit no other key.
 ### M2.1 TDD — `src/pages/home.rs`
 Step 1 — tests (red):
 ```rust
@@ -1879,14 +1884,14 @@ Step 1 — tests (red):
         for state in [
             HomeState::NoSeason,
             HomeState::EnrollmentNotOpen,
-            HomeState::NotParticipating,
+            HomeState::NotParticipating, // final form only: omit on a base without P-H1
             HomeState::Cancelled,
         ] {
             assert!(!shows_meetup(&state), "{state:?}");
         }
     }
 ```
-Step 3 — implement (exhaustive, NO wildcard arm):
+Step 3 — implement (exhaustive, NO wildcard arm). Final form below; on your base write only the arms for variants that exist there (`EnrollmentOpen`, `Enrolled`, `Preparing`, `Confirmed`, `Assigning`, `Assigned`/`ReceiptConfirmed` → true; `NoSeason`, `EnrollmentNotOpen`, `Cancelled`, `Complete` per table). Merging P-H1/P-H2/P-H3 makes the match non-exhaustive or stale → the integrator applies exactly this final form. Test literals: use `HomeState::Enrolled { confirm_deadline: String::new() }` on your base; final form uses P-H3's fields:
 ```rust
 /// Whether the meetup announcement belongs on this page: the current season's
 /// (would-be) participants only.
@@ -1993,11 +1998,11 @@ Spec:
       await app.expectMeetup(MEETUP_DETAILS);
     });
 ```
-  and add `await app.expectNoMeetup();` at the end of `"2.3 — non-participant sees no recipient during delivery"`.
-- `"home screen — season complete message shown"`: append `await app.expectMeetup(MEETUP_DETAILS);`. `"home screen — non-participant sees not-participating after completion"`: append `await app.expectNoMeetup();`.
+- `"home screen — season complete message shown"`: append `await app.expectMeetup(MEETUP_DETAILS);`. `"home screen — non-participant sees not-participating after completion"` and `"2.3 — non-participant sees no recipient during delivery"` (P-H1 titles): append `await app.expectNoMeetup();` — if those titles are absent on your base, the integrator appends these lines when P-H1 merges.
+- Insert-anchor for the new delivery meetup test when P-H1's title is absent: after `"2.3 — only one recipient visible"`.
 
 ## Verification Gates
-Mutation check: temporarily make `shows_meetup` return `true` for `NotParticipating` → `cargo test home::tests` **REQUIRED:** `non_participating_states_hide_meetup` fails. Revert.
+Mutation check: temporarily make `shows_meetup` return `true` for `Cancelled` → `cargo test home::tests` **REQUIRED:** `non_participating_states_hide_meetup` fails. Revert.
 Standard gates: bare +2, ssr +2. E2E ×3: delta +1; titles: new + the 4 edited. Pixels: `home-enrollment-available`, `home-enrolled`, `home-assignment-and-receipt-form`, `home-season-complete` (4 dirs; audit meetup from P-M1).
 
 Commit: `feat(home): show season timeline and meetup announcement`
@@ -2057,10 +2062,10 @@ No `style/` change in this plan. Existing classes + inline Tailwind utilities on
 No new `#[allow(...)]` without a one-line WHY. Every new `pub fn` returning `Result` has `# Errors`.
 
 ### BANNED: scope creep
-No: season edit, settings page, meetup SMS, RSVP, countdown, theme persistence, receipt-form time gate, organizer not-received SMS, changes to `uk.json` outside P-U0, changes to PLAN-blockers.md code beyond the lines named here. Out-of-scope findings → DONE_WITH_CONCERNS.
+No: season edit, settings page, meetup SMS, RSVP, countdown, theme persistence, receipt-form time gate, organizer not-received SMS, edits to `uk.json` keys the unit does not own, changes to PLAN-blockers.md code beyond the lines named here. Out-of-scope findings → DONE_WITH_CONCERNS.
 
-### BANNED: editing `locales/uk.json` in any unit except P-U0
-If a unit needs a string that P-U0 did not add → BLOCKED.
+### BANNED: editing `locales/uk.json` keys a unit does not own
+Ownership: P-COPY §Key ownership. P-COPY changes only values of existing keys.
 
 ## Definition of Done (per unit; binary)
 1. Pre-flight gate passed (output pasted).
@@ -2068,7 +2073,7 @@ If a unit needs a string that P-U0 did not add → BLOCKED.
 3. Unit-specific gates show REQUIRED OUTPUT (command + output pasted).
 4. Standard gates: fmt clean; both clippy zero warnings; both test runs `ok`, `0 failed`, passed = baseline + stated delta.
 5. `.sqlx/` regenerated with `-- --features ssr` when a query changed; `SQLX_OFFLINE=true` clippy passes.
-6. E2E gate green 3 consecutive runs (P-U0: 1), passed = baseline + stated delta, named titles passed.
+6. E2E gate green 3 consecutive runs (P-COPY: 1), passed = baseline + stated delta, named titles passed.
 7. Pixel PNG list provided (UI units).
 8. `git diff --stat main...HEAD` = exactly the unit's write-set; `git status --short` clean.
 9. One-line conventional commit (message given per unit); SHA reported.
