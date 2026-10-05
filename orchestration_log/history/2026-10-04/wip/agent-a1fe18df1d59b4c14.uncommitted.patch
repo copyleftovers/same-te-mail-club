@@ -1,13 +1,37 @@
-diff --git a/src/main.rs b/src/main.rs
-index 920592e..a405e6c 100644
---- a/src/main.rs
-+++ b/src/main.rs
-@@ -33,7 +33,7 @@ async fn main() {
-         samete::db::ensure_admin(&pool, admin)
-             .await
-             .expect("admin bootstrap failed");
--        tracing::info!(phone = %admin.phone, "admin bootstrap ensured");
-+        tracing::info!("admin bootstrap ensured");
+diff --git a/src/config.rs b/src/config.rs
+index c254eed..7743461 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -116,14 +116,14 @@ mod tests {
+ 
+     #[test]
+     fn neither_var_means_no_bootstrap() {
+-        assert_eq!(admin_bootstrap_from_vars(None, None).ok(), Some(None));
++        assert_eq!(admin_bootstrap_from_vars(None, None).unwrap(), None);
      }
  
-     // 3b. Shared HTTP client for SMS delivery
+     #[test]
+     fn blank_vars_count_as_unset() {
+         assert_eq!(
+-            admin_bootstrap_from_vars(Some("  ".into()), Some(String::new())).ok(),
+-            Some(None)
++            admin_bootstrap_from_vars(Some("  ".into()), Some(String::new())).unwrap(),
++            None
+         );
+     }
+ 
+@@ -131,11 +131,11 @@ mod tests {
+     fn both_vars_normalize_phone_and_trim_name() {
+         assert_eq!(
+             admin_bootstrap_from_vars(Some("067 123 45 67".into()), Some("  Організатор ".into()))
+-                .ok(),
+-            Some(Some(AdminBootstrap {
++                .unwrap(),
++            Some(AdminBootstrap {
+                 phone: "+380671234567".into(),
+                 name: "Організатор".into()
+-            }))
++            })
+         );
+     }
+ 

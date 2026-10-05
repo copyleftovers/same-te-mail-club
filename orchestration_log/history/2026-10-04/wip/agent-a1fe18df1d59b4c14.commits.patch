@@ -1,7 +1,7 @@
 From fd94520b161409622e2bbd298fc4c58cc5298933 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 4 Oct 2026 21:14:23 +0000
-Subject: [PATCH 1/3] feat(admin): bootstrap first admin from env at startup
+Subject: [PATCH 1/4] feat(admin): bootstrap first admin from env at startup
 
 ---
  .env.example                                  |  4 +
@@ -255,7 +255,7 @@ index 875a481..920592e 100644
 From 5693da7d3b1844c41295687d526b6eac80ca6264 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:42:36 +0000
-Subject: [PATCH 2/3] fix(admin): reactivate deactivated account when
+Subject: [PATCH 2/4] fix(admin): reactivate deactivated account when
  bootstrapping admin
 
 ---
@@ -337,7 +337,7 @@ index bd9141c..bdda03e 100644
 From 65c90efc8dad82a77dd8d74067bd858a65fbcb6b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:37 +0000
-Subject: [PATCH 3/3] test(admin): cover ensure_admin insert, idempotence and
+Subject: [PATCH 3/4] test(admin): cover ensure_admin insert, idempotence and
  reactivation
 
 ---
@@ -405,6 +405,32 @@ index bdda03e..1d98ae0 100644
 +        assert_eq!(active_admin_count(&pool).await, 1);
 +    }
 +}
+-- 
+2.43.0
+
+
+From dd04c8ee4943689f68f7d3b9f7331a68cb7ab58e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 20:44:49 +0000
+Subject: [PATCH 4/4] fix(admin): keep admin phone out of boot logs
+
+---
+ src/main.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/main.rs b/src/main.rs
+index 920592e..a405e6c 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -33,7 +33,7 @@ async fn main() {
+         samete::db::ensure_admin(&pool, admin)
+             .await
+             .expect("admin bootstrap failed");
+-        tracing::info!(phone = %admin.phone, "admin bootstrap ensured");
++        tracing::info!("admin bootstrap ensured");
+     }
+ 
+     // 3b. Shared HTTP client for SMS delivery
 -- 
 2.43.0
 

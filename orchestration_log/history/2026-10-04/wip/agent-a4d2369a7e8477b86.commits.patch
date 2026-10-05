@@ -1,0 +1,80 @@
+From 57836373fae93c607ac56c3e201ba49aa0a15f75 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 20:44:56 +0000
+Subject: [PATCH] fix(build): unwind panics on the server so a task panic
+ cannot kill it
+
+---
+ Cargo.toml            |  8 +++++++-
+ scripts/ssr-stress.sh | 34 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 41 insertions(+), 1 deletion(-)
+ create mode 100755 scripts/ssr-stress.sh
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 9bfb6aa..b8ed7be 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -95,13 +95,19 @@ pedantic = { level = "deny", priority = -1 }
+ [profile.release]
+ strip = true
+ lto = "thin"
+-panic = "abort"
++# WHY: unwind on the server. leptos_i18n 0.6.x's SSR isomorphic effect
++# (context.rs:213) can read a disposed signal in a detached tokio task after the
++# request Owner is dropped; under abort that panic kills the whole server, under
++# unwind tokio confines it to the task. WASM keeps abort (wasm-release below).
++panic = "unwind"
+ 
+ [profile.wasm-release]
+ inherits = "release"
+ opt-level = 'z'
+ lto = true
+ codegen-units = 1
++# WHY: explicit — `inherits = "release"` would otherwise pull in unwind and grow the WASM.
++panic = "abort"
+ 
+ [package.metadata.leptos-i18n]
+ default = "uk"
+diff --git a/scripts/ssr-stress.sh b/scripts/ssr-stress.sh
+new file mode 100755
+index 0000000..57616e1
+--- /dev/null
++++ b/scripts/ssr-stress.sh
+@@ -0,0 +1,34 @@
++#!/usr/bin/env bash
++# SSR concurrency stress: bursts of client-aborted requests at SSR routes, then a
++# liveness check after every round.
++#
++# WHY: leptos_i18n 0.6.x's server-side isomorphic effect (context.rs:213) can read a
++# disposed signal in a detached tokio task once the request Owner is disposed. With
++# panic = "abort" that kills the server; with unwind the panic stays in the task.
++# This is the fast repro (orchestration_log/recon/2026-10-04/readiness/n-panic.md).
++#
++# Usage: scripts/ssr-stress.sh <port> <server-log-file> [rounds=80]
++# Exit 0 = server alive after all rounds; exit 1 = server died.
++set -uo pipefail
++
++port="${1:?usage: scripts/ssr-stress.sh <port> <server-log-file> [rounds]}"
++log="${2:?usage: scripts/ssr-stress.sh <port> <server-log-file> [rounds]}"
++rounds="${3:-80}"
++
++panics() { grep -c "panicked" "$log" || true; }
++
++for round in $(seq 1 "$rounds"); do
++    pids=()
++    for path in / /admin /onboarding /login; do
++        for timeout in 0.003 0.006 0.01 0.02 0.04 0.08; do
++            curl -s -o /dev/null -b session=stresstoken123 --max-time "$timeout" "http://127.0.0.1:${port}${path}" & pids+=($!)
++            curl -s -o /dev/null --max-time "$timeout" "http://127.0.0.1:${port}${path}" & pids+=($!)
++        done
++    done
++    wait "${pids[@]}" 2>/dev/null
++    if ! curl -sf -o /dev/null --max-time 5 "http://127.0.0.1:${port}/login"; then
++        echo "DEAD at round ${round}; panics logged: $(panics)"
++        exit 1
++    fi
++done
++echo "ALIVE after ${rounds} rounds; panics logged: $(panics)"
+-- 
+2.43.0
+

@@ -1,3 +1,273 @@
+diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
+index 10c26f9..83cbc9e 100644
+--- a/end2end/tests/fixtures/mail_club_page.ts
++++ b/end2end/tests/fixtures/mail_club_page.ts
+@@ -556,6 +556,30 @@ export class MailClubPage {
+     await expect(this.page.locator("main")).toBeVisible({ timeout: 10_000 });
+   }
+ 
++  // ── Admin: season roster ──
++
++  private rosterRow(name: string): Locator {
++    return this.page.getByTestId("season-roster-row").filter({
++      has: this.page.getByTestId("season-roster-name").filter({ hasText: name }),
++    });
++  }
++
++  async expectRosterStatus(name: string, status: string) {
++    await expect(this.rosterRow(name).getByTestId("season-roster-status")).toHaveAttribute("data-roster-status", status);
++  }
++
++  async expectRosterNote(name: string, text: string) {
++    await expect(this.rosterRow(name).getByTestId("season-roster-note")).toHaveText(text);
++  }
++
++  async expectRosterSize(count: number) {
++    await expect(this.page.getByTestId("season-roster-row")).toHaveCount(count);
++  }
++
++  async expectNotReceivedAlert(count: string) {
++    await expect(this.page.getByTestId("not-received-alert")).toContainText(count);
++  }
++
+   async expectDashboardContent(text: string | RegExp) {
+     await expect(this.page.locator("main")).toContainText(text);
+   }
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index aa04249..dc2ef6e 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -525,6 +525,17 @@ test.describe.serial("The Mail Club", () => {
+       await expect(app.page.getByTestId("confirm-ready-button")).not.toBeVisible();
+     });
+ 
++    // Story 4.4 / O1: organizer sees who still has to confirm, by name.
++    test("4.4 — admin sees which enrolled participants have not confirmed", async ({ page }) => {
++      const app = new MailClubPage(page);
++      await app.login(ADMIN_PHONE);
++      await app.goToDashboard();
++      await app.expectRosterSize(3); // D is not enrolled
++      await app.expectRosterStatus(NAMES.A, "confirmed");
++      await app.expectRosterStatus(NAMES.B, "unconfirmed");
++      await app.expectRosterStatus(NAMES.C, "unconfirmed");
++    });
++
+     // Setup: confirm B and C
+     test("setup — participants B and C confirm ready", async ({ page }) => {
+       const app = new MailClubPage(page);
+@@ -764,8 +775,18 @@ test.describe.serial("The Mail Club", () => {
+       const app = new MailClubPage(page);
+       await app.login(ADMIN_PHONE);
+       await app.goToDashboard();
+-      // Dashboard should show the "not received" alert for participant B
+-      await app.expectDashboardContent(/not received|не отримано/i);
++      await app.expectNotReceivedAlert("1");
++    });
++
++    // Story 2.4 / Product Spec failure protocol: organizer sees who got nothing and their note.
++    test("2.4 — admin sees who reported not received, with their note", async ({ page }) => {
++      const app = new MailClubPage(page);
++      await app.login(ADMIN_PHONE);
++      await app.goToDashboard();
++      await app.expectRosterStatus(NAMES.A, "received");
++      await app.expectRosterStatus(NAMES.B, "not_received");
++      await app.expectRosterNote(NAMES.B, "Пошта не надійшла");
++      await app.expectRosterStatus(NAMES.C, "awaiting_receipt");
+     });
+   });
+ 
+diff --git a/end2end/tests/visual-audit.spec.ts b/end2end/tests/visual-audit.spec.ts
+index 6b5f85b..4a35778 100644
+--- a/end2end/tests/visual-audit.spec.ts
++++ b/end2end/tests/visual-audit.spec.ts
+@@ -730,6 +730,15 @@ test.describe.serial("Visual Audit", () => {
+     await app.confirmReceipt(true);
+   });
+ 
++  test("capture admin — delivery roster", async ({ page }) => {
++    const app = new MailClubPage(page);
++    await app.login(ADMIN_PHONE);
++    await app.goToDashboard();
++    await expect(page.getByTestId("season-roster")).toBeVisible();
++    await captureState(page, "admin-delivery-roster", { stateId: "A43", route: "/admin" });
++    await captureSection(page, "admin-delivery-roster", "season-roster");
++  });
++
+   // ── Phase: advance to complete ────────────────────────────────────────────────
+ 
+   // If B's not-received status blocks advance, this test (and subsequent ones
+diff --git a/locales/uk.json b/locales/uk.json
+index 048601d..2bf5147 100644
+--- a/locales/uk.json
++++ b/locales/uk.json
+@@ -223,5 +223,12 @@
+   "sms_send_receipt_nudge_button": "Нагадати про отримання",
+   "sms_error_no_assignment_delivery_season": "Немає активного сезону на етапі розподілу або доставки.",
+   "sms_error_no_preparation_season": "Немає активного сезону на етапі підготовки.",
+-  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки."
++  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки.",
++  "admin_roster_title": "Учасники сезону",
++  "admin_roster_note_column": "Примітка",
++  "admin_roster_status_unconfirmed": "Не підтвердив(ла)",
++  "admin_roster_status_confirmed": "Готовий(а)",
++  "admin_roster_status_awaiting_receipt": "Чекає на лист",
++  "admin_roster_status_received": "Отримав(ла)",
++  "admin_roster_status_not_received": "Не отримав(ла)"
+ }
+diff --git a/src/admin/page.rs b/src/admin/page.rs
+index 2630041..f8e0c2d 100644
+--- a/src/admin/page.rs
++++ b/src/admin/page.rs
+@@ -11,7 +11,7 @@ use crate::admin::season::{AdvanceSeason, CancelSeason, CreateSeason, LaunchSeas
+ use crate::admin::sms::{
+     SendAssignmentSms, SendConfirmNudgeSms, SendReceiptNudgeSms, SendSeasonOpenSms, SmsReport,
+ };
+-use crate::admin::state::{AdminSeason, AdminState, get_admin_state};
++use crate::admin::state::{AdminSeason, AdminState, RosterEntry, RosterStatus, get_admin_state};
+ use crate::components::skeleton::SkeletonFallback;
+ use crate::components::stepper::PhaseStepper;
+ use crate::components::toast::use_toast;
+@@ -509,6 +509,75 @@ fn render_create_form(
+     .into_any()
+ }
+ 
++/// Season roster: who is enrolled, their phone, status and receipt note.
++/// Empty roster renders nothing.
++fn render_roster(
++    roster: Vec<RosterEntry>,
++    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
++) -> AnyView {
++    if roster.is_empty() {
++        return ().into_any();
++    }
++    view! {
++        <div data-testid="season-roster">
++            <h3 class="overline-label">{t!(i18n, admin_roster_title)}</h3>
++            <div class="data-table-wrapper">
++                <table class="data-table">
++                    <thead>
++                        <tr>
++                            <th>{t!(i18n, participants_table_name)}</th>
++                            <th>{t!(i18n, participants_table_phone)}</th>
++                            <th>{t!(i18n, participants_table_status)}</th>
++                            <th>{t!(i18n, admin_roster_note_column)}</th>
++                        </tr>
++                    </thead>
++                    <tbody>
++                        {roster
++                            .into_iter()
++                            .map(|entry| {
++                                let note = entry.status.note().map(str::to_owned);
++                                view! {
++                                    <tr data-testid="season-roster-row">
++                                        <td data-testid="season-roster-name">{entry.name.clone()}</td>
++                                        <td>
++                                            <a class="info-link" href=format!("tel:{}", entry.phone)>{entry.phone.clone()}</a>
++                                        </td>
++                                        <td>
++                                            <span
++                                                class="badge"
++                                                data-status=entry.status.badge_status()
++                                                data-roster-status=entry.status.key()
++                                                data-testid="season-roster-status"
++                                            >
++                                                {roster_status_label(&entry.status, i18n)}
++                                            </span>
++                                        </td>
++                                        <td data-testid="season-roster-note">{note}</td>
++                                    </tr>
++                                }
++                            })
++                            .collect_view()}
++                    </tbody>
++                </table>
++            </div>
++        </div>
++    }
++    .into_any()
++}
++
++fn roster_status_label(
++    status: &RosterStatus,
++    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
++) -> AnyView {
++    match status {
++        RosterStatus::Unconfirmed => t!(i18n, admin_roster_status_unconfirmed).into_any(),
++        RosterStatus::Confirmed => t!(i18n, admin_roster_status_confirmed).into_any(),
++        RosterStatus::AwaitingReceipt => t!(i18n, admin_roster_status_awaiting_receipt).into_any(),
++        RosterStatus::Received { .. } => t!(i18n, admin_roster_status_received).into_any(),
++        RosterStatus::NotReceived { .. } => t!(i18n, admin_roster_status_not_received).into_any(),
++    }
++}
++
+ /// Render an active season — controls differ by phase and launched state.
+ #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+ fn render_active_season(
+@@ -559,6 +628,7 @@ fn render_active_season(
+     let unnotified_sender_count = season.unnotified_sender_count;
+     let unconfirmed_enrolled_count = season.unconfirmed_enrolled_count;
+     let no_response_count = season.no_response_count;
++    let roster = season.roster.clone();
+ 
+     let phase = season.phase;
+ 
+@@ -645,6 +715,8 @@ fn render_active_season(
+                 ().into_any()
+             }}
+ 
++            {render_roster(roster, i18n)}
++
+             // Phase-conditional SMS section (Story 4.6)
+             {render_phase_sms(
+                 phase,
+diff --git a/src/admin/state.rs b/src/admin/state.rs
+index 9df557f..89d73b1 100644
+--- a/src/admin/state.rs
++++ b/src/admin/state.rs
+@@ -194,3 +194,43 @@ pub async fn get_admin_state() -> Result<AdminState, ServerFnError> {
+         participant_count,
+     })
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::{RosterStatus, roster_status};
++    use crate::types::ReceiptStatus;
++
++    #[test]
++    fn unassigned_unconfirmed_is_unconfirmed() {
++        assert_eq!(roster_status(false, None, None), RosterStatus::Unconfirmed);
++    }
++
++    #[test]
++    fn unassigned_confirmed_is_confirmed() {
++        assert_eq!(roster_status(true, None, None), RosterStatus::Confirmed);
++    }
++
++    #[test]
++    fn no_response_is_awaiting_receipt() {
++        assert_eq!(
++            roster_status(true, Some(ReceiptStatus::NoResponse), None),
++            RosterStatus::AwaitingReceipt
++        );
++    }
++
++    #[test]
++    fn received_keeps_note() {
++        assert_eq!(
++            roster_status(true, Some(ReceiptStatus::Received), Some("пом'ятий".into())),
++            RosterStatus::Received { note: Some("пом'ятий".into()) }
++        );
++    }
++
++    #[test]
++    fn not_received_keeps_note() {
++        assert_eq!(
++            roster_status(true, Some(ReceiptStatus::NotReceived), Some("нічого".into())),
++            RosterStatus::NotReceived { note: Some("нічого".into()) }
++        );
++    }
++}
 diff --git a/src/lib.rs b/src/lib.rs
 index 4f95058..0df3c07 100644
 --- a/src/lib.rs

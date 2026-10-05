@@ -1,7 +1,7 @@
 From fd94520b161409622e2bbd298fc4c58cc5298933 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 4 Oct 2026 21:14:23 +0000
-Subject: [PATCH] feat(admin): bootstrap first admin from env at startup
+Subject: [PATCH 1/2] feat(admin): bootstrap first admin from env at startup
 
 ---
  .env.example                                  |  4 +
@@ -248,6 +248,539 @@ index 875a481..920592e 100644
      // 3b. Shared HTTP client for SMS delivery
      let http_client = samete::sms::build_http_client().expect("HTTP client build failed");
  
+-- 
+2.43.0
+
+
+From 5ec1036942e8ffc7bc1cebc064721e446dcb49df Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 20:45:24 +0000
+Subject: [PATCH 2/2] feat(config): confine test mode to dry-run SMS on
+ loopback
+
+---
+ .env.example       |   4 +
+ README.md          |   8 +-
+ src/auth.rs        |  16 ++--
+ src/config.rs      | 203 ++++++++++++++++++++++++++++++++++++---------
+ src/main.rs        |  11 ++-
+ src/pages/home.rs  |  14 +++-
+ src/pages/login.rs |   4 +-
+ src/sms.rs         |  33 ++++----
+ 8 files changed, 226 insertions(+), 67 deletions(-)
+
+diff --git a/.env.example b/.env.example
+index 8a28007..b775109 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,4 +1,8 @@
+ export DATABASE_URL="postgres://samete:samete@localhost/samete"
++# Local dev / E2E only. SAMETE_TEST_MODE=true (fixed OTP 000000, no rate limits,
++# no deadline gates) is refused at boot unless SAMETE_SMS_DRY_RUN=true and the
++# server binds a loopback address. Production: set TURBOSMS_TOKEN and
++# TURBOSMS_SENDER and leave both SAMETE_* flags unset.
+ export SAMETE_TEST_MODE=true
+ export SAMETE_SMS_DRY_RUN=true
+ 
+diff --git a/README.md b/README.md
+index f3d40db..9fd1b1f 100644
+--- a/README.md
++++ b/README.md
+@@ -187,11 +187,13 @@ Server-heavy deps (sqlx, reqwest, phonenumber, rand, blake2, sha2, anyhow, tower
+ | Variable | Required | Purpose |
+ |----------|----------|---------|
+ | `DATABASE_URL` | Yes | Postgres connection string |
+-| `TURBOSMS_TOKEN` | Yes | TurboSMS API bearer token |
+-| `TURBOSMS_SENDER` | Yes | Registered alpha-name |
++| `TURBOSMS_TOKEN` | Yes, unless `SAMETE_SMS_DRY_RUN=true` | TurboSMS API bearer token |
++| `TURBOSMS_SENDER` | Yes, unless `SAMETE_SMS_DRY_RUN=true` | Registered alpha-name |
++| `SAMETE_SMS_DRY_RUN` | No (dev/E2E only) | `true` = SMS are logged (including OTP codes), never sent. Never set in production |
++| `SAMETE_TEST_MODE` | No (dev/E2E only) | `true` = fixed OTP `000000`, no OTP rate limits, no deadline gates. Boot is refused unless `SAMETE_SMS_DRY_RUN=true` AND the server binds a loopback address. Never set in production |
+ | `SAMETE_ADMIN_PHONE` | No (set both or neither) | Phone of the first organizer. At every boot the app ensures this user exists with role `admin` (creates it, or promotes an existing account). Any Ukrainian format; stored as E.164 |
+ | `SAMETE_ADMIN_NAME` | No (set both or neither) | Display name used only when the admin user is created |
+-| `CSRF_SECRET` | No | Override for CSRF secret (generated at startup if absent) |
++| `RUST_LOG` | No | Log filter; default `samete=info,tower_http=info` |
+ 
+ ## Deployment
+ 
+diff --git a/src/auth.rs b/src/auth.rs
+index 528a467..061009f 100644
+--- a/src/auth.rs
++++ b/src/auth.rs
+@@ -68,13 +68,13 @@ fn extract_session_cookie(parts: &http::request::Parts) -> Option<String> {
+ /// Old codes are retained (not upserted) to enable rate-limit row counting.
+ /// Returns the raw code string (for SMS delivery).
+ ///
+-/// When `SAMETE_TEST_MODE=true`, always returns `"000000"`.
++/// When `test_mode` (see `Config::test_mode`) is true, always returns `"000000"`.
+ ///
+ /// # Errors
+ ///
+ /// Returns `Err` on database failure.
+-pub async fn create_otp(pool: &PgPool, phone: &str) -> Result<String, AppError> {
+-    let code = if std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true") {
++pub async fn create_otp(pool: &PgPool, phone: &str, test_mode: bool) -> Result<String, AppError> {
++    let code = if test_mode {
+         "000000".to_owned()
+     } else {
+         // Use rand to generate a 6-digit code, zero-padded
+@@ -115,10 +115,16 @@ pub async fn create_otp(pool: &PgPool, phone: &str) -> Result<String, AppError>
+ ///
+ /// # Errors
+ ///
++/// Skipped entirely when `test_mode` is true.
++///
+ /// Returns `Err(AppError::RateLimited)` if either limit is exceeded.
+ /// Returns `Err(AppError::Database(_))` on DB failure.
+-pub async fn check_otp_rate_limit(pool: &PgPool, phone: &str) -> Result<(), AppError> {
+-    if std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true") {
++pub async fn check_otp_rate_limit(
++    pool: &PgPool,
++    phone: &str,
++    test_mode: bool,
++) -> Result<(), AppError> {
++    if test_mode {
+         return Ok(());
+     }
+ 
+diff --git a/src/config.rs b/src/config.rs
+index c254eed..ce904c5 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -1,13 +1,21 @@
+ #[derive(Debug, Clone)]
+ pub struct Config {
+     pub database_url: String,
+-    pub turbosms_token: String,
+-    pub turbosms_sender: String,
+-    // CSRF: SameSite=Strict cookie attribute is the mitigation (see src/pages/login.rs set_cookie_header)
+-    pub sms_dry_run: bool,
++    pub sms: SmsMode,
+     pub admin_bootstrap: Option<AdminBootstrap>,
+ }
+ 
++/// How SMS is delivered. Test mode exists only inside `DryRun`, so a server
++/// that sends real SMS can never run with the fixed test OTP.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub enum SmsMode {
++    /// Real `TurboSMS` delivery.
++    Live { token: String, sender: String },
++    /// SMS is logged, never sent. `test_mode` = fixed OTP `000000`, no OTP
++    /// rate limits, no deadline gates (local dev / E2E only).
++    DryRun { test_mode: bool },
++}
++
+ /// First admin ensured at every boot (idempotent).
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub struct AdminBootstrap {
+@@ -28,6 +36,10 @@ pub enum ConfigError {
+     EmptyTurbosmsToken,
+     #[error("TURBOSMS_SENDER must not be empty")]
+     EmptyTurbosmsSender,
++    #[error("SAMETE_TEST_MODE=true requires SAMETE_SMS_DRY_RUN=true")]
++    TestModeRequiresDryRun,
++    #[error("SAMETE_TEST_MODE=true requires a loopback bind address, got {0}")]
++    TestModeRequiresLoopback(std::net::SocketAddr),
+     #[error("SAMETE_ADMIN_PHONE and SAMETE_ADMIN_NAME must be set together")]
+     AdminBootstrapIncomplete,
+     #[error("SAMETE_ADMIN_PHONE is not a valid Ukrainian phone: {0}")]
+@@ -37,13 +49,14 @@ pub enum ConfigError {
+ impl Config {
+     /// Read from environment. Fails fast naming the missing or invalid variable.
+     ///
+-    /// When `SAMETE_SMS_DRY_RUN=true`, `TurboSMS` credentials are optional and
+-    /// not validated — they are never used in dry-run mode, so requiring them
+-    /// would block local development and E2E testing without real credentials.
++    /// `SAMETE_SMS_DRY_RUN=true` logs SMS instead of sending them, so
++    /// `TurboSMS` credentials are not required. Otherwise `TURBOSMS_TOKEN` and
++    /// `TURBOSMS_SENDER` must be present and non-empty (an empty bearer token
++    /// would cause a 401 at the first SMS send).
+     ///
+-    /// In production (non-dry-run), both `TURBOSMS_TOKEN` and `TURBOSMS_SENDER`
+-    /// must be present and non-empty. An empty bearer token would cause a 401
+-    /// at the first SMS send.
++    /// `SAMETE_TEST_MODE=true` (fixed OTP, no OTP rate limits, no deadline
++    /// gates) is refused unless `SAMETE_SMS_DRY_RUN=true`; the loopback-bind
++    /// refusal is enforced at boot by [`Config::check_bind_addr`].
+     ///
+     /// # Errors
+     ///
+@@ -54,29 +67,12 @@ impl Config {
+         let database_url =
+             std::env::var("DATABASE_URL").map_err(|_| ConfigError::MissingDatabaseUrl)?;
+ 
+-        let sms_dry_run = std::env::var("SAMETE_SMS_DRY_RUN").as_deref() == Ok("true");
+-
+-        let turbosms_token = if sms_dry_run {
+-            std::env::var("TURBOSMS_TOKEN").unwrap_or_default()
+-        } else {
+-            let token =
+-                std::env::var("TURBOSMS_TOKEN").map_err(|_| ConfigError::MissingTurbosmsToken)?;
+-            if token.is_empty() {
+-                return Err(ConfigError::EmptyTurbosmsToken);
+-            }
+-            token
+-        };
+-
+-        let turbosms_sender = if sms_dry_run {
+-            std::env::var("TURBOSMS_SENDER").unwrap_or_default()
+-        } else {
+-            let sender =
+-                std::env::var("TURBOSMS_SENDER").map_err(|_| ConfigError::MissingTurbosmsSender)?;
+-            if sender.is_empty() {
+-                return Err(ConfigError::EmptyTurbosmsSender);
+-            }
+-            sender
+-        };
++        let sms = sms_mode_from_vars(
++            std::env::var("SAMETE_SMS_DRY_RUN").ok().as_deref(),
++            std::env::var("SAMETE_TEST_MODE").ok().as_deref(),
++            std::env::var("TURBOSMS_TOKEN").ok(),
++            std::env::var("TURBOSMS_SENDER").ok(),
++        )?;
+ 
+         let admin_bootstrap = admin_bootstrap_from_vars(
+             std::env::var("SAMETE_ADMIN_PHONE").ok(),
+@@ -85,12 +81,54 @@ impl Config {
+ 
+         Ok(Self {
+             database_url,
+-            turbosms_token,
+-            turbosms_sender,
+-            sms_dry_run,
++            sms,
+             admin_bootstrap,
+         })
+     }
++
++    /// True only in dry-run SMS mode with `SAMETE_TEST_MODE=true`.
++    #[must_use]
++    pub fn test_mode(&self) -> bool {
++        matches!(self.sms, SmsMode::DryRun { test_mode: true })
++    }
++
++    /// Refuse test mode on any non-loopback bind address.
++    ///
++    /// # Errors
++    ///
++    /// Returns `Err(ConfigError::TestModeRequiresLoopback)` when test mode is
++    /// on and `addr` is not loopback.
++    pub fn check_bind_addr(&self, addr: std::net::SocketAddr) -> Result<(), ConfigError> {
++        if self.test_mode() && !addr.ip().is_loopback() {
++            return Err(ConfigError::TestModeRequiresLoopback(addr));
++        }
++        Ok(())
++    }
++}
++
++/// Parse SMS delivery mode from raw env values. Only the literal `"true"` enables a flag.
++fn sms_mode_from_vars(
++    dry_run: Option<&str>,
++    test_mode: Option<&str>,
++    token: Option<String>,
++    sender: Option<String>,
++) -> Result<SmsMode, ConfigError> {
++    let test_mode = test_mode == Some("true");
++    if dry_run == Some("true") {
++        return Ok(SmsMode::DryRun { test_mode });
++    }
++    if test_mode {
++        return Err(ConfigError::TestModeRequiresDryRun);
++    }
++    let token = token.ok_or(ConfigError::MissingTurbosmsToken)?;
++    if token.is_empty() {
++        return Err(ConfigError::EmptyTurbosmsToken);
++    }
++    let sender = sender.ok_or(ConfigError::MissingTurbosmsSender)?;
++    if sender.is_empty() {
++        return Err(ConfigError::EmptyTurbosmsSender);
++    }
++    Ok(SmsMode::Live { token, sender })
+ }
+ 
+ /// Parse the optional first-admin bootstrap. Blank values count as unset.
+@@ -112,7 +150,17 @@ fn admin_bootstrap_from_vars(
+ 
+ #[cfg(test)]
+ mod tests {
+-    use super::{AdminBootstrap, ConfigError, admin_bootstrap_from_vars};
++    use super::{
++        AdminBootstrap, Config, ConfigError, SmsMode, admin_bootstrap_from_vars, sms_mode_from_vars,
++    };
++
++    fn config_with(sms: SmsMode) -> Config {
++        Config {
++            database_url: String::new(),
++            sms,
++            admin_bootstrap: None,
++        }
++    }
+ 
+     #[test]
+     fn neither_var_means_no_bootstrap() {
+@@ -162,4 +210,85 @@ mod tests {
+             Err(ConfigError::InvalidAdminPhone(_))
+         ));
+     }
++
++    #[test]
++    fn dry_run_without_test_mode() {
++        assert_eq!(
++            sms_mode_from_vars(Some("true"), None, None, None).ok(),
++            Some(SmsMode::DryRun { test_mode: false })
++        );
++    }
++
++    #[test]
++    fn dry_run_with_test_mode() {
++        assert_eq!(
++            sms_mode_from_vars(Some("true"), Some("true"), None, None).ok(),
++            Some(SmsMode::DryRun { test_mode: true })
++        );
++    }
++
++    #[test]
++    fn test_mode_without_dry_run_is_refused_even_with_credentials() {
++        let result = sms_mode_from_vars(None, Some("true"), Some("tok".into()), Some("snd".into()));
++        assert!(matches!(result, Err(ConfigError::TestModeRequiresDryRun)));
++    }
++
++    #[test]
++    fn live_requires_token() {
++        assert!(matches!(
++            sms_mode_from_vars(None, None, None, Some("snd".into())),
++            Err(ConfigError::MissingTurbosmsToken)
++        ));
++    }
++
++    #[test]
++    fn live_rejects_empty_sender() {
++        assert!(matches!(
++            sms_mode_from_vars(None, None, Some("tok".into()), Some(String::new())),
++            Err(ConfigError::EmptyTurbosmsSender)
++        ));
++    }
++
++    #[test]
++    fn live_with_credentials() {
++        assert_eq!(
++            sms_mode_from_vars(None, None, Some("tok".into()), Some("snd".into())).ok(),
++            Some(SmsMode::Live {
++                token: "tok".into(),
++                sender: "snd".into()
++            })
++        );
++    }
++
++    #[test]
++    fn only_literal_true_enables_flags() {
++        assert!(matches!(
++            sms_mode_from_vars(Some("1"), Some("TRUE"), None, None),
++            Err(ConfigError::MissingTurbosmsToken)
++        ));
++    }
++
++    #[test]
++    fn test_mode_refuses_non_loopback_bind() {
++        let config = config_with(SmsMode::DryRun { test_mode: true });
++        assert!(matches!(
++            config.check_bind_addr("0.0.0.0:3000".parse().expect("addr")),
++            Err(ConfigError::TestModeRequiresLoopback(_))
++        ));
++        assert!(
++            config
++                .check_bind_addr("127.0.0.1:3000".parse().expect("addr"))
++                .is_ok()
++        );
++    }
++
++    #[test]
++    fn non_test_mode_allows_any_bind() {
++        let config = config_with(SmsMode::DryRun { test_mode: false });
++        assert!(
++            config
++                .check_bind_addr("0.0.0.0:3000".parse().expect("addr"))
++                .is_ok()
++        );
++    }
+ }
+diff --git a/src/main.rs b/src/main.rs
+index 920592e..b95f4ee 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -21,6 +21,15 @@ async fn main() {
+     // 2. Config
+     let config = samete::config::Config::from_env().expect("configuration error");
+ 
++    let conf = get_configuration(None).unwrap();
++    let addr = conf.leptos_options.site_addr;
++    config.check_bind_addr(addr).expect("configuration error");
++    if config.test_mode() {
++        tracing::warn!(
++            "SAMETE_TEST_MODE=true: fixed OTP 000000, OTP rate limits and deadline gates disabled (local/E2E only)"
++        );
++    }
++
+     // 3. Database
+     let pool = samete::db::create_pool(&config.database_url)
+         .await
+@@ -40,8 +49,6 @@ async fn main() {
+     let http_client = samete::sms::build_http_client().expect("HTTP client build failed");
+ 
+     // 4. Leptos
+-    let conf = get_configuration(None).unwrap();
+-    let addr = conf.leptos_options.site_addr;
+     let leptos_options = conf.leptos_options;
+     let routes = generate_route_list(App);
+ 
+diff --git a/src/pages/home.rs b/src/pages/home.rs
+index d326751..f5d2af0 100644
+--- a/src/pages/home.rs
++++ b/src/pages/home.rs
+@@ -151,6 +151,14 @@ async fn resolve_enrollment_state(
+     }
+ }
+ 
++/// Test mode (deadline gates bypassed) from the server `Config` context.
++#[cfg(feature = "ssr")]
++fn test_mode() -> Result<bool, ServerFnError> {
++    leptos::context::use_context::<crate::config::Config>()
++        .map(|config| config.test_mode())
++        .ok_or_else(|| ServerFnError::new("no config in context"))
++}
++
+ /// Resolve home state for the Preparation phase.
+ #[cfg(feature = "ssr")]
+ async fn resolve_preparation_state(
+@@ -177,7 +185,7 @@ async fn resolve_preparation_state(
+     if confirmed {
+         Ok(HomeState::Confirmed)
+     } else {
+-        let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
++        let test_mode = test_mode()?;
+         let deadline_passed = is_past_deadline(season.confirm_deadline, test_mode);
+         Ok(HomeState::Preparing {
+             confirm_deadline: confirm_str,
+@@ -395,7 +403,7 @@ pub async fn enroll_in_season(
+     .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_enrollment_not_open)))?;
+ 
+     // Deadline check — bypassed in test mode
+-    let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
++    let test_mode = test_mode()?;
+     if is_past_deadline(season.signup_deadline, test_mode) {
+         return Err(ServerFnError::new(td_string!(
+             Locale::uk,
+@@ -518,7 +526,7 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
+     .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_confirmation_not_open)))?;
+ 
+     // Deadline check — bypassed in test mode
+-    let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
++    let test_mode = test_mode()?;
+     if is_past_deadline(season.confirm_deadline, test_mode) {
+         return Err(ServerFnError::new(td_string!(
+             Locale::uk,
+diff --git a/src/pages/login.rs b/src/pages/login.rs
+index a0abf76..e784333 100644
+--- a/src/pages/login.rs
++++ b/src/pages/login.rs
+@@ -72,7 +72,7 @@ pub async fn request_otp(phone: String) -> Result<RequestOtpOutcome, ServerFnErr
+     };
+ 
+     // Rate limit — silently return AccountExists on limit to avoid enumeration
+-    if auth::check_otp_rate_limit(&pool, &normalized)
++    if auth::check_otp_rate_limit(&pool, &normalized, config.test_mode())
+         .await
+         .is_err()
+     {
+@@ -80,7 +80,7 @@ pub async fn request_otp(phone: String) -> Result<RequestOtpOutcome, ServerFnErr
+     }
+ 
+     // Create OTP code (test mode returns "000000")
+-    let Ok(code) = auth::create_otp(&pool, &normalized).await else {
++    let Ok(code) = auth::create_otp(&pool, &normalized, config.test_mode()).await else {
+         return Ok(RequestOtpOutcome::AccountExists);
+     };
+ 
+diff --git a/src/sms.rs b/src/sms.rs
+index dbf6bc9..cdcda1a 100644
+--- a/src/sms.rs
++++ b/src/sms.rs
+@@ -1,6 +1,6 @@
+ use std::time::Duration;
+ 
+-use crate::config::Config;
++use crate::config::{Config, SmsMode};
+ 
+ const TURBOSMS_SEND_URL: &str = "https://api.turbosms.ua/message/send.json";
+ const RETRY_DELAY: Duration = Duration::from_secs(1);
+@@ -20,7 +20,7 @@ pub fn build_http_client() -> Result<reqwest::Client, reqwest::Error> {
+ 
+ /// Send an SMS via the `TurboSMS` API.
+ ///
+-/// When `config.sms_dry_run` is true, the message is logged instead of sent.
++/// In `SmsMode::DryRun`, the message is logged instead of sent.
+ ///
+ /// Uses the shared `client` for connection reuse and enforced timeout.
+ /// On transient errors (HTTP 5xx or network failure), retries once after
+@@ -37,29 +37,32 @@ pub async fn send_sms(
+     phone: &str,
+     message: &str,
+ ) -> Result<(), SmsError> {
+-    if config.sms_dry_run {
+-        tracing::info!(
+-            phone = phone,
+-            message = message,
+-            "[DRY RUN] SMS would be sent"
+-        );
+-        return Ok(());
+-    }
++    let (token, sender) = match &config.sms {
++        SmsMode::DryRun { .. } => {
++            tracing::info!(
++                phone = phone,
++                message = message,
++                "[DRY RUN] SMS would be sent"
++            );
++            return Ok(());
++        }
++        SmsMode::Live { token, sender } => (token.as_str(), sender.as_str()),
++    };
+ 
+     let body = serde_json::json!({
+         "recipients": [phone],
+         "sms": {
+-            "sender": config.turbosms_sender,
++            "sender": sender,
+             "text": message,
+         }
+     });
+ 
+-    match post_to_turbosms(client, config, &body).await {
++    match post_to_turbosms(client, token, &body).await {
+         Ok(()) => Ok(()),
+         Err(e) if is_transient(&e) => {
+             tracing::warn!(phone = phone, error = %e, "transient SMS error, retrying in 1s");
+             tokio::time::sleep(RETRY_DELAY).await;
+-            post_to_turbosms(client, config, &body).await
++            post_to_turbosms(client, token, &body).await
+         }
+         Err(e) => Err(e),
+     }
+@@ -68,12 +71,12 @@ pub async fn send_sms(
+ /// Execute a single POST to `TurboSMS` and validate the response.
+ async fn post_to_turbosms(
+     client: &reqwest::Client,
+-    config: &Config,
++    token: &str,
+     body: &serde_json::Value,
+ ) -> Result<(), SmsError> {
+     let response = client
+         .post(TURBOSMS_SEND_URL)
+-        .bearer_auth(&config.turbosms_token)
++        .bearer_auth(token)
+         .json(body)
+         .send()
+         .await?;
 -- 
 2.43.0
 

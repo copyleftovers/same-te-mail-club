@@ -1,8 +1,8 @@
 From 8da5b06f38c92529aab12ecdbe13c32efbabb5c4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:33 +0000
-Subject: [PATCH] fix(auth): require server-verified registration ticket and
- throttle invite codes
+Subject: [PATCH 1/2] fix(auth): require server-verified registration ticket
+ and throttle invite codes
 
 ---
  ...62dcc449670406e10384cf9af2403e215ce28.json |  23 +++
@@ -842,6 +842,61 @@ index a0abf76..05e249a 100644
              // Hidden input carries the code from step 3 into the form submission
              <input
                  type="hidden"
+-- 
+2.43.0
+
+
+From 51b7c9655e328f769de2664139c2207e74026472 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 20:47:02 +0000
+Subject: [PATCH 2/2] style(auth): cargo fmt
+
+---
+ src/auth.rs | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/src/auth.rs b/src/auth.rs
+index 67d72f3..6edcd1d 100644
+--- a/src/auth.rs
++++ b/src/auth.rs
+@@ -490,7 +490,11 @@ mod tests {
+     fn generate_token_is_43_url_safe_characters() {
+         let token = generate_token();
+         assert_eq!(token.len(), 43);
+-        assert!(token.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
++        assert!(
++            token
++                .chars()
++                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
++        );
+     }
+ 
+     #[test]
+@@ -501,7 +505,10 @@ mod tests {
+     #[test]
+     fn extract_cookie_finds_named_cookie_among_several() {
+         let parts = parts_with_cookie("session=abc; registration_ticket=xyz");
+-        assert_eq!(extract_cookie(&parts, "registration_ticket").as_deref(), Some("xyz"));
++        assert_eq!(
++            extract_cookie(&parts, "registration_ticket").as_deref(),
++            Some("xyz")
++        );
+         assert_eq!(extract_cookie(&parts, "session").as_deref(), Some("abc"));
+     }
+ 
+@@ -514,7 +521,11 @@ mod tests {
+ 
+     #[test]
+     fn extract_cookie_returns_none_without_cookie_header() {
+-        let parts = http::Request::builder().body(()).expect("request builds").into_parts().0;
++        let parts = http::Request::builder()
++            .body(())
++            .expect("request builds")
++            .into_parts()
++            .0;
+         assert_eq!(extract_cookie(&parts, "session"), None);
+     }
+ 
 -- 
 2.43.0
 

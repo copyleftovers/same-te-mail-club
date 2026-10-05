@@ -1,0 +1,53 @@
+diff --git a/src/lib.rs b/src/lib.rs
+index 4f95058..0df3c07 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,3 +1,4 @@
++#![recursion_limit = "256"]
+ // Leptos components return views used in macros, not directly by callers
+ #![allow(clippy::must_use_candidate)]
+ 
+diff --git a/src/main.rs b/src/main.rs
+index 875a481..bb14dcd 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,3 +1,4 @@
++#![recursion_limit = "256"]
+ #[cfg(feature = "ssr")]
+ #[tokio::main]
+ async fn main() {
+diff --git a/src/types.rs b/src/types.rs
+index d7c1e10..9720f7a 100644
+--- a/src/types.rs
++++ b/src/types.rs
+@@ -249,4 +249,30 @@ mod tests {
+         assert_eq!(Phase::Complete.to_string(), "complete");
+         assert_eq!(Phase::Cancelled.to_string(), "cancelled");
+     }
++
++    #[test]
++    fn first_receipt_answer_is_allowed() {
++        assert!(ReceiptStatus::NoResponse.can_transition_to(ReceiptStatus::Received));
++        assert!(ReceiptStatus::NoResponse.can_transition_to(ReceiptStatus::NotReceived));
++    }
++
++    #[test]
++    fn late_arrival_corrects_not_received() {
++        assert!(ReceiptStatus::NotReceived.can_transition_to(ReceiptStatus::Received));
++    }
++
++    #[test]
++    fn other_receipt_transitions_are_refused() {
++        use ReceiptStatus::{NoResponse, NotReceived, Received};
++        for (from, to) in [
++            (Received, NotReceived),
++            (Received, Received),
++            (Received, NoResponse),
++            (NotReceived, NotReceived),
++            (NotReceived, NoResponse),
++            (NoResponse, NoResponse),
++        ] {
++            assert!(!from.can_transition_to(to), "{from:?} -> {to:?}");
++        }
++    }
+ }
