@@ -33,7 +33,7 @@ async fn main() {
         samete::db::ensure_admin(&pool, admin)
             .await
             .expect("admin bootstrap failed");
-        tracing::info!(phone = %admin.phone, "admin bootstrap ensured");
+        tracing::info!("admin bootstrap ensured");
     }
 
     // 3b. Shared HTTP client for SMS delivery
