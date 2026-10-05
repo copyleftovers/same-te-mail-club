@@ -1,0 +1,107 @@
+diff --git a/src/config.rs b/src/config.rs
+index c254eed..e22718b 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -112,7 +112,15 @@ fn admin_bootstrap_from_vars(
+ 
+ #[cfg(test)]
+ mod tests {
+-    use super::{AdminBootstrap, ConfigError, admin_bootstrap_from_vars};
++    use super::{AdminBootstrap, Config, ConfigError, SmsMode, admin_bootstrap_from_vars, sms_mode_from_vars};
++
++    fn config_with(sms: SmsMode) -> Config {
++        Config {
++            database_url: String::new(),
++            sms,
++            admin_bootstrap: None,
++        }
++    }
+ 
+     #[test]
+     fn neither_var_means_no_bootstrap() {
+@@ -162,4 +170,85 @@ mod tests {
+             Err(ConfigError::InvalidAdminPhone(_))
+         ));
+     }
++
++    #[test]
++    fn dry_run_without_test_mode() {
++        assert_eq!(
++            sms_mode_from_vars(Some("true"), None, None, None).ok(),
++            Some(SmsMode::DryRun { test_mode: false })
++        );
++    }
++
++    #[test]
++    fn dry_run_with_test_mode() {
++        assert_eq!(
++            sms_mode_from_vars(Some("true"), Some("true"), None, None).ok(),
++            Some(SmsMode::DryRun { test_mode: true })
++        );
++    }
++
++    #[test]
++    fn test_mode_without_dry_run_is_refused_even_with_credentials() {
++        let result = sms_mode_from_vars(None, Some("true"), Some("tok".into()), Some("snd".into()));
++        assert!(matches!(result, Err(ConfigError::TestModeRequiresDryRun)));
++    }
++
++    #[test]
++    fn live_requires_token() {
++        assert!(matches!(
++            sms_mode_from_vars(None, None, None, Some("snd".into())),
++            Err(ConfigError::MissingTurbosmsToken)
++        ));
++    }
++
++    #[test]
++    fn live_rejects_empty_sender() {
++        assert!(matches!(
++            sms_mode_from_vars(None, None, Some("tok".into()), Some(String::new())),
++            Err(ConfigError::EmptyTurbosmsSender)
++        ));
++    }
++
++    #[test]
++    fn live_with_credentials() {
++        assert_eq!(
++            sms_mode_from_vars(None, None, Some("tok".into()), Some("snd".into())).ok(),
++            Some(SmsMode::Live {
++                token: "tok".into(),
++                sender: "snd".into()
++            })
++        );
++    }
++
++    #[test]
++    fn only_literal_true_enables_flags() {
++        assert!(matches!(
++            sms_mode_from_vars(Some("1"), Some("TRUE"), None, None),
++            Err(ConfigError::MissingTurbosmsToken)
++        ));
++    }
++
++    #[test]
++    fn test_mode_refuses_non_loopback_bind() {
++        let config = config_with(SmsMode::DryRun { test_mode: true });
++        assert!(matches!(
++            config.check_bind_addr("0.0.0.0:3000".parse().expect("addr")),
++            Err(ConfigError::TestModeRequiresLoopback(_))
++        ));
++        assert!(
++            config
++                .check_bind_addr("127.0.0.1:3000".parse().expect("addr"))
++                .is_ok()
++        );
++    }
++
++    #[test]
++    fn non_test_mode_allows_any_bind() {
++        let config = config_with(SmsMode::DryRun { test_mode: false });
++        assert!(
++            config
++                .check_bind_addr("0.0.0.0:3000".parse().expect("addr"))
++                .is_ok()
++        );
++    }
+ }

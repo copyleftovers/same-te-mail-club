@@ -1,0 +1,289 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index f947060..169e1de 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -43,6 +43,14 @@ jobs:
+       - name: cargo clippy (hydrate / WASM)
+         run: cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings
+ 
++      # clippy/test never run codegen, so recursion/layout overflows in Leptos views
++      # only surface in a real build (see src/main.rs recursion_limit WHY).
++      - name: cargo build (SSR bin — codegen)
++        run: cargo build --no-default-features --features ssr --bin samete
++
++      - name: cargo build (hydrate lib, wasm — codegen)
++        run: cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate
++
+       - name: Install cargo-binstall
+         uses: cargo-bins/cargo-binstall@v1.18.1
+ 
+diff --git a/justfile b/justfile
+index c627308..7e83657 100644
+--- a/justfile
++++ b/justfile
+@@ -21,22 +21,29 @@ _kill-stale:
+     -lsof -i :3000 -t | xargs kill 2>/dev/null || true
+ 
+ # Run E2E tests against the release binary (471KB brotli WASM — CI-stable)
++# All end-to-end recipes assert Playwright actually ran: cargo leptos end-to-end exits 0 on build failure.
+ e2e: e2e-release
+ 
+ # Run E2E tests in dev mode — only for debugging; 14MB WASM may intermittently fail
+ e2e-dev: _kill-stale db-reset db-seed
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Run a single test by grep pattern against the release binary — includes DB reset and rebuild.
+ # Only useful for tests that don't depend on prior DB state (e.g. block 1 tests).
+ # For dependent tests: run `just e2e` first, then target with `just e2e-single`.
+ e2e-single pattern: _kill-stale db-reset db-seed
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release -- --grep "{{pattern}}"
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Re-run E2E tests without resetting the DB — use when DB is already in correct state.
+ # Rebuilds the release binary. Kills any stale server on :3000 first.
+ e2e-rerun: _kill-stale
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Build release with pre-compressed static assets
+ build:
+@@ -49,7 +56,9 @@ serve: build
+ 
+ # Run E2E tests against release build
+ e2e-release: _kill-stale db-reset db-seed
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Pre-compress static assets (quality: --best for release, -q 5 for dev)
+ _precompress quality="--best":
+diff --git a/scripts/assert-playwright-ran.sh b/scripts/assert-playwright-ran.sh
+new file mode 100755
+index 0000000..751fa1f
+--- /dev/null
++++ b/scripts/assert-playwright-ran.sh
+@@ -0,0 +1,32 @@
++#!/usr/bin/env bash
++# Fail unless Playwright actually ran during this E2E invocation.
++#
++# WHY: `cargo leptos end-to-end` exits 0 when the cargo build fails and then never
++# starts Playwright — CI was false-green from 2026-07-10 to 2026-07-25 with zero
++# tests executed. Playwright's JSON reporter (end2end/playwright.config.ts) writes
++# end2end/results.json on every run; a fresh file with >0 executed tests is the proof.
++#
++# Usage (from repo root): scripts/assert-playwright-ran.sh <start-marker>
++#   <start-marker> — a file touched BEFORE the E2E command started.
++set -euo pipefail
++
++marker="${1:?usage: scripts/assert-playwright-ran.sh <start-marker>}"
++results="end2end/results.json"
++
++[ -f "$results" ] \
++    || { echo "FATAL: $results missing — Playwright never ran (build failure?)"; exit 1; }
++[ "$results" -nt "$marker" ] \
++    || { echo "FATAL: $results predates this run — Playwright never ran (build failure?)"; exit 1; }
++
++node -e '
++const s = require(process.argv[1]).stats;
++console.log(`playwright ran: expected=${s.expected} unexpected=${s.unexpected} flaky=${s.flaky} skipped=${s.skipped}`);
++if (s.expected + s.unexpected + s.flaky === 0) {
++    console.error("FATAL: Playwright executed 0 tests");
++    process.exit(1);
++}
++if (s.unexpected > 0) {
++    console.error("FATAL: Playwright reported failures");
++    process.exit(1);
++}
++' "$PWD/$results"
+diff --git a/scripts/isolated-capture.sh b/scripts/isolated-capture.sh
+index 3b9c5a4..fa4ad99 100755
+--- a/scripts/isolated-capture.sh
++++ b/scripts/isolated-capture.sh
+@@ -68,7 +68,12 @@ psql "$SIBLING_DBURL" -f seed/test_admin.sql
+ 
+ # --- build release binary + pre-compress static assets ------------------
+ 
++# Remove the artifacts first so a failed build cannot leave a stale binary/WASM to be
++# served: cargo leptos has been observed to exit 0 on cargo build failure.
++rm -f target/release/samete target/site/pkg/samete.wasm
+ cargo leptos build --release
++[ -x target/release/samete ] && [ -f target/site/pkg/samete.wasm ] \
++    || { echo "[isolated-capture] FATAL: release build produced no binary/WASM — build failed"; exit 1; }
+ 
+ for asset in target/site/pkg/*.wasm target/site/pkg/*.js target/site/pkg/*.css; do
+     [ -f "$asset" ] || continue
+diff --git a/src/pages/login.rs b/src/pages/login.rs
+index a0abf76..b37f74b 100644
+--- a/src/pages/login.rs
++++ b/src/pages/login.rs
+@@ -715,7 +715,6 @@ fn LoginStepRouter(
+     const OTP_RESEND_COOLDOWN_SECS: u32 = 60;
+ 
+     let i18n = use_i18n();
+-    let request_pending = request_action.pending();
+ 
+     // ── Resend cooldown (Fault-03) ────────────────────────────────────────────
+     // `resend_cooldown` is unconditional: initial value (0u32) is identical on SSR
+@@ -783,6 +782,76 @@ fn LoginStepRouter(
+     #[allow(unused_variables)]
+     let resend = move || {};
+ 
++    view! {
++        <PhoneStep
++            otp_step=otp_step
++            is_pending=is_pending
++            is_otp_error=is_otp_error
++            hydrated=hydrated
++            request_action=request_action
++        />
++        <OtpStep
++            otp_step=otp_step
++            is_pending=is_pending
++            is_otp_error=is_otp_error
++            hydrated=hydrated
++            request_action=request_action
++            submitted_phone=submitted_phone
++            resend_cooldown=resend_cooldown
++            on_resend=resend
++        />
++
++        // ── Step 3: Invite code ───────────────────────────────────────────────
++        // Shown when pending_registration is true AND no code entered yet.
++        <div
++            data-testid="invite-code-step"
++            style:display=move || {
++                if is_pending && entered_code.get().is_none() { "" } else { "none" }
++            }
++        >
++            <h1>
++                {t!(i18n, auth_invite_code_step_heading)}
++            </h1>
++            <InviteCodeForm
++                hydrated=hydrated
++                on_submit=move |code| set_entered_code.set(Some(code))
++            />
++        </div>
++
++        // ── Step 4: Name collection ────────────────────────────────────────────
++        // Shown when pending_registration is true AND a code has been entered.
++        <div
++            data-testid="name-collection-step"
++            style:display=move || {
++                if is_pending && entered_code.get().is_some() { "" } else { "none" }
++            }
++        >
++            <NameCollectionForm
++                hydrated=hydrated
++                register_action=register_action
++                entered_code=entered_code
++                on_back=move || set_entered_code.set(None)
++            />
++        </div>
++    }
++}
++
++/// Step 1: phone entry. Hidden once the OTP step activates, a pending registration
++/// is set, or the server redirected back with an OTP error.
++// WHY `.into_any()`: a login step is its own type-erasure seam. Without it the whole
++// four-step tree is one nested view type and rustc's layout of the `into_any` async
++// blocks exceeds the default recursion limit (see conventions: view-type depth).
++#[component]
++fn PhoneStep(
++    otp_step: Memo<bool>,
++    is_pending: bool,
++    is_otp_error: bool,
++    hydrated: ReadSignal<bool>,
++    request_action: ServerAction<RequestOtp>,
++) -> impl IntoView {
++    let i18n = use_i18n();
++    let request_pending = request_action.pending();
++
+     view! {
+         // ── Step 1: Phone ─────────────────────────────────────────────────────
+         // Hidden once OTP step activates, pending_registration is set, or OTP error redirect.
+@@ -840,7 +909,30 @@ fn LoginStepRouter(
+                 </button>
+             </leptos::form::ActionForm>
+         </div>
++    }
++    .into_any()
++}
++
++/// Step 2: OTP entry, resend, and back-to-phone. Shown when an OTP was requested or
++/// the server redirected back with `?otp_error=1`.
++// WHY `.into_any()`: see `PhoneStep`.
++#[component]
++fn OtpStep<F>(
++    otp_step: Memo<bool>,
++    is_pending: bool,
++    is_otp_error: bool,
++    hydrated: ReadSignal<bool>,
++    request_action: ServerAction<RequestOtp>,
++    submitted_phone: ReadSignal<String>,
++    resend_cooldown: RwSignal<u32>,
++    on_resend: F,
++) -> impl IntoView
++where
++    F: Fn() + 'static,
++{
++    let i18n = use_i18n();
+ 
++    view! {
+         // ── Step 2: OTP ───────────────────────────────────────────────────────
+         // Shown when OTP was requested or the server redirected back with ?otp_error=1.
+         // Uses native form POST so the browser follows the server-issued 302 redirect.
+@@ -897,7 +989,7 @@ fn LoginStepRouter(
+                 // expression is parsed as the closing `>` of the tag, causing the
+                 // remaining attributes to leak as text nodes.
+                 disabled={move || resend_cooldown.get() > 0 || !hydrated.get()}
+-                on:click=move |_| resend()
++                on:click=move |_| on_resend()
+             >
+                 {move || {
+                     let secs = resend_cooldown.get();
+@@ -918,40 +1010,8 @@ fn LoginStepRouter(
+                 {t!(i18n, login_change_phone_button)}
+             </button>
+         </div>
+-
+-        // ── Step 3: Invite code ───────────────────────────────────────────────
+-        // Shown when pending_registration is true AND no code entered yet.
+-        <div
+-            data-testid="invite-code-step"
+-            style:display=move || {
+-                if is_pending && entered_code.get().is_none() { "" } else { "none" }
+-            }
+-        >
+-            <h1>
+-                {t!(i18n, auth_invite_code_step_heading)}
+-            </h1>
+-            <InviteCodeForm
+-                hydrated=hydrated
+-                on_submit=move |code| set_entered_code.set(Some(code))
+-            />
+-        </div>
+-
+-        // ── Step 4: Name collection ────────────────────────────────────────────
+-        // Shown when pending_registration is true AND a code has been entered.
+-        <div
+-            data-testid="name-collection-step"
+-            style:display=move || {
+-                if is_pending && entered_code.get().is_some() { "" } else { "none" }
+-            }
+-        >
+-            <NameCollectionForm
+-                hydrated=hydrated
+-                register_action=register_action
+-                entered_code=entered_code
+-                on_back=move || set_entered_code.set(None)
+-            />
+-        </div>
+     }
++    .into_any()
+ }
+ 
+ /// Invite code entry form (step 3).

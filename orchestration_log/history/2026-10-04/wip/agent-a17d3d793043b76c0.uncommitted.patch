@@ -1,0 +1,110 @@
+diff --git a/src/lib.rs b/src/lib.rs
+index 4f95058..0df3c07 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,3 +1,4 @@
++#![recursion_limit = "256"]
+ // Leptos components return views used in macros, not directly by callers
+ #![allow(clippy::must_use_candidate)]
+ 
+diff --git a/src/main.rs b/src/main.rs
+index 875a481..bb14dcd 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,3 +1,4 @@
++#![recursion_limit = "256"]
+ #[cfg(feature = "ssr")]
+ #[tokio::main]
+ async fn main() {
+diff --git a/src/pages/home.rs b/src/pages/home.rs
+index d326751..b251236 100644
+--- a/src/pages/home.rs
++++ b/src/pages/home.rs
+@@ -1238,7 +1238,10 @@ fn render_home_state(
+ 
+ #[cfg(test)]
+ mod tests {
+-    use super::{enrollment_new_address_is_complete, is_past_deadline};
++    use super::{
++        HomeState, Participation, assignment_state, enrollment_new_address_is_complete,
++        is_past_deadline, preparation_state,
++    };
+ 
+     #[test]
+     fn past_deadline_blocks_when_not_test_mode() {
+@@ -1294,4 +1297,75 @@ mod tests {
+     fn both_fields_empty_rejected() {
+         assert!(!enrollment_new_address_is_complete("", 0));
+     }
++
++    // ── participation ────────────────────────────────────────────────────────
++    fn some_time() -> time::OffsetDateTime {
++        time::OffsetDateTime::now_utc()
++    }
++
++    #[test]
++    fn no_enrollment_row_is_not_enrolled() {
++        assert_eq!(Participation::from_enrollment(None), Participation::NotEnrolled);
++    }
++
++    #[test]
++    fn enrollment_without_confirmation_is_enrolled() {
++        assert_eq!(Participation::from_enrollment(Some(None)), Participation::Enrolled);
++    }
++
++    #[test]
++    fn enrollment_with_confirmation_is_confirmed() {
++        assert_eq!(
++            Participation::from_enrollment(Some(Some(some_time()))),
++            Participation::Confirmed
++        );
++    }
++
++    #[test]
++    fn preparation_not_enrolled_is_not_participating() {
++        assert!(matches!(
++            preparation_state(Participation::NotEnrolled, String::new(), false),
++            HomeState::NotParticipating
++        ));
++    }
++
++    #[test]
++    fn preparation_enrolled_is_preparing() {
++        assert!(matches!(
++            preparation_state(Participation::Enrolled, "d".into(), true),
++            HomeState::Preparing { deadline_passed: true, .. }
++        ));
++    }
++
++    #[test]
++    fn preparation_confirmed_is_confirmed() {
++        assert!(matches!(
++            preparation_state(Participation::Confirmed, String::new(), false),
++            HomeState::Confirmed
++        ));
++    }
++
++    #[test]
++    fn assignment_confirmed_is_assigning() {
++        assert!(matches!(
++            assignment_state(Participation::Confirmed),
++            HomeState::Assigning
++        ));
++    }
++
++    #[test]
++    fn assignment_enrolled_unconfirmed_is_not_participating() {
++        assert!(matches!(
++            assignment_state(Participation::Enrolled),
++            HomeState::NotParticipating
++        ));
++    }
++
++    #[test]
++    fn assignment_not_enrolled_is_not_participating() {
++        assert!(matches!(
++            assignment_state(Participation::NotEnrolled),
++            HomeState::NotParticipating
++        ));
++    }
+ }

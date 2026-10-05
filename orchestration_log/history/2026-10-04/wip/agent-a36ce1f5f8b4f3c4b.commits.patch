@@ -1,0 +1,975 @@
+From 066ebf2e7f8870a48f64b8a91a4c8013762a86ad Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 4 Oct 2026 20:20:22 +0000
+Subject: [PATCH] fix(assignments): make swap a transactional position exchange
+ and guard release
+
+---
+ ...9f7d74e5d9d8f032a1522ea0a613e477ef0a1.json |  16 ++
+ ...220a8b308456b5c049ab1726f7e694e3c29e0.json |  16 --
+ ...b0459ce2a7e083ced37035b498c637d11acc.json} |  11 +-
+ ...82184f822e80b6756e5ae44aacc7246b7b7d.json} |   4 +-
+ ...7ad0ae0e9c34f017ead5d85ffae4020241ebe.json |  36 +++
+ ...f7faefceb42c16127435cf86e9932cb8f3cf8.json |  40 ----
+ end2end/tests/fixtures/mail_club_page.ts      |  29 ++-
+ end2end/tests/mail_club.spec.ts               |  20 +-
+ end2end/tests/visual-audit.spec.ts            |  10 +-
+ locales/uk.json                               |   5 +-
+ src/admin/assignments.rs                      | 225 ++++++++----------
+ src/admin/page.rs                             |  15 ++
+ src/admin/season.rs                           |  20 +-
+ src/assignment.rs                             | 220 +++++++++++++++++
+ 14 files changed, 468 insertions(+), 199 deletions(-)
+ create mode 100644 .sqlx/query-3c6d99a72884f5264d87903f32b9f7d74e5d9d8f032a1522ea0a613e477ef0a1.json
+ delete mode 100644 .sqlx/query-643e6b0db970af93f0a3a734bc7220a8b308456b5c049ab1726f7e694e3c29e0.json
+ rename .sqlx/{query-198a8e06142c19d00148fe76b9def15ee56ae3dc732141c40e71c39081e917f8.json => query-9da2537dad902dfb8635b60c55fcb0459ce2a7e083ced37035b498c637d11acc.json} (50%)
+ rename .sqlx/{query-970fbeefa7ece65e3ddf8bd3f10ff27a188415b5dc9cf68dc1b3806337a7cec0.json => query-cda1a886408011658e8f4945fb0582184f822e80b6756e5ae44aacc7246b7b7d.json} (87%)
+ create mode 100644 .sqlx/query-dd273819b1089f0dd72d486502d7ad0ae0e9c34f017ead5d85ffae4020241ebe.json
+ delete mode 100644 .sqlx/query-f742c89a7c574b4498c33646732f7faefceb42c16127435cf86e9932cb8f3cf8.json
+
+diff --git a/.sqlx/query-3c6d99a72884f5264d87903f32b9f7d74e5d9d8f032a1522ea0a613e477ef0a1.json b/.sqlx/query-3c6d99a72884f5264d87903f32b9f7d74e5d9d8f032a1522ea0a613e477ef0a1.json
+new file mode 100644
+index 0000000..6945b33
+--- /dev/null
++++ b/.sqlx/query-3c6d99a72884f5264d87903f32b9f7d74e5d9d8f032a1522ea0a613e477ef0a1.json
+@@ -0,0 +1,16 @@
++{
++  "db_name": "PostgreSQL",
++  "query": "\n        INSERT INTO assignments (season_id, sender_id, recipient_id)\n        SELECT $1, s, r FROM UNNEST($2::uuid[], $3::uuid[]) AS t(s, r)\n        ",
++  "describe": {
++    "columns": [],
++    "parameters": {
++      "Left": [
++        "Uuid",
++        "UuidArray",
++        "UuidArray"
++      ]
++    },
++    "nullable": []
++  },
++  "hash": "3c6d99a72884f5264d87903f32b9f7d74e5d9d8f032a1522ea0a613e477ef0a1"
++}
+diff --git a/.sqlx/query-643e6b0db970af93f0a3a734bc7220a8b308456b5c049ab1726f7e694e3c29e0.json b/.sqlx/query-643e6b0db970af93f0a3a734bc7220a8b308456b5c049ab1726f7e694e3c29e0.json
+deleted file mode 100644
+index dc19f1c..0000000
+--- a/.sqlx/query-643e6b0db970af93f0a3a734bc7220a8b308456b5c049ab1726f7e694e3c29e0.json
++++ /dev/null
+@@ -1,16 +0,0 @@
+-{
+-  "db_name": "PostgreSQL",
+-  "query": "UPDATE assignments SET recipient_id = $1 WHERE season_id = $2 AND sender_id = $3",
+-  "describe": {
+-    "columns": [],
+-    "parameters": {
+-      "Left": [
+-        "Uuid",
+-        "Uuid",
+-        "Uuid"
+-      ]
+-    },
+-    "nullable": []
+-  },
+-  "hash": "643e6b0db970af93f0a3a734bc7220a8b308456b5c049ab1726f7e694e3c29e0"
+-}
+diff --git a/.sqlx/query-198a8e06142c19d00148fe76b9def15ee56ae3dc732141c40e71c39081e917f8.json b/.sqlx/query-9da2537dad902dfb8635b60c55fcb0459ce2a7e083ced37035b498c637d11acc.json
+similarity index 50%
+rename from .sqlx/query-198a8e06142c19d00148fe76b9def15ee56ae3dc732141c40e71c39081e917f8.json
+rename to .sqlx/query-9da2537dad902dfb8635b60c55fcb0459ce2a7e083ced37035b498c637d11acc.json
+index 7cc7518..cf47c4c 100644
+--- a/.sqlx/query-198a8e06142c19d00148fe76b9def15ee56ae3dc732141c40e71c39081e917f8.json
++++ b/.sqlx/query-9da2537dad902dfb8635b60c55fcb0459ce2a7e083ced37035b498c637d11acc.json
+@@ -1,23 +1,28 @@
+ {
+   "db_name": "PostgreSQL",
+-  "query": "SELECT recipient_id FROM assignments WHERE season_id = $1 AND sender_id = $2",
++  "query": "SELECT sender_id, recipient_id FROM assignments WHERE season_id = $1",
+   "describe": {
+     "columns": [
+       {
+         "ordinal": 0,
++        "name": "sender_id",
++        "type_info": "Uuid"
++      },
++      {
++        "ordinal": 1,
+         "name": "recipient_id",
+         "type_info": "Uuid"
+       }
+     ],
+     "parameters": {
+       "Left": [
+-        "Uuid",
+         "Uuid"
+       ]
+     },
+     "nullable": [
++      false,
+       false
+     ]
+   },
+-  "hash": "198a8e06142c19d00148fe76b9def15ee56ae3dc732141c40e71c39081e917f8"
++  "hash": "9da2537dad902dfb8635b60c55fcb0459ce2a7e083ced37035b498c637d11acc"
+ }
+diff --git a/.sqlx/query-970fbeefa7ece65e3ddf8bd3f10ff27a188415b5dc9cf68dc1b3806337a7cec0.json b/.sqlx/query-cda1a886408011658e8f4945fb0582184f822e80b6756e5ae44aacc7246b7b7d.json
+similarity index 87%
+rename from .sqlx/query-970fbeefa7ece65e3ddf8bd3f10ff27a188415b5dc9cf68dc1b3806337a7cec0.json
+rename to .sqlx/query-cda1a886408011658e8f4945fb0582184f822e80b6756e5ae44aacc7246b7b7d.json
+index 753fe75..cecd3f1 100644
+--- a/.sqlx/query-970fbeefa7ece65e3ddf8bd3f10ff27a188415b5dc9cf68dc1b3806337a7cec0.json
++++ b/.sqlx/query-cda1a886408011658e8f4945fb0582184f822e80b6756e5ae44aacc7246b7b7d.json
+@@ -1,6 +1,6 @@
+ {
+   "db_name": "PostgreSQL",
+-  "query": "\n        SELECT\n            a.sender_id,\n            a.recipient_id,\n            su.name AS sender_name,\n            ru.name AS recipient_name\n        FROM assignments a\n        JOIN users su ON su.id = a.sender_id\n        JOIN users ru ON ru.id = a.recipient_id\n        WHERE a.season_id = $1\n        ",
++  "query": "\n        SELECT\n            a.sender_id,\n            a.recipient_id,\n            su.name AS sender_name,\n            ru.name AS recipient_name\n        FROM assignments a\n        JOIN users su ON su.id = a.sender_id\n        JOIN users ru ON ru.id = a.recipient_id\n        WHERE a.season_id = $1\n        ORDER BY a.created_at, a.sender_id\n        ",
+   "describe": {
+     "columns": [
+       {
+@@ -36,5 +36,5 @@
+       false
+     ]
+   },
+-  "hash": "970fbeefa7ece65e3ddf8bd3f10ff27a188415b5dc9cf68dc1b3806337a7cec0"
++  "hash": "cda1a886408011658e8f4945fb0582184f822e80b6756e5ae44aacc7246b7b7d"
+ }
+diff --git a/.sqlx/query-dd273819b1089f0dd72d486502d7ad0ae0e9c34f017ead5d85ffae4020241ebe.json b/.sqlx/query-dd273819b1089f0dd72d486502d7ad0ae0e9c34f017ead5d85ffae4020241ebe.json
+new file mode 100644
+index 0000000..c853e55
+--- /dev/null
++++ b/.sqlx/query-dd273819b1089f0dd72d486502d7ad0ae0e9c34f017ead5d85ffae4020241ebe.json
+@@ -0,0 +1,36 @@
++{
++  "db_name": "PostgreSQL",
++  "query": "\n        SELECT phase AS \"phase: Phase\"\n        FROM seasons\n        WHERE id = $1 AND launched_at IS NOT NULL\n        FOR UPDATE\n        ",
++  "describe": {
++    "columns": [
++      {
++        "ordinal": 0,
++        "name": "phase: Phase",
++        "type_info": {
++          "Custom": {
++            "name": "season_phase",
++            "kind": {
++              "Enum": [
++                "enrollment",
++                "preparation",
++                "assignment",
++                "delivery",
++                "complete",
++                "cancelled"
++              ]
++            }
++          }
++        }
++      }
++    ],
++    "parameters": {
++      "Left": [
++        "Uuid"
++      ]
++    },
++    "nullable": [
++      false
++    ]
++  },
++  "hash": "dd273819b1089f0dd72d486502d7ad0ae0e9c34f017ead5d85ffae4020241ebe"
++}
+diff --git a/.sqlx/query-f742c89a7c574b4498c33646732f7faefceb42c16127435cf86e9932cb8f3cf8.json b/.sqlx/query-f742c89a7c574b4498c33646732f7faefceb42c16127435cf86e9932cb8f3cf8.json
+deleted file mode 100644
+index ed48723..0000000
+--- a/.sqlx/query-f742c89a7c574b4498c33646732f7faefceb42c16127435cf86e9932cb8f3cf8.json
++++ /dev/null
+@@ -1,40 +0,0 @@
+-{
+-  "db_name": "PostgreSQL",
+-  "query": "\n        SELECT\n            a.sender_id,\n            a.recipient_id,\n            su.name AS sender_name,\n            ru.name AS recipient_name\n        FROM assignments a\n        JOIN users su ON su.id = a.sender_id\n        JOIN users ru ON ru.id = a.recipient_id\n        WHERE a.season_id = $1\n        ORDER BY a.created_at\n        ",
+-  "describe": {
+-    "columns": [
+-      {
+-        "ordinal": 0,
+-        "name": "sender_id",
+-        "type_info": "Uuid"
+-      },
+-      {
+-        "ordinal": 1,
+-        "name": "recipient_id",
+-        "type_info": "Uuid"
+-      },
+-      {
+-        "ordinal": 2,
+-        "name": "sender_name",
+-        "type_info": "Text"
+-      },
+-      {
+-        "ordinal": 3,
+-        "name": "recipient_name",
+-        "type_info": "Text"
+-      }
+-    ],
+-    "parameters": {
+-      "Left": [
+-        "Uuid"
+-      ]
+-    },
+-    "nullable": [
+-      false,
+-      false,
+-      false,
+-      false
+-    ]
+-  },
+-  "hash": "f742c89a7c574b4498c33646732f7faefceb42c16127435cf86e9932cb8f3cf8"
+-}
+diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
+index 10c26f9..58fa73d 100644
+--- a/end2end/tests/fixtures/mail_club_page.ts
++++ b/end2end/tests/fixtures/mail_club_page.ts
+@@ -488,13 +488,36 @@ export class MailClubPage {
+     await this.page.getByTestId("sender-a-input").selectOption({ label: senderNameA });
+     await this.page.getByTestId("sender-b-input").selectOption({ label: senderNameB });
+     // The swap action returns (). The preview Resource refetches via swap_action.version()
+-    // and re-renders the cycle visualization — use URL-filtered POST wait then
+-    // assert cycle-visualization visible to confirm refetch completed.
++    // and re-renders the cycle visualization — use URL-filtered POST wait.
+     await this.clickAndWaitForResponse(
+       this.page.getByTestId("swap-button"),
+       "swap_assignment",
+     );
+-    await expect(this.page.getByTestId("cycle-visualization")).toBeVisible();
++    // The caller asserts the graph change via readCycleEdges() + expect.poll.
++    await expect(this.page.getByTestId("action-error")).toBeEmpty();
++  }
++
++  /**
++   * Read the assignment graph from the admin cycle visualization's link list.
++   * Returns "senderId>recipientId" strings, sorted (order-independent).
++   */
++  async readCycleEdges(): Promise<string[]> {
++    const links = this.page.getByTestId("cycle-link");
++    await expect(links.first()).toBeAttached();
++    const count = await links.count();
++    const edges: string[] = [];
++    for (let i = 0; i < count; i++) {
++      const link = links.nth(i);
++      edges.push(`${await link.getAttribute("data-sender-id")}>${await link.getAttribute("data-recipient-id")}`);
++    }
++    return edges.sort();
++  }
++
++  /** Sender UUID for a participant name, from the cycle link list. */
++  async cycleSenderId(name: string): Promise<string> {
++    const link = this.page.getByTestId("cycle-link").and(this.page.locator(`[data-sender-name="${name}"]`));
++    await expect(link).toBeAttached();
++    return (await link.getAttribute("data-sender-id")) as string;
+   }
+ 
+   async expectCycleVisualization() {
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index aa04249..72259a4 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -649,8 +649,26 @@ test.describe.serial("The Mail Club", () => {
+     test("3.3 — admin swaps two assignments", async ({ page }) => {
+       const app = new MailClubPage(page);
+       await app.login(ADMIN_PHONE);
++      await app.goToDashboard();
++      const before = await app.readCycleEdges();
++      expect(before).toHaveLength(3);
++      const idA = await app.cycleSenderId(NAMES.A);
++      const idB = await app.cycleSenderId(NAMES.B);
++      const sigma = (u: string) => (u === idA ? idB : u === idB ? idA : u);
++      const expected = before
++        .map((edge) => edge.split(">"))
++        .map(([s, r]) => `${sigma(s)}>${sigma(r)}`)
++        .sort();
++      expect(expected).not.toEqual(before);
++
+       await app.swapAssignment(NAMES.A, NAMES.B);
+-      await app.expectCycleVisualization();
++
++      await expect.poll(() => app.readCycleEdges()).toEqual(expected);
++      // Still one loop through all three: no self-assignment.
++      for (const edge of expected) {
++        const [s, r] = edge.split(">");
++        expect(s).not.toEqual(r);
++      }
+     });
+   });
+ 
+diff --git a/end2end/tests/visual-audit.spec.ts b/end2end/tests/visual-audit.spec.ts
+index 6b5f85b..2ae1095 100644
+--- a/end2end/tests/visual-audit.spec.ts
++++ b/end2end/tests/visual-audit.spec.ts
+@@ -642,12 +642,10 @@ test.describe.serial("Visual Audit", () => {
+     await captureSection(page, "admin-assignment-cycle", "cycle-visualization");
+   });
+ 
+-  // ── Note: admin swap form error (A40) is unreachable via UI ──────────────────
+-  // Submitting the same participant for both swap slots is a silent no-op:
+-  // swap_assignment (assignments.rs:330) updates two rows whose sender_id is the
+-  // same UUID, so UPDATE 1 and UPDATE 2 cancel each other out. The resulting
+-  // topology is still a valid ring — validate_swap_topology returns Ok, the server
+-  // function returns Ok(()), and no error reaches action-error. No capture for A40.
++  // ── Note: admin swap form error (A40) not captured ──────────────────────────
++  // Choosing the same participant in both slots is now rejected server-side
++  // (assignments_error_swap_same_participant → action-error). The state is
++  // reachable but not yet part of the capture set.
+ 
+   // ── Phase: advance to delivery ────────────────────────────────────────────────
+ 
+diff --git a/locales/uk.json b/locales/uk.json
+index 048601d..285bf3b 100644
+--- a/locales/uk.json
++++ b/locales/uk.json
+@@ -66,6 +66,7 @@
+   "season_error_no_unlaunched_season": "Немає незапущеного активного сезону.",
+   "season_error_no_launched_season": "Немає запущеного активного сезону.",
+   "season_error_no_active_season": "Немає активного сезону.",
++  "season_error_assignments_invalid": "Призначення некоректні — згенеруй їх знову.",
+   "season_theme_display_label": "Тема",
+   "season_signup_deadline_display": "Кінець реєстрації",
+   "season_confirm_deadline_display": "Кінець підтвердження",
+@@ -91,8 +92,8 @@
+   "assignments_apply_button": "Застосувати",
+   "assignments_error_wrong_phase": "Сезон має бути на етапі розподілу.",
+   "assignments_error_too_few_participants": "Потрібно щонайменше 3 підтверджені учасники.",
+-  "assignments_error_broken_cycle": "Після обміну цикл розірвано.",
+   "assignments_error_swap_breaks_cycle": "Обмін порушує цілісність циклу.",
++  "assignments_error_swap_same_participant": "Обери двох різних учасників.",
+   "assignments_error_sender_a_not_found": "Призначення для відправника А не знайдено.",
+   "assignments_error_sender_b_not_found": "Призначення для відправника Б не знайдено.",
+   "sms_season_open_body": "Новий сезон поштового клубу відкрито! Заходь в додаток і реєструйся.",
+@@ -157,7 +158,7 @@
+   "season_stepper_compact_prefix": "Крок {{ step }} з 5:",
+   "season_stepper_cancelled": "Сезон скасовано",
+   "assignments_swap_title": "Обмін",
+-  "assignments_swap_description": "Обери двох відправників, щоб поміняти їхніх отримувачів.",
++  "assignments_swap_description": "Обери двох учасників, щоб поміняти їх місцями в циклі.",
+   "assignments_sender_a_label": "Відправник А",
+   "assignments_sender_b_label": "Відправник Б",
+   "assignments_select_sender": "Обрати учасника",
+diff --git a/src/admin/assignments.rs b/src/admin/assignments.rs
+index 1957d36..347443c 100644
+--- a/src/admin/assignments.rs
++++ b/src/admin/assignments.rs
+@@ -25,6 +25,7 @@ pub struct CohortPreview {
+ pub struct AssignmentLink {
+     pub sender_id: String,
+     pub sender_name: String,
++    pub recipient_id: String,
+     pub recipient_name: String,
+ }
+ 
+@@ -156,6 +157,7 @@ async fn store_and_build_preview(
+             chain.push(AssignmentLink {
+                 sender_id: sender_id.to_string(),
+                 sender_name: names.get(&sender_id).cloned().unwrap_or_default(),
++                recipient_id: recipient_id.to_string(),
+                 recipient_name: names.get(&recipient_id).cloned().unwrap_or_default(),
+             });
+         }
+@@ -173,56 +175,6 @@ async fn store_and_build_preview(
+     })
+ }
+ 
+-/// Validate swap topology after assignment swaps.
+-///
+-/// Builds cycle representation from assignments and validates that it
+-/// forms a valid single cycle.
+-#[cfg(feature = "ssr")]
+-fn validate_swap_topology(assignments: &[AssignmentRow]) -> Result<(), ServerFnError> {
+-    use crate::i18n::i18n::{Locale, td_string};
+-    let cycle_participants: Vec<uuid::Uuid> = assignments.iter().map(|a| a.sender_id).collect();
+-    let mut ordered = Vec::new();
+-    let next_map: std::collections::HashMap<uuid::Uuid, uuid::Uuid> = assignments
+-        .iter()
+-        .map(|a| (a.sender_id, a.recipient_id))
+-        .collect();
+-
+-    if let Some(&first) = cycle_participants.first() {
+-        let mut current = first;
+-        for _ in 0..cycle_participants.len() {
+-            ordered.push(current);
+-            if let Some(&next) = next_map.get(&current) {
+-                current = next;
+-            } else {
+-                return Err(ServerFnError::new(td_string!(
+-                    Locale::uk,
+-                    assignments_error_broken_cycle
+-                )));
+-            }
+-        }
+-        // Verify it's a complete cycle: last element's next should be first.
+-        if next_map.get(&current) != Some(&first) && current != first {
+-            return Err(ServerFnError::new(td_string!(
+-                Locale::uk,
+-                assignments_error_swap_breaks_cycle
+-            )));
+-        }
+-    }
+-
+-    let validation_result = crate::assignment::AssignmentResult {
+-        cohorts: vec![crate::assignment::Cycle {
+-            participants: ordered,
+-            score: 0,
+-        }],
+-    };
+-
+-    crate::assignment::validate_cycles(&validation_result).map_err(|_| {
+-        ServerFnError::new(td_string!(Locale::uk, assignments_error_swap_breaks_cycle))
+-    })?;
+-
+-    Ok(())
+-}
+-
+ // ── Server functions ─────────────────────────────────────────────────────────
+ 
+ /// Generate assignments for the active season (admin only).
+@@ -305,15 +257,17 @@ pub async fn generate_assignments_action() -> Result<AssignmentPreview, ServerFn
+     store_and_build_preview(&pool, &season, &result, &input.participants).await
+ }
+ 
+-/// Swap two senders' recipients (admin only).
++/// Exchange two participants' positions in the assignment cycle (admin only).
+ ///
+-/// A's recipient becomes B's, and B's becomes A's.
+-/// Validates the resulting topology still forms valid cycles.
++/// Every loop keeps its members and length (see `assignment::swap_positions`).
++/// Runs in one transaction: lock season, read, compute, validate, rewrite, commit.
++/// Any error rolls back; nothing partial is ever persisted.
+ ///
+ /// # Errors
+ ///
+-/// Returns `Err` if caller is not admin, assignments don't exist,
+-/// or the swap breaks cycle topology.
++/// Returns `Err` if caller is not admin, the season is not launched and in the
++/// Assignment phase, both senders are the same, either has no assignment, or
++/// the result fails validation.
+ #[server(SwapAssignment)]
+ pub async fn swap_assignment(
+     season_id: String,
+@@ -321,8 +275,10 @@ pub async fn swap_assignment(
+     sender_b: String,
+ ) -> Result<(), ServerFnError> {
+     use crate::{
++        assignment::{self, SwapError},
+         auth,
+         i18n::i18n::{Locale, td_string},
++        types::Phase,
+     };
+ 
+     let (pool, _user) = auth::require_admin().await?;
+@@ -337,74 +293,82 @@ pub async fn swap_assignment(
+         .parse()
+         .map_err(|_| ServerFnError::new("invalid sender_b"))?;
+ 
+-    // Load both assignments.
+-    let rec_a = sqlx::query_scalar!(
+-        r#"SELECT recipient_id FROM assignments WHERE season_id = $1 AND sender_id = $2"#,
++    let mut tx = pool.begin().await.map_err(db_err)?;
++
++    // Lock the season row: serializes concurrent swaps and advance_season.
++    let phase = sqlx::query_scalar!(
++        r#"
++        SELECT phase AS "phase: Phase"
++        FROM seasons
++        WHERE id = $1 AND launched_at IS NOT NULL
++        FOR UPDATE
++        "#,
+         sid,
+-        sa,
+     )
+-    .fetch_optional(&pool)
++    .fetch_optional(&mut *tx)
+     .await
+-    .map_err(db_err)?
+-    .ok_or_else(|| {
+-        ServerFnError::new(td_string!(Locale::uk, assignments_error_sender_a_not_found))
+-    })?;
++    .map_err(db_err)?;
++    if phase != Some(Phase::Assignment) {
++        return Err(ServerFnError::new(td_string!(
++            Locale::uk,
++            assignments_error_wrong_phase
++        )));
++    }
+ 
+-    let rec_b = sqlx::query_scalar!(
+-        r#"SELECT recipient_id FROM assignments WHERE season_id = $1 AND sender_id = $2"#,
++    let edges: Vec<(uuid::Uuid, uuid::Uuid)> = sqlx::query!(
++        r#"SELECT sender_id, recipient_id FROM assignments WHERE season_id = $1"#,
+         sid,
+-        sb,
+     )
+-    .fetch_optional(&pool)
++    .fetch_all(&mut *tx)
+     .await
+     .map_err(db_err)?
+-    .ok_or_else(|| {
+-        ServerFnError::new(td_string!(Locale::uk, assignments_error_sender_b_not_found))
++    .into_iter()
++    .map(|row| (row.sender_id, row.recipient_id))
++    .collect();
++
++    let swapped = assignment::swap_positions(&edges, sa, sb).map_err(|e| {
++        ServerFnError::new(match e {
++            SwapError::SameParticipant => {
++                td_string!(Locale::uk, assignments_error_swap_same_participant)
++            }
++            SwapError::NotAssigned(id) if id == sa => {
++                td_string!(Locale::uk, assignments_error_sender_a_not_found)
++            }
++            SwapError::NotAssigned(_) => {
++                td_string!(Locale::uk, assignments_error_sender_b_not_found)
++            }
++        })
+     })?;
+ 
+-    // Perform swap.
+-    sqlx::query!(
+-        r#"UPDATE assignments SET recipient_id = $1 WHERE season_id = $2 AND sender_id = $3"#,
+-        rec_b,
+-        sid,
+-        sa,
+-    )
+-    .execute(&pool)
+-    .await
+-    .map_err(db_err)?;
++    // Validate BEFORE any write. Holds by construction; checked anyway.
++    assignment::validated_cycles_from_edges(&swapped).map_err(|_| {
++        ServerFnError::new(td_string!(Locale::uk, assignments_error_swap_breaks_cycle))
++    })?;
+ 
++    // Rewrite the season's rows in one statement pair: UNIQUE(season_id,
++    // sender_id) and UNIQUE(season_id, recipient_id) are non-deferrable, so
++    // per-row UPDATEs would collide mid-swap. Safe to recreate rows: in the
++    // Assignment phase no SMS/receipt state exists yet (notified_at,
++    // receipt_* stay at defaults).
++    sqlx::query!("DELETE FROM assignments WHERE season_id = $1", sid)
++        .execute(&mut *tx)
++        .await
++        .map_err(db_err)?;
++    let (senders, recipients): (Vec<uuid::Uuid>, Vec<uuid::Uuid>) = swapped.into_iter().unzip();
+     sqlx::query!(
+-        r#"UPDATE assignments SET recipient_id = $1 WHERE season_id = $2 AND sender_id = $3"#,
+-        rec_a,
+-        sid,
+-        sb,
+-    )
+-    .execute(&pool)
+-    .await
+-    .map_err(db_err)?;
+-
+-    // Validate resulting topology.
+-    let all_assignments = sqlx::query_as!(
+-        AssignmentRow,
+         r#"
+-        SELECT
+-            a.sender_id,
+-            a.recipient_id,
+-            su.name AS sender_name,
+-            ru.name AS recipient_name
+-        FROM assignments a
+-        JOIN users su ON su.id = a.sender_id
+-        JOIN users ru ON ru.id = a.recipient_id
+-        WHERE a.season_id = $1
++        INSERT INTO assignments (season_id, sender_id, recipient_id)
++        SELECT $1, s, r FROM UNNEST($2::uuid[], $3::uuid[]) AS t(s, r)
+         "#,
+         sid,
++        &senders[..],
++        &recipients[..],
+     )
+-    .fetch_all(&pool)
++    .execute(&mut *tx)
+     .await
+     .map_err(db_err)?;
+ 
+-    validate_swap_topology(&all_assignments)?;
+-
++    tx.commit().await.map_err(db_err)?;
+     Ok(())
+ }
+ 
+@@ -418,7 +382,10 @@ pub async fn swap_assignment(
+ /// Returns `Err` if caller is not admin or DB fails.
+ #[server(GetAssignmentPreview)]
+ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, ServerFnError> {
+-    use crate::auth;
++    use crate::{
++        auth,
++        i18n::i18n::{Locale, td_string},
++    };
+ 
+     let (pool, _user) = auth::require_admin().await?;
+ 
+@@ -442,7 +409,7 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
+         JOIN users su ON su.id = a.sender_id
+         JOIN users ru ON ru.id = a.recipient_id
+         WHERE a.season_id = $1
+-        ORDER BY a.created_at
++        ORDER BY a.created_at, a.sender_id
+         "#,
+         season.id,
+     )
+@@ -459,30 +426,38 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
+         }));
+     }
+ 
+-    // Build chain from next_map (sender → recipient).
+-    let next_map: std::collections::HashMap<uuid::Uuid, &AssignmentRow> =
++    let by_sender: std::collections::HashMap<uuid::Uuid, &AssignmentRow> =
+         assignments.iter().map(|a| (a.sender_id, a)).collect();
++    let edges: Vec<(uuid::Uuid, uuid::Uuid)> = assignments
++        .iter()
++        .map(|a| (a.sender_id, a.recipient_id))
++        .collect();
++    let result = crate::assignment::cycles_from_edges(&edges).map_err(|_| {
++        ServerFnError::new(td_string!(Locale::uk, season_error_assignments_invalid))
++    })?;
+ 
+-    // Walk the cycle starting from first sender.
+-    let mut chain = Vec::new();
+-    let first = assignments[0].sender_id;
+-    let mut current = first;
+-    for _ in 0..assignments.len() {
+-        if let Some(a) = next_map.get(&current) {
+-            chain.push(AssignmentLink {
+-                sender_id: a.sender_id.to_string(),
+-                sender_name: a.sender_name.clone(),
+-                recipient_name: a.recipient_name.clone(),
+-            });
+-            current = a.recipient_id;
+-        } else {
+-            break;
+-        }
+-    }
++    let cohorts = result
++        .cohorts
++        .iter()
++        .map(|cycle| CohortPreview {
++            score: cycle.score,
++            chain: cycle
++                .participants
++                .iter()
++                .filter_map(|id| by_sender.get(id))
++                .map(|a| AssignmentLink {
++                    sender_id: a.sender_id.to_string(),
++                    sender_name: a.sender_name.clone(),
++                    recipient_id: a.recipient_id.to_string(),
++                    recipient_name: a.recipient_name.clone(),
++                })
++                .collect(),
++        })
++        .collect();
+ 
+     Ok(Some(AssignmentPreview {
+         season_id: season.id.to_string(),
+-        cohorts: vec![CohortPreview { score: 0, chain }],
++        cohorts,
+         phase: season.phase,
+     }))
+ }
+diff --git a/src/admin/page.rs b/src/admin/page.rs
+index 2630041..83a32d2 100644
+--- a/src/admin/page.rs
++++ b/src/admin/page.rs
+@@ -1561,6 +1561,21 @@ fn render_cycle_ring(chain: &[AssignmentLink], cohort_num: usize, score: u32) ->
+                 {arrows}
+                 {nodes}
+             </svg>
++            <ol class="sr-only" data-testid="cycle-link-list">
++                {chain
++                    .iter()
++                    .map(|link| view! {
++                        <li
++                            data-testid="cycle-link"
++                            data-sender-id=link.sender_id.clone()
++                            data-sender-name=link.sender_name.clone()
++                            data-recipient-id=link.recipient_id.clone()
++                        >
++                            {link.sender_name.clone()} " → " {link.recipient_name.clone()}
++                        </li>
++                    })
++                    .collect_view()}
++            </ol>
+         </figure>
+     }
+     .into_any()
+diff --git a/src/admin/season.rs b/src/admin/season.rs
+index c993957..c01f8cb 100644
+--- a/src/admin/season.rs
++++ b/src/admin/season.rs
+@@ -139,7 +139,8 @@ pub async fn launch_season() -> Result<(), ServerFnError> {
+ ///
+ /// # Errors
+ ///
+-/// Returns `Err` if caller is not admin, no active launched season, or transition is invalid.
++/// Returns `Err` if caller is not admin, no active launched season, transition is invalid,
++/// or, when leaving the Assignment phase, the stored assignments are missing or not valid loops.
+ #[server]
+ pub async fn advance_season() -> Result<(), ServerFnError> {
+     use crate::{
+@@ -163,6 +164,23 @@ pub async fn advance_season() -> Result<(), ServerFnError> {
+         .try_advance()
+         .map_err(|e| AppError::from(e).into_server_fn_error())?;
+ 
++    // Release guard: leaving Assignment publishes the graph to participants.
++    if season.phase == Phase::Assignment {
++        let edges: Vec<(uuid::Uuid, uuid::Uuid)> = sqlx::query!(
++            r#"SELECT sender_id, recipient_id FROM assignments WHERE season_id = $1"#,
++            season.id,
++        )
++        .fetch_all(&pool)
++        .await
++        .map_err(db_err)?
++        .into_iter()
++        .map(|row| (row.sender_id, row.recipient_id))
++        .collect();
++        crate::assignment::validated_cycles_from_edges(&edges).map_err(|_| {
++            ServerFnError::new(td_string!(Locale::uk, season_error_assignments_invalid))
++        })?;
++    }
++
+     sqlx::query!(
+         r#"UPDATE seasons SET phase = $1 WHERE id = $2"#,
+         next_phase as Phase,
+diff --git a/src/assignment.rs b/src/assignment.rs
+index 3707afa..9c7cff5 100644
+--- a/src/assignment.rs
++++ b/src/assignment.rs
+@@ -352,6 +352,109 @@ pub fn validate_cycles(result: &AssignmentResult) -> Result<(), String> {
+     Ok(())
+ }
+ 
++/// Why a position swap was refused.
++#[derive(Debug, PartialEq, Eq)]
++pub enum SwapError {
++    /// Both slots name the same participant.
++    SameParticipant,
++    /// The participant has no assignment in this set.
++    NotAssigned(Uuid),
++}
++
++/// Exchange the positions of `a` and `b` in the assignment graph.
++///
++/// Every edge `s → r` becomes `σ(s) → σ(r)` where σ swaps `a` and `b`.
++/// Relabelling preserves the cycle structure exactly: every loop stays one
++/// loop of the same length, within or across cohorts.
++///
++/// # Errors
++///
++/// `SwapError::SameParticipant` if `a == b`; `SwapError::NotAssigned` if
++/// either is not a sender in `edges`.
++pub fn swap_positions(
++    edges: &[(Uuid, Uuid)],
++    a: Uuid,
++    b: Uuid,
++) -> Result<Vec<(Uuid, Uuid)>, SwapError> {
++    if a == b {
++        return Err(SwapError::SameParticipant);
++    }
++    for participant in [a, b] {
++        if !edges.iter().any(|&(sender, _)| sender == participant) {
++            return Err(SwapError::NotAssigned(participant));
++        }
++    }
++    let sigma = |u: Uuid| {
++        if u == a {
++            b
++        } else if u == b {
++            a
++        } else {
++            u
++        }
++    };
++    Ok(edges.iter().map(|&(s, r)| (sigma(s), sigma(r))).collect())
++}
++
++/// Recover the ordered cycles from sender → recipient edges.
++///
++/// Does not check cohort size or receiver uniqueness — see `validated_cycles_from_edges`.
++///
++/// # Errors
++///
++/// Returns `Err` if a sender appears twice, a recipient has no outgoing
++/// edge, or a walk re-enters a participant before closing its loop.
++pub fn cycles_from_edges(edges: &[(Uuid, Uuid)]) -> Result<AssignmentResult, String> {
++    let mut next: HashMap<Uuid, Uuid> = HashMap::with_capacity(edges.len());
++    for &(sender, recipient) in edges {
++        if next.insert(sender, recipient).is_some() {
++            return Err(format!("participant {sender} has more than one assignment"));
++        }
++    }
++    let mut visited = std::collections::HashSet::with_capacity(edges.len());
++    let mut cohorts = Vec::new();
++    for &(start, _) in edges {
++        if visited.contains(&start) {
++            continue;
++        }
++        let mut participants = Vec::new();
++        let mut current = start;
++        loop {
++            if !visited.insert(current) {
++                return Err(format!("participant {current} is reached twice"));
++            }
++            participants.push(current);
++            let Some(&recipient) = next.get(&current) else {
++                return Err(format!("participant {current} has no assignment"));
++            };
++            if recipient == start {
++                break;
++            }
++            current = recipient;
++        }
++        cohorts.push(Cycle {
++            participants,
++            score: 0,
++        });
++    }
++    Ok(AssignmentResult { cohorts })
++}
++
++/// Recover cycles from edges and validate them as a releasable assignment set.
++///
++/// # Errors
++///
++/// Returns `Err` if `edges` is empty, does not decompose into loops, or any
++/// loop fails `validate_cycles`.
++pub fn validated_cycles_from_edges(edges: &[(Uuid, Uuid)]) -> Result<AssignmentResult, String> {
++    if edges.is_empty() {
++        return Err("no assignments".to_owned());
++    }
++    let result = cycles_from_edges(edges)?;
++    validate_cycles(&result)?;
++    Ok(result)
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -661,4 +764,121 @@ mod tests {
+             "high-weight pair should be non-adjacent with enough alternatives"
+         );
+     }
++
++    // ── swap_positions / cycles_from_edges ───────────────────────────────────
++
++    fn ring_edges(ids: &[Uuid]) -> Vec<(Uuid, Uuid)> {
++        (0..ids.len())
++            .map(|i| (ids[i], ids[(i + 1) % ids.len()]))
++            .collect()
++    }
++
++    #[test]
++    fn swap_positions_preserves_single_loop_for_every_pair() {
++        for n in 3..=11 {
++            let ids = make_uuids(n);
++            for i in 0..n {
++                for j in (i + 1)..n {
++                    let swapped =
++                        swap_positions(&ring_edges(&ids), ids[i], ids[j]).expect("valid swap");
++                    let result = validated_cycles_from_edges(&swapped).expect("single loop");
++                    assert_eq!(result.cohorts.len(), 1, "n={n} i={i} j={j}");
++                    assert_eq!(result.cohorts[0].participants.len(), n);
++                }
++            }
++        }
++    }
++
++    #[test]
++    fn swap_positions_exchanges_the_two_positions() {
++        let ids = make_uuids(4); // a→b→c→d→a
++        let (a, b, c, d) = (ids[0], ids[1], ids[2], ids[3]);
++        let mut swapped = swap_positions(&ring_edges(&ids), a, c).expect("valid swap");
++        swapped.sort();
++        let mut expected = vec![(c, b), (b, a), (a, d), (d, c)]; // c→b→a→d→c
++        expected.sort();
++        assert_eq!(swapped, expected);
++    }
++
++    #[test]
++    fn swap_positions_adjacent_pair_never_self_assigns() {
++        let ids = make_uuids(3);
++        let swapped = swap_positions(&ring_edges(&ids), ids[0], ids[1]).expect("valid swap");
++        assert!(swapped.iter().all(|(s, r)| s != r));
++        assert!(validated_cycles_from_edges(&swapped).is_ok());
++    }
++
++    #[test]
++    fn swap_positions_across_cohorts_keeps_both_loops() {
++        let left = make_uuids(3);
++        let right = make_uuids(4);
++        let mut edges = ring_edges(&left);
++        edges.extend(ring_edges(&right));
++        let swapped = swap_positions(&edges, left[0], right[2]).expect("valid swap");
++        let result = validated_cycles_from_edges(&swapped).expect("two loops");
++        let mut sizes: Vec<usize> = result
++            .cohorts
++            .iter()
++            .map(|c| c.participants.len())
++            .collect();
++        sizes.sort_unstable();
++        assert_eq!(sizes, vec![3, 4]);
++    }
++
++    #[test]
++    fn swap_positions_rejects_same_participant() {
++        let ids = make_uuids(3);
++        assert_eq!(
++            swap_positions(&ring_edges(&ids), ids[0], ids[0]),
++            Err(SwapError::SameParticipant)
++        );
++    }
++
++    #[test]
++    fn swap_positions_rejects_unassigned_participant() {
++        let ids = make_uuids(3);
++        let stranger = Uuid::new_v4();
++        assert_eq!(
++            swap_positions(&ring_edges(&ids), ids[0], stranger),
++            Err(SwapError::NotAssigned(stranger))
++        );
++    }
++
++    #[test]
++    fn cycles_from_edges_recovers_each_cohort() {
++        let mut edges = ring_edges(&make_uuids(3));
++        edges.extend(ring_edges(&make_uuids(5)));
++        let result = cycles_from_edges(&edges).expect("decomposes");
++        assert_eq!(result.cohorts.len(), 2);
++    }
++
++    #[test]
++    fn cycles_from_edges_rejects_dangling_recipient() {
++        let ids = make_uuids(4);
++        let edges = vec![(ids[0], ids[1]), (ids[1], ids[2]), (ids[2], ids[3])];
++        assert!(cycles_from_edges(&edges).is_err());
++    }
++
++    #[test]
++    fn cycles_from_edges_rejects_duplicate_sender() {
++        let ids = make_uuids(3);
++        let mut edges = ring_edges(&ids);
++        edges.push((ids[0], ids[2]));
++        assert!(cycles_from_edges(&edges).is_err());
++    }
++
++    #[test]
++    fn recipient_exchange_splits_the_loop() {
++        // Regression: the old swap semantics (exchange two senders' recipients).
++        let ids = make_uuids(5);
++        let mut edges = ring_edges(&ids);
++        edges[0].1 = ids[3];
++        edges[2].1 = ids[1];
++        assert!(validated_cycles_from_edges(&edges).is_err());
++    }
++
++    #[test]
++    fn validated_cycles_from_edges_rejects_empty() {
++        assert!(validated_cycles_from_edges(&[]).is_err());
++    }
+ }
+-- 
+2.43.0
+

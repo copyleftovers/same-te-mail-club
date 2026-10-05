@@ -1,0 +1,55 @@
+diff --git a/src/config.rs b/src/config.rs
+index b0292bf..d3dacdf 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -71,3 +71,50 @@ impl Config {
+         })
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::{ConfigError, DRY_RUN_SITE_URL, site_url_from_var};
++
++    #[test]
++    fn site_url_defaults_in_dry_run() {
++        assert_eq!(
++            site_url_from_var(None, false).ok().as_deref(),
++            Some(DRY_RUN_SITE_URL)
++        );
++    }
++
++    #[test]
++    fn site_url_required_for_live_sms() {
++        assert!(matches!(
++            site_url_from_var(None, true),
++            Err(ConfigError::MissingSiteUrl)
++        ));
++    }
++
++    #[test]
++    fn site_url_trims_whitespace_and_trailing_slash() {
++        assert_eq!(
++            site_url_from_var(Some(" https://club.example.ua/ ".into()), true)
++                .ok()
++                .as_deref(),
++            Some("https://club.example.ua")
++        );
++    }
++
++    #[test]
++    fn site_url_rejects_plain_http() {
++        assert!(matches!(
++            site_url_from_var(Some("http://club.example.ua".into()), false),
++            Err(ConfigError::InvalidSiteUrl(_))
++        ));
++    }
++
++    #[test]
++    fn site_url_rejects_bare_scheme() {
++        assert!(matches!(
++            site_url_from_var(Some("https://".into()), false),
++            Err(ConfigError::InvalidSiteUrl(_))
++        ));
++    }
++}
