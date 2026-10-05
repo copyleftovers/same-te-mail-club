@@ -21,6 +21,15 @@ async fn main() {
     // 2. Config
     let config = samete::config::Config::from_env().expect("configuration error");
 
+    let conf = get_configuration(None).unwrap();
+    let addr = conf.leptos_options.site_addr;
+    config.check_bind_addr(addr).expect("configuration error");
+    if config.test_mode() {
+        tracing::warn!(
+            "SAMETE_TEST_MODE=true: fixed OTP 000000, OTP rate limits and deadline gates disabled (local/E2E only)"
+        );
+    }
+
     // 3. Database
     let pool = samete::db::create_pool(&config.database_url)
         .await
@@ -40,8 +49,6 @@ async fn main() {
     let http_client = samete::sms::build_http_client().expect("HTTP client build failed");
 
     // 4. Leptos
-    let conf = get_configuration(None).unwrap();
-    let addr = conf.leptos_options.site_addr;
     let leptos_options = conf.leptos_options;
     let routes = generate_route_list(App);
 

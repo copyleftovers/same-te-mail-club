@@ -1,11 +1,19 @@
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
-    pub turbosms_token: String,
-    pub turbosms_sender: String,
-    // CSRF: SameSite=Strict cookie attribute is the mitigation (see src/pages/login.rs set_cookie_header)
-    pub sms_dry_run: bool,
+    pub sms: SmsMode,
     pub admin_bootstrap: Option<AdminBootstrap>,
+}
+
+/// How SMS is delivered. Test mode exists only inside `DryRun`, so a server
+/// that sends real SMS can never run with the fixed test OTP.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SmsMode {
+    /// Real `TurboSMS` delivery.
+    Live { token: String, sender: String },
+    /// SMS is logged, never sent. `test_mode` = fixed OTP `000000`, no OTP
+    /// rate limits, no deadline gates (local dev / E2E only).
+    DryRun { test_mode: bool },
 }
 
 /// First admin ensured at every boot (idempotent).
@@ -28,6 +36,10 @@ pub enum ConfigError {
     EmptyTurbosmsToken,
     #[error("TURBOSMS_SENDER must not be empty")]
     EmptyTurbosmsSender,
+    #[error("SAMETE_TEST_MODE=true requires SAMETE_SMS_DRY_RUN=true")]
+    TestModeRequiresDryRun,
+    #[error("SAMETE_TEST_MODE=true requires a loopback bind address, got {0}")]
+    TestModeRequiresLoopback(std::net::SocketAddr),
     #[error("SAMETE_ADMIN_PHONE and SAMETE_ADMIN_NAME must be set together")]
     AdminBootstrapIncomplete,
     #[error("SAMETE_ADMIN_PHONE is not a valid Ukrainian phone: {0}")]
@@ -37,13 +49,14 @@ pub enum ConfigError {
 impl Config {
     /// Read from environment. Fails fast naming the missing or invalid variable.
     ///
-    /// When `SAMETE_SMS_DRY_RUN=true`, `TurboSMS` credentials are optional and
-    /// not validated — they are never used in dry-run mode, so requiring them
-    /// would block local development and E2E testing without real credentials.
+    /// `SAMETE_SMS_DRY_RUN=true` logs SMS instead of sending them, so
+    /// `TurboSMS` credentials are not required. Otherwise `TURBOSMS_TOKEN` and
+    /// `TURBOSMS_SENDER` must be present and non-empty (an empty bearer token
+    /// would cause a 401 at the first SMS send).
     ///
-    /// In production (non-dry-run), both `TURBOSMS_TOKEN` and `TURBOSMS_SENDER`
-    /// must be present and non-empty. An empty bearer token would cause a 401
-    /// at the first SMS send.
+    /// `SAMETE_TEST_MODE=true` (fixed OTP, no OTP rate limits, no deadline
+    /// gates) is refused unless `SAMETE_SMS_DRY_RUN=true`; the loopback-bind
+    /// refusal is enforced at boot by [`Config::check_bind_addr`].
     ///
     /// # Errors
     ///
@@ -54,29 +67,12 @@ impl Config {
         let database_url =
             std::env::var("DATABASE_URL").map_err(|_| ConfigError::MissingDatabaseUrl)?;
 
-        let sms_dry_run = std::env::var("SAMETE_SMS_DRY_RUN").as_deref() == Ok("true");
-
-        let turbosms_token = if sms_dry_run {
-            std::env::var("TURBOSMS_TOKEN").unwrap_or_default()
-        } else {
-            let token =
-                std::env::var("TURBOSMS_TOKEN").map_err(|_| ConfigError::MissingTurbosmsToken)?;
-            if token.is_empty() {
-                return Err(ConfigError::EmptyTurbosmsToken);
-            }
-            token
-        };
-
-        let turbosms_sender = if sms_dry_run {
-            std::env::var("TURBOSMS_SENDER").unwrap_or_default()
-        } else {
-            let sender =
-                std::env::var("TURBOSMS_SENDER").map_err(|_| ConfigError::MissingTurbosmsSender)?;
-            if sender.is_empty() {
-                return Err(ConfigError::EmptyTurbosmsSender);
-            }
-            sender
-        };
+        let sms = sms_mode_from_vars(
+            std::env::var("SAMETE_SMS_DRY_RUN").ok().as_deref(),
+            std::env::var("SAMETE_TEST_MODE").ok().as_deref(),
+            std::env::var("TURBOSMS_TOKEN").ok(),
+            std::env::var("TURBOSMS_SENDER").ok(),
+        )?;
 
         let admin_bootstrap = admin_bootstrap_from_vars(
             std::env::var("SAMETE_ADMIN_PHONE").ok(),
@@ -85,12 +81,54 @@ impl Config {
 
         Ok(Self {
             database_url,
-            turbosms_token,
-            turbosms_sender,
-            sms_dry_run,
+            sms,
             admin_bootstrap,
         })
     }
+
+    /// True only in dry-run SMS mode with `SAMETE_TEST_MODE=true`.
+    #[must_use]
+    pub fn test_mode(&self) -> bool {
+        matches!(self.sms, SmsMode::DryRun { test_mode: true })
+    }
+
+    /// Refuse test mode on any non-loopback bind address.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(ConfigError::TestModeRequiresLoopback)` when test mode is
+    /// on and `addr` is not loopback.
+    pub fn check_bind_addr(&self, addr: std::net::SocketAddr) -> Result<(), ConfigError> {
+        if self.test_mode() && !addr.ip().is_loopback() {
+            return Err(ConfigError::TestModeRequiresLoopback(addr));
+        }
+        Ok(())
+    }
+}
+
+/// Parse SMS delivery mode from raw env values. Only the literal `"true"` enables a flag.
+fn sms_mode_from_vars(
+    dry_run: Option<&str>,
+    test_mode: Option<&str>,
+    token: Option<String>,
+    sender: Option<String>,
+) -> Result<SmsMode, ConfigError> {
+    let test_mode = test_mode == Some("true");
+    if dry_run == Some("true") {
+        return Ok(SmsMode::DryRun { test_mode });
+    }
+    if test_mode {
+        return Err(ConfigError::TestModeRequiresDryRun);
+    }
+    let token = token.ok_or(ConfigError::MissingTurbosmsToken)?;
+    if token.is_empty() {
+        return Err(ConfigError::EmptyTurbosmsToken);
+    }
+    let sender = sender.ok_or(ConfigError::MissingTurbosmsSender)?;
+    if sender.is_empty() {
+        return Err(ConfigError::EmptyTurbosmsSender);
+    }
+    Ok(SmsMode::Live { token, sender })
 }
 
 /// Parse the optional first-admin bootstrap. Blank values count as unset.
@@ -112,7 +150,17 @@ fn admin_bootstrap_from_vars(
 
 #[cfg(test)]
 mod tests {
-    use super::{AdminBootstrap, ConfigError, admin_bootstrap_from_vars};
+    use super::{
+        AdminBootstrap, Config, ConfigError, SmsMode, admin_bootstrap_from_vars, sms_mode_from_vars,
+    };
+
+    fn config_with(sms: SmsMode) -> Config {
+        Config {
+            database_url: String::new(),
+            sms,
+            admin_bootstrap: None,
+        }
+    }
 
     #[test]
     fn neither_var_means_no_bootstrap() {
@@ -161,5 +209,86 @@ mod tests {
             admin_bootstrap_from_vars(Some("12345".into()), Some("A".into())),
             Err(ConfigError::InvalidAdminPhone(_))
         ));
+    }
+
+    #[test]
+    fn dry_run_without_test_mode() {
+        assert_eq!(
+            sms_mode_from_vars(Some("true"), None, None, None).ok(),
+            Some(SmsMode::DryRun { test_mode: false })
+        );
+    }
+
+    #[test]
+    fn dry_run_with_test_mode() {
+        assert_eq!(
+            sms_mode_from_vars(Some("true"), Some("true"), None, None).ok(),
+            Some(SmsMode::DryRun { test_mode: true })
+        );
+    }
+
+    #[test]
+    fn test_mode_without_dry_run_is_refused_even_with_credentials() {
+        let result = sms_mode_from_vars(None, Some("true"), Some("tok".into()), Some("snd".into()));
+        assert!(matches!(result, Err(ConfigError::TestModeRequiresDryRun)));
+    }
+
+    #[test]
+    fn live_requires_token() {
+        assert!(matches!(
+            sms_mode_from_vars(None, None, None, Some("snd".into())),
+            Err(ConfigError::MissingTurbosmsToken)
+        ));
+    }
+
+    #[test]
+    fn live_rejects_empty_sender() {
+        assert!(matches!(
+            sms_mode_from_vars(None, None, Some("tok".into()), Some(String::new())),
+            Err(ConfigError::EmptyTurbosmsSender)
+        ));
+    }
+
+    #[test]
+    fn live_with_credentials() {
+        assert_eq!(
+            sms_mode_from_vars(None, None, Some("tok".into()), Some("snd".into())).ok(),
+            Some(SmsMode::Live {
+                token: "tok".into(),
+                sender: "snd".into()
+            })
+        );
+    }
+
+    #[test]
+    fn only_literal_true_enables_flags() {
+        assert!(matches!(
+            sms_mode_from_vars(Some("1"), Some("TRUE"), None, None),
+            Err(ConfigError::MissingTurbosmsToken)
+        ));
+    }
+
+    #[test]
+    fn test_mode_refuses_non_loopback_bind() {
+        let config = config_with(SmsMode::DryRun { test_mode: true });
+        assert!(matches!(
+            config.check_bind_addr("0.0.0.0:3000".parse().expect("addr")),
+            Err(ConfigError::TestModeRequiresLoopback(_))
+        ));
+        assert!(
+            config
+                .check_bind_addr("127.0.0.1:3000".parse().expect("addr"))
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn non_test_mode_allows_any_bind() {
+        let config = config_with(SmsMode::DryRun { test_mode: false });
+        assert!(
+            config
+                .check_bind_addr("0.0.0.0:3000".parse().expect("addr"))
+                .is_ok()
+        );
     }
 }

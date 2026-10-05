@@ -68,13 +68,13 @@ fn extract_session_cookie(parts: &http::request::Parts) -> Option<String> {
 /// Old codes are retained (not upserted) to enable rate-limit row counting.
 /// Returns the raw code string (for SMS delivery).
 ///
-/// When `SAMETE_TEST_MODE=true`, always returns `"000000"`.
+/// When `test_mode` (see `Config::test_mode`) is true, always returns `"000000"`.
 ///
 /// # Errors
 ///
 /// Returns `Err` on database failure.
-pub async fn create_otp(pool: &PgPool, phone: &str) -> Result<String, AppError> {
-    let code = if std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true") {
+pub async fn create_otp(pool: &PgPool, phone: &str, test_mode: bool) -> Result<String, AppError> {
+    let code = if test_mode {
         "000000".to_owned()
     } else {
         // Use rand to generate a 6-digit code, zero-padded
@@ -115,10 +115,16 @@ pub async fn create_otp(pool: &PgPool, phone: &str) -> Result<String, AppError> 
 ///
 /// # Errors
 ///
+/// Skipped entirely when `test_mode` is true.
+///
 /// Returns `Err(AppError::RateLimited)` if either limit is exceeded.
 /// Returns `Err(AppError::Database(_))` on DB failure.
-pub async fn check_otp_rate_limit(pool: &PgPool, phone: &str) -> Result<(), AppError> {
-    if std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true") {
+pub async fn check_otp_rate_limit(
+    pool: &PgPool,
+    phone: &str,
+    test_mode: bool,
+) -> Result<(), AppError> {
+    if test_mode {
         return Ok(());
     }
 

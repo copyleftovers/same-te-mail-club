@@ -151,6 +151,14 @@ async fn resolve_enrollment_state(
     }
 }
 
+/// Test mode (deadline gates bypassed) from the server `Config` context.
+#[cfg(feature = "ssr")]
+fn test_mode() -> Result<bool, ServerFnError> {
+    leptos::context::use_context::<crate::config::Config>()
+        .map(|config| config.test_mode())
+        .ok_or_else(|| ServerFnError::new("no config in context"))
+}
+
 /// Resolve home state for the Preparation phase.
 #[cfg(feature = "ssr")]
 async fn resolve_preparation_state(
@@ -177,7 +185,7 @@ async fn resolve_preparation_state(
     if confirmed {
         Ok(HomeState::Confirmed)
     } else {
-        let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
+        let test_mode = test_mode()?;
         let deadline_passed = is_past_deadline(season.confirm_deadline, test_mode);
         Ok(HomeState::Preparing {
             confirm_deadline: confirm_str,
@@ -395,7 +403,7 @@ pub async fn enroll_in_season(
     .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_enrollment_not_open)))?;
 
     // Deadline check — bypassed in test mode
-    let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
+    let test_mode = test_mode()?;
     if is_past_deadline(season.signup_deadline, test_mode) {
         return Err(ServerFnError::new(td_string!(
             Locale::uk,
@@ -518,7 +526,7 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
     .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_confirmation_not_open)))?;
 
     // Deadline check — bypassed in test mode
-    let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
+    let test_mode = test_mode()?;
     if is_past_deadline(season.confirm_deadline, test_mode) {
         return Err(ServerFnError::new(td_string!(
             Locale::uk,

@@ -187,11 +187,13 @@ Server-heavy deps (sqlx, reqwest, phonenumber, rand, blake2, sha2, anyhow, tower
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `DATABASE_URL` | Yes | Postgres connection string |
-| `TURBOSMS_TOKEN` | Yes | TurboSMS API bearer token |
-| `TURBOSMS_SENDER` | Yes | Registered alpha-name |
+| `TURBOSMS_TOKEN` | Yes, unless `SAMETE_SMS_DRY_RUN=true` | TurboSMS API bearer token |
+| `TURBOSMS_SENDER` | Yes, unless `SAMETE_SMS_DRY_RUN=true` | Registered alpha-name |
+| `SAMETE_SMS_DRY_RUN` | No (dev/E2E only) | `true` = SMS are logged (including OTP codes), never sent. Never set in production |
+| `SAMETE_TEST_MODE` | No (dev/E2E only) | `true` = fixed OTP `000000`, no OTP rate limits, no deadline gates. Boot is refused unless `SAMETE_SMS_DRY_RUN=true` AND the server binds a loopback address. Never set in production |
 | `SAMETE_ADMIN_PHONE` | No (set both or neither) | Phone of the first organizer. At every boot the app ensures this user exists with role `admin` (creates it, or promotes an existing account). Any Ukrainian format; stored as E.164 |
 | `SAMETE_ADMIN_NAME` | No (set both or neither) | Display name used only when the admin user is created |
-| `CSRF_SECRET` | No | Override for CSRF secret (generated at startup if absent) |
+| `RUST_LOG` | No | Log filter; default `samete=info,tower_http=info` |
 
 ## Deployment
 
