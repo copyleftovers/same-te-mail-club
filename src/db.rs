@@ -29,7 +29,9 @@ pub async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::migrate::MigrateE
 }
 
 /// Ensure the configured first admin exists: insert it, or promote the
-/// existing user with that phone to admin. Idempotent; runs at every boot.
+/// existing user with that phone to an active admin (a deactivated account is
+/// reactivated, otherwise the organizer could not sign in). Idempotent; runs at
+/// every boot.
 ///
 /// # Errors
 ///
@@ -42,7 +44,7 @@ pub async fn ensure_admin(
         r#"
         INSERT INTO users (phone, name, role, onboarded)
         VALUES ($1, $2, 'admin', true)
-        ON CONFLICT (phone) DO UPDATE SET role = 'admin'
+        ON CONFLICT (phone) DO UPDATE SET role = 'admin', status = 'active'
         "#,
         admin.phone,
         admin.name,
