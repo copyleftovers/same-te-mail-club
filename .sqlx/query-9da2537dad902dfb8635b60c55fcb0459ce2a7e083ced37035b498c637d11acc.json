@@ -1,23 +1,28 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT recipient_id FROM assignments WHERE season_id = $1 AND sender_id = $2",
+  "query": "SELECT sender_id, recipient_id FROM assignments WHERE season_id = $1",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
+        "name": "sender_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
         "name": "recipient_id",
         "type_info": "Uuid"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
         "Uuid"
       ]
     },
     "nullable": [
+      false,
       false
     ]
   },
-  "hash": "198a8e06142c19d00148fe76b9def15ee56ae3dc732141c40e71c39081e917f8"
+  "hash": "9da2537dad902dfb8635b60c55fcb0459ce2a7e083ced37035b498c637d11acc"
 }

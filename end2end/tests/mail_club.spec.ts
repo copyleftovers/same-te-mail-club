@@ -649,8 +649,26 @@ test.describe.serial("The Mail Club", () => {
     test("3.3 — admin swaps two assignments", async ({ page }) => {
       const app = new MailClubPage(page);
       await app.login(ADMIN_PHONE);
+      await app.goToDashboard();
+      const before = await app.readCycleEdges();
+      expect(before).toHaveLength(3);
+      const idA = await app.cycleSenderId(NAMES.A);
+      const idB = await app.cycleSenderId(NAMES.B);
+      const sigma = (u: string) => (u === idA ? idB : u === idB ? idA : u);
+      const expected = before
+        .map((edge) => edge.split(">"))
+        .map(([s, r]) => `${sigma(s)}>${sigma(r)}`)
+        .sort();
+      expect(expected).not.toEqual(before);
+
       await app.swapAssignment(NAMES.A, NAMES.B);
-      await app.expectCycleVisualization();
+
+      await expect.poll(() => app.readCycleEdges()).toEqual(expected);
+      // Still one loop through all three: no self-assignment.
+      for (const edge of expected) {
+        const [s, r] = edge.split(">");
+        expect(s).not.toEqual(r);
+      }
     });
   });
 
