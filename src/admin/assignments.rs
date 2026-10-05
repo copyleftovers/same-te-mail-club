@@ -295,7 +295,8 @@ pub async fn swap_assignment(
 
     let mut tx = pool.begin().await.map_err(db_err)?;
 
-    // Lock the season row: serializes concurrent swaps and advance_season.
+    // Lock the season row: serializes concurrent swaps, and makes advance_season's
+    // phase UPDATE wait until this swap commits.
     let phase = sqlx::query_scalar!(
         r#"
         SELECT phase AS "phase: Phase"
