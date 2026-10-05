@@ -10,6 +10,9 @@ Problems live in `PROBLEMS.md` (same dir). This file tracks only solutions: whic
 5. Unit status below. A unit "implementing" whose worktree is gone = relaunch from its lane file. Branch names `worktree-agent-<id>`; check `git worktree list`, `git branch -a | grep worktree-agent`.
 6. Environment gotchas until unit ENV lands: cargo-leptos install; Playwright browser path (`/opt/pw-browsers`); tailwind glibc binary; local-only `#![recursion_limit="256"]` until T0 lands; build env `CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0`; disk: dedupe `hardlink -c */target/*/deps` across worktrees; max 20 concurrent subagents.
 
+## Recovery state (2026-10-05 20:40 UTC)
+All implementers were killed by a session limit at ~09:20 UTC. Their work is preserved on this branch as patches in `wip/` (`INDEX.txt` lists per worktree: branch, base, commit count, uncommitted size; `<id>.commits.patch` = committed work, `<id>.uncommitted.patch` = working-tree diff). Apply with `git am` / `git apply` onto the listed base to recover a lane without the remote machine. Worktree target/ dirs were deleted (disk). Order of recovery: land U3+U4 (quality reviews resumed), then resume the lanes (SendMessage to the same agent ids — resume, not relaunch).
+
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
 |---|---|---|---|---|---|---|---|
@@ -31,8 +34,8 @@ Problems live in `PROBLEMS.md` (same dir). This file tracks only solutions: whic
 | P-H3 branch editable | product | TBD | implementing | worktree-agent-adb44670e29cec0d1 | - | - | - |
 | P-M1 meetup storage + form | product | TBD | implementing | worktree-agent-ab0d6b0268101da57 | - | - | - |
 | P-M2 meetup + timeline on home | product | TBD | implementing | worktree-agent-a961a61a4015cfb42 | - | - | - |
-| P-DOC badge doc sync | product | TBD | queued (20-agent cap) | - | - | - | - |
-| F-* (all remaining findings) | findings | TBD | planning | - | - | - | - |
+| P-DOC badge doc sync | product | TBD | not launched | - | - | - | - |
+| F-* (17 code lanes + DOC-OPUS + ORCH) | findings | TBD | planned, not launched | - | - | - | - |
 
 ## Integration log
 | Time (UTC) | Unit | Merge commit | Gates |
