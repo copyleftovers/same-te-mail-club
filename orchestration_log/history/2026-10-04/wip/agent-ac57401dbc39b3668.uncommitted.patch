@@ -1,8 +1,90 @@
+diff --git a/src/admin/sms.rs b/src/admin/sms.rs
+index 4a4c493..70216e3 100644
+--- a/src/admin/sms.rs
++++ b/src/admin/sms.rs
+@@ -133,6 +133,12 @@ pub(super) async fn count_no_response_recipients(
+     .await
+ }
+ 
++/// Append the app link: every participant SMS asks the reader to act in the app.
++#[cfg(any(feature = "ssr", test))]
++fn with_site_link(body: &str, site_url: &str) -> String {
++    format!("{body} {site_url}")
++}
++
+ // ── Server functions ───────────────────────────────────────────────────────────
+ //
+ // Each send loop collects the IDs of successful sends and marks them in ONE
 diff --git a/src/config.rs b/src/config.rs
-index b0292bf..d3dacdf 100644
+index b0292bf..540ac89 100644
 --- a/src/config.rs
 +++ b/src/config.rs
-@@ -71,3 +71,50 @@ impl Config {
+@@ -5,6 +5,8 @@ pub struct Config {
+     pub turbosms_sender: String,
+     // CSRF: SameSite=Strict cookie attribute is the mitigation (see src/pages/login.rs set_cookie_header)
+     pub sms_dry_run: bool,
++    /// Public https URL of the app, appended to every participant SMS.
++    pub site_url: String,
+ }
+ 
+ #[derive(Debug, thiserror::Error)]
+@@ -19,6 +21,34 @@ pub enum ConfigError {
+     EmptyTurbosmsToken,
+     #[error("TURBOSMS_SENDER must not be empty")]
+     EmptyTurbosmsSender,
++    #[error("missing SAMETE_SITE_URL (required when SMS are sent)")]
++    MissingSiteUrl,
++    #[error("SAMETE_SITE_URL must be an https:// URL, got {0}")]
++    InvalidSiteUrl(String),
++}
++
++/// Public URL used in dry-run mode (local dev / E2E), where SMS are only logged.
++const DRY_RUN_SITE_URL: &str = "http://127.0.0.1:3000";
++
++/// Parse `SAMETE_SITE_URL`: required (https) when SMS are live; dry-run defaults
++/// to [`DRY_RUN_SITE_URL`]. Trailing `/` and surrounding whitespace are trimmed.
++fn site_url_from_var(raw: Option<String>, sms_live: bool) -> Result<String, ConfigError> {
++    let Some(raw) = raw else {
++        return if sms_live {
++            Err(ConfigError::MissingSiteUrl)
++        } else {
++            Ok(DRY_RUN_SITE_URL.to_owned())
++        };
++    };
++    let url = raw.trim().trim_end_matches('/');
++    let has_host = url
++        .strip_prefix("https://")
++        .is_some_and(|host| !host.is_empty());
++    if has_host {
++        Ok(url.to_owned())
++    } else {
++        Err(ConfigError::InvalidSiteUrl(url.to_owned()))
++    }
+ }
+ 
+ impl Config {
+@@ -32,6 +62,9 @@ impl Config {
+     /// must be present and non-empty. An empty bearer token would cause a 401
+     /// at the first SMS send.
+     ///
++    /// `SAMETE_SITE_URL` (https) is appended to participant SMS: required when
++    /// SMS are live, defaulted in dry-run.
++    ///
+     /// # Errors
+     ///
+     /// Returns `Err` if any required environment variable is absent or empty.
+@@ -63,11 +96,61 @@ impl Config {
+             sender
+         };
+ 
++        let site_url = site_url_from_var(std::env::var("SAMETE_SITE_URL").ok(), !sms_dry_run)?;
++
+         Ok(Self {
+             database_url,
+             turbosms_token,
+             turbosms_sender,
+             sms_dry_run,
++            site_url,
          })
      }
  }

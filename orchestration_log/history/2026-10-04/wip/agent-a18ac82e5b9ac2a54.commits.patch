@@ -1,0 +1,135 @@
+From fad39624fbfc47a8ad6f0767101fc587534a3491 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 20:44:29 +0000
+Subject: [PATCH] ci: codegen builds in Check job and assert Playwright ran in
+ every E2E path
+
+---
+ .github/workflows/ci.yml         |  8 ++++++++
+ justfile                         |  9 +++++++++
+ scripts/assert-playwright-ran.sh | 32 ++++++++++++++++++++++++++++++++
+ scripts/isolated-capture.sh      |  5 +++++
+ 4 files changed, 54 insertions(+)
+ create mode 100755 scripts/assert-playwright-ran.sh
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index f947060..169e1de 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -43,6 +43,14 @@ jobs:
+       - name: cargo clippy (hydrate / WASM)
+         run: cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings
+ 
++      # clippy/test never run codegen, so recursion/layout overflows in Leptos views
++      # only surface in a real build (see src/main.rs recursion_limit WHY).
++      - name: cargo build (SSR bin — codegen)
++        run: cargo build --no-default-features --features ssr --bin samete
++
++      - name: cargo build (hydrate lib, wasm — codegen)
++        run: cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate
++
+       - name: Install cargo-binstall
+         uses: cargo-bins/cargo-binstall@v1.18.1
+ 
+diff --git a/justfile b/justfile
+index c627308..7e83657 100644
+--- a/justfile
++++ b/justfile
+@@ -21,22 +21,29 @@ _kill-stale:
+     -lsof -i :3000 -t | xargs kill 2>/dev/null || true
+ 
+ # Run E2E tests against the release binary (471KB brotli WASM — CI-stable)
++# All end-to-end recipes assert Playwright actually ran: cargo leptos end-to-end exits 0 on build failure.
+ e2e: e2e-release
+ 
+ # Run E2E tests in dev mode — only for debugging; 14MB WASM may intermittently fail
+ e2e-dev: _kill-stale db-reset db-seed
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Run a single test by grep pattern against the release binary — includes DB reset and rebuild.
+ # Only useful for tests that don't depend on prior DB state (e.g. block 1 tests).
+ # For dependent tests: run `just e2e` first, then target with `just e2e-single`.
+ e2e-single pattern: _kill-stale db-reset db-seed
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release -- --grep "{{pattern}}"
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Re-run E2E tests without resetting the DB — use when DB is already in correct state.
+ # Rebuilds the release binary. Kills any stale server on :3000 first.
+ e2e-rerun: _kill-stale
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Build release with pre-compressed static assets
+ build:
+@@ -49,7 +56,9 @@ serve: build
+ 
+ # Run E2E tests against release build
+ e2e-release: _kill-stale db-reset db-seed
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Pre-compress static assets (quality: --best for release, -q 5 for dev)
+ _precompress quality="--best":
+diff --git a/scripts/assert-playwright-ran.sh b/scripts/assert-playwright-ran.sh
+new file mode 100755
+index 0000000..751fa1f
+--- /dev/null
++++ b/scripts/assert-playwright-ran.sh
+@@ -0,0 +1,32 @@
++#!/usr/bin/env bash
++# Fail unless Playwright actually ran during this E2E invocation.
++#
++# WHY: `cargo leptos end-to-end` exits 0 when the cargo build fails and then never
++# starts Playwright — CI was false-green from 2026-07-10 to 2026-07-25 with zero
++# tests executed. Playwright's JSON reporter (end2end/playwright.config.ts) writes
++# end2end/results.json on every run; a fresh file with >0 executed tests is the proof.
++#
++# Usage (from repo root): scripts/assert-playwright-ran.sh <start-marker>
++#   <start-marker> — a file touched BEFORE the E2E command started.
++set -euo pipefail
++
++marker="${1:?usage: scripts/assert-playwright-ran.sh <start-marker>}"
++results="end2end/results.json"
++
++[ -f "$results" ] \
++    || { echo "FATAL: $results missing — Playwright never ran (build failure?)"; exit 1; }
++[ "$results" -nt "$marker" ] \
++    || { echo "FATAL: $results predates this run — Playwright never ran (build failure?)"; exit 1; }
++
++node -e '
++const s = require(process.argv[1]).stats;
++console.log(`playwright ran: expected=${s.expected} unexpected=${s.unexpected} flaky=${s.flaky} skipped=${s.skipped}`);
++if (s.expected + s.unexpected + s.flaky === 0) {
++    console.error("FATAL: Playwright executed 0 tests");
++    process.exit(1);
++}
++if (s.unexpected > 0) {
++    console.error("FATAL: Playwright reported failures");
++    process.exit(1);
++}
++' "$PWD/$results"
+diff --git a/scripts/isolated-capture.sh b/scripts/isolated-capture.sh
+index 3b9c5a4..fa4ad99 100755
+--- a/scripts/isolated-capture.sh
++++ b/scripts/isolated-capture.sh
+@@ -68,7 +68,12 @@ psql "$SIBLING_DBURL" -f seed/test_admin.sql
+ 
+ # --- build release binary + pre-compress static assets ------------------
+ 
++# Remove the artifacts first so a failed build cannot leave a stale binary/WASM to be
++# served: cargo leptos has been observed to exit 0 on cargo build failure.
++rm -f target/release/samete target/site/pkg/samete.wasm
+ cargo leptos build --release
++[ -x target/release/samete ] && [ -f target/site/pkg/samete.wasm ] \
++    || { echo "[isolated-capture] FATAL: release build produced no binary/WASM — build failed"; exit 1; }
+ 
+ for asset in target/site/pkg/*.wasm target/site/pkg/*.js target/site/pkg/*.css; do
+     [ -f "$asset" ] || continue
+-- 
+2.43.0
+

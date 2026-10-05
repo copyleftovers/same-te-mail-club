@@ -1,0 +1,13 @@
+diff --git a/src/main.rs b/src/main.rs
+index 920592e..a405e6c 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -33,7 +33,7 @@ async fn main() {
+         samete::db::ensure_admin(&pool, admin)
+             .await
+             .expect("admin bootstrap failed");
+-        tracing::info!(phone = %admin.phone, "admin bootstrap ensured");
++        tracing::info!("admin bootstrap ensured");
+     }
+ 
+     // 3b. Shared HTTP client for SMS delivery

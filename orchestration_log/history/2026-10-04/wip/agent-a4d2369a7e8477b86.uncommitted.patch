@@ -1,3 +1,28 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 9bfb6aa..b8ed7be 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -95,13 +95,19 @@ pedantic = { level = "deny", priority = -1 }
+ [profile.release]
+ strip = true
+ lto = "thin"
+-panic = "abort"
++# WHY: unwind on the server. leptos_i18n 0.6.x's SSR isomorphic effect
++# (context.rs:213) can read a disposed signal in a detached tokio task after the
++# request Owner is dropped; under abort that panic kills the whole server, under
++# unwind tokio confines it to the task. WASM keeps abort (wasm-release below).
++panic = "unwind"
+ 
+ [profile.wasm-release]
+ inherits = "release"
+ opt-level = 'z'
+ lto = true
+ codegen-units = 1
++# WHY: explicit — `inherits = "release"` would otherwise pull in unwind and grow the WASM.
++panic = "abort"
+ 
+ [package.metadata.leptos-i18n]
+ default = "uk"
 diff --git a/src/lib.rs b/src/lib.rs
 index 4f95058..0df3c07 100644
 --- a/src/lib.rs
