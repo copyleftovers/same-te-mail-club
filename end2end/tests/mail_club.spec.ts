@@ -122,6 +122,12 @@ test.describe.serial("The Mail Club", () => {
       await app.expectInviteCodeStatus(CODES.REVOKED, "revoked");
     });
 
+    test("1.5 — generate button exposes aria-busy while pending", async ({ page }) => {
+      const app = new MailClubPage(page);
+      await app.login(ADMIN_PHONE);
+      await app.expectGenerateCodeBusyWhilePending();
+    });
+
     // Story 1.1: Participant A self-registers with invite code
     test("1.1 — participant A self-registers with invite code", async ({ page }) => {
       const app = new MailClubPage(page);
