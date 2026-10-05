@@ -53,3 +53,56 @@ pub async fn ensure_admin(
     .await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ensure_admin;
+    use crate::config::AdminBootstrap;
+    use sqlx::PgPool;
+
+    const ADMIN_PHONE: &str = "+380671234567";
+
+    fn bootstrap() -> AdminBootstrap {
+        AdminBootstrap {
+            phone: ADMIN_PHONE.into(),
+            name: "Організатор".into(),
+        }
+    }
+
+    async fn active_admin_count(pool: &PgPool) -> i64 {
+        sqlx::query_scalar(
+            "SELECT count(*) FROM users WHERE phone = $1 AND role = 'admin' AND status = 'active'",
+        )
+        .bind(ADMIN_PHONE)
+        .fetch_one(pool)
+        .await
+        .expect("count query")
+    }
+
+    #[sqlx::test]
+    #[ignore = "needs live Postgres (DATABASE_URL)"]
+    async fn inserts_missing_admin_and_is_idempotent(pool: PgPool) {
+        ensure_admin(&pool, &bootstrap()).await.expect("first boot");
+        ensure_admin(&pool, &bootstrap())
+            .await
+            .expect("second boot");
+
+        assert_eq!(active_admin_count(&pool).await, 1);
+    }
+
+    #[sqlx::test]
+    #[ignore = "needs live Postgres (DATABASE_URL)"]
+    async fn promotes_and_reactivates_existing_deactivated_participant(pool: PgPool) {
+        sqlx::query(
+            "INSERT INTO users (phone, name, role, status) VALUES ($1, 'Учасник', 'participant', 'deactivated')",
+        )
+        .bind(ADMIN_PHONE)
+        .execute(&pool)
+        .await
+        .expect("seed participant");
+
+        ensure_admin(&pool, &bootstrap()).await.expect("bootstrap");
+
+        assert_eq!(active_admin_count(&pool).await, 1);
+    }
+}
