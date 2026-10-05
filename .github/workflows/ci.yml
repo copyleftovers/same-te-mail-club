@@ -47,7 +47,7 @@ jobs:
         uses: cargo-bins/cargo-binstall@v1.18.1
 
       - name: Supply-chain audit
-        run: cargo binstall --no-confirm cargo-audit && cargo audit
+        run: cargo binstall --no-confirm --locked cargo-audit@0.22.2 && cargo audit
 
       - name: cargo test
         run: cargo test
@@ -100,26 +100,17 @@ jobs:
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@v1.18.1
 
-      - name: Install cargo-leptos
-        run: cargo binstall cargo-leptos --no-confirm
-
-      - name: Install wasm-opt
-        run: cargo binstall wasm-opt --no-confirm
-
-      - name: Install sqlx-cli
-        run: cargo binstall sqlx-cli --no-confirm --no-symlinks
-
-      - name: Install just
-        run: cargo binstall just --no-confirm
-
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Install Playwright dependencies
+      - name: Bootstrap pinned toolchain
+        run: bash scripts/bootstrap-toolchain.sh
+
+      - name: Playwright system dependencies
         working-directory: end2end
-        run: npm ci && npx playwright install --with-deps chromium
+        run: npx playwright install-deps chromium
 
       - name: Run E2E tests (release)
         run: just e2e-release

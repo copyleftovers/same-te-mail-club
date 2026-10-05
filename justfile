@@ -1,7 +1,14 @@
 # samete development commands
 
+# Repo-pinned tools (tailwindcss) take precedence; installed by scripts/bootstrap-toolchain.sh.
+export PATH := justfile_directory() + "/.tools/bin:" + env_var("PATH")
+
 default:
     @just --list
+
+# Install/verify the pinned toolchain (idempotent).
+bootstrap:
+    bash scripts/bootstrap-toolchain.sh
 
 # Start dev server with hot reload
 dev:

@@ -15,8 +15,7 @@ The app handles logistics only: sign-ups, assignments, SMS reminders, delivery c
 ## Prerequisites
 
 - Rust stable (1.85+)
-- `cargo-leptos` (`cargo binstall cargo-leptos`)
-- `sqlx-cli` (`cargo binstall sqlx-cli --no-default-features --features postgres,rustls`)
+- Toolchain pins (cargo-leptos, sqlx-cli, just, wasm-opt, cargo-audit, tailwindcss, Playwright browser): `just bootstrap` (or `bash scripts/bootstrap-toolchain.sh` before `just` exists). Claude Code cloud sessions run it automatically (`.claude/hooks/session-start.sh`).
 - Docker (for local Postgres)
 - Node.js (for Playwright E2E tests)
 - `pre-commit` (`pip install pre-commit`)
@@ -24,6 +23,9 @@ The app handles logistics only: sign-ups, assignments, SMS reminders, delivery c
 ## Setup
 
 ```sh
+# Install the pinned toolchain
+bash scripts/bootstrap-toolchain.sh
+
 # Start Postgres
 docker compose up -d
 
