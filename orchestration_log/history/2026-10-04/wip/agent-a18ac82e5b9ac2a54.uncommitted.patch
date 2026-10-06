@@ -222,10 +222,10 @@ index 875a481..37ed525 100644
  #[tokio::main]
  async fn main() {
 diff --git a/src/pages/home.rs b/src/pages/home.rs
-index d326751..a7a9e78 100644
+index d326751..4406c86 100644
 --- a/src/pages/home.rs
 +++ b/src/pages/home.rs
-@@ -1030,55 +1030,73 @@ fn render_receipt_form(
+@@ -1030,55 +1030,74 @@ fn render_receipt_form(
              </leptos::form::ActionForm>
          </section>
      }
@@ -250,6 +250,7 @@ index d326751..a7a9e78 100644
 +#[component]
 +fn RecipientCard(name: String, phone: String, city: String, branch_number: i32) -> impl IntoView {
 +    let i18n = use_i18n();
++    let tel_href = format!("tel:{phone}");
 +    let branch_text = t!(
          i18n,
          home_recipient_branch,
@@ -281,7 +282,7 @@ index d326751..a7a9e78 100644
                      <dd class="info-value">
                          <a
 -                            href=format!("tel:{}", recipient_phone.to_string())
-+                            href=format!("tel:{phone}")
++                            href=tel_href
                              class="info-link"
                              data-testid="recipient-phone"
                          >
