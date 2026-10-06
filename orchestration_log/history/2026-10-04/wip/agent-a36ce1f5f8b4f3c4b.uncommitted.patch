@@ -1,3 +1,103 @@
+diff --git a/src/admin/assignments.rs b/src/admin/assignments.rs
+index 347443c..180bfc1 100644
+--- a/src/admin/assignments.rs
++++ b/src/admin/assignments.rs
+@@ -27,6 +27,15 @@ pub struct AssignmentLink {
+     pub sender_name: String,
+     pub recipient_id: String,
+     pub recipient_name: String,
++    /// Receipt the recipient reported for this link (`NoResponse` until they answer).
++    pub recipient_receipt: crate::types::ReceiptStatus,
++}
++
++/// Ask `from_name` to forward the mail they received to `to_name`.
++#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
++pub struct ForwardingRequest {
++    pub from_name: String,
++    pub to_name: String,
+ }
+ 
+ // ── SSR-only row types ───────────────────────────────────────────────────────
+@@ -461,3 +470,79 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
+         phase: season.phase,
+     }))
+ }
++
++#[cfg(test)]
++mod forwarding_tests {
++    use super::{AssignmentLink, ForwardingRequest, forwarding_requests};
++    use crate::types::ReceiptStatus::{self, NoResponse, NotReceived, Received};
++
++    /// Ring names[0]→names[1]→…→names[0]; statuses[i] = what names[i+1] reported.
++    fn ring(names: &[&str], statuses: &[ReceiptStatus]) -> Vec<AssignmentLink> {
++        (0..names.len())
++            .map(|i| {
++                let r = names[(i + 1) % names.len()];
++                AssignmentLink {
++                    sender_id: names[i].into(),
++                    sender_name: names[i].into(),
++                    recipient_id: r.into(),
++                    recipient_name: r.into(),
++                    recipient_receipt: statuses[i],
++                }
++            })
++            .collect()
++    }
++
++    fn req(from: &str, to: &str) -> ForwardingRequest {
++        ForwardingRequest { from_name: from.into(), to_name: to.into() }
++    }
++
++    const ABCDE: [&str; 5] = ["A", "B", "C", "D", "E"];
++
++    #[test]
++    fn nobody_failed_needs_no_forwarding() {
++        assert!(forwarding_requests(&ring(&ABCDE, &[Received; 5])).is_empty());
++    }
++
++    #[test]
++    fn single_failure_forwards_to_skipped_recipient() {
++        // B never sent to C: B forwards what B received (A's mail) to C.
++        let chain = ring(&ABCDE, &[Received, NotReceived, Received, Received, Received]);
++        assert_eq!(forwarding_requests(&chain), vec![req("B", "C")]);
++    }
++
++    #[test]
++    fn contiguous_failures_need_one_request() {
++        // Product Spec example: B and C fail → B forwards A's mail to D.
++        let chain = ring(&ABCDE, &[Received, NotReceived, NotReceived, Received, Received]);
++        assert_eq!(forwarding_requests(&chain), vec![req("B", "D")]);
++    }
++
++    #[test]
++    fn separate_blocks_get_separate_requests() {
++        let chain = ring(&ABCDE, &[NotReceived, Received, NotReceived, Received, Received]);
++        assert_eq!(forwarding_requests(&chain), vec![req("C", "D"), req("A", "B")]);
++    }
++
++    #[test]
++    fn block_wrapping_the_ring_end_is_one_request() {
++        let chain = ring(&ABCDE, &[NotReceived, Received, Received, Received, NotReceived]);
++        assert_eq!(forwarding_requests(&chain), vec![req("E", "B")]);
++    }
++
++    #[test]
++    fn all_but_one_failed_returns_own_mail() {
++        // Only A sent; B forwards A's mail back to A.
++        let chain = ring(&ABCDE, &[Received, NotReceived, NotReceived, NotReceived, NotReceived]);
++        assert_eq!(forwarding_requests(&chain), vec![req("B", "A")]);
++    }
++
++    #[test]
++    fn everybody_failed_has_nobody_to_forward() {
++        assert!(forwarding_requests(&ring(&ABCDE, &[NotReceived; 5])).is_empty());
++    }
++
++    #[test]
++    fn no_response_is_not_a_failure() {
++        assert!(forwarding_requests(&ring(&ABCDE, &[NoResponse; 5])).is_empty());
++    }
++}
 diff --git a/src/lib.rs b/src/lib.rs
 index 4f95058..0df3c07 100644
 --- a/src/lib.rs

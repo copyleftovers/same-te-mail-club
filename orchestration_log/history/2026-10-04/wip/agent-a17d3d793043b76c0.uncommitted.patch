@@ -1,3 +1,267 @@
+diff --git a/.sqlx/query-55661925814a3f3479ab98ac0097835cb53d745f6c3963cbc43545c241158416.json b/.sqlx/query-02dff697e8eb6a2bbf5ed71fabb17f796481a9473f4dad5611de6fd33e6b3f51.json
+similarity index 62%
+rename from .sqlx/query-55661925814a3f3479ab98ac0097835cb53d745f6c3963cbc43545c241158416.json
+rename to .sqlx/query-02dff697e8eb6a2bbf5ed71fabb17f796481a9473f4dad5611de6fd33e6b3f51.json
+index 6c8ce52..32aecb4 100644
+--- a/.sqlx/query-55661925814a3f3479ab98ac0097835cb53d745f6c3963cbc43545c241158416.json
++++ b/.sqlx/query-02dff697e8eb6a2bbf5ed71fabb17f796481a9473f4dad5611de6fd33e6b3f51.json
+@@ -1,10 +1,15 @@
+ {
+   "db_name": "PostgreSQL",
+-  "query": "\n            SELECT phase AS \"phase: Phase\"\n            FROM seasons\n            ORDER BY created_at DESC\n            LIMIT 1\n            ",
++  "query": "\n            SELECT id, phase AS \"phase: Phase\"\n            FROM seasons\n            ORDER BY created_at DESC\n            LIMIT 1\n            ",
+   "describe": {
+     "columns": [
+       {
+         "ordinal": 0,
++        "name": "id",
++        "type_info": "Uuid"
++      },
++      {
++        "ordinal": 1,
+         "name": "phase: Phase",
+         "type_info": {
+           "Custom": {
+@@ -27,8 +32,9 @@
+       "Left": []
+     },
+     "nullable": [
++      false,
+       false
+     ]
+   },
+-  "hash": "55661925814a3f3479ab98ac0097835cb53d745f6c3963cbc43545c241158416"
++  "hash": "02dff697e8eb6a2bbf5ed71fabb17f796481a9473f4dad5611de6fd33e6b3f51"
+ }
+diff --git a/.sqlx/query-4282371fb3969f0e262db87c6054028d12e0b3fef49de254da1d5f0cd37c0fc5.json b/.sqlx/query-15da496ba8b3b629da344bc316a9c1be7b12bec01d973b858e1b5b1ad7acffa3.json
+similarity index 60%
+rename from .sqlx/query-4282371fb3969f0e262db87c6054028d12e0b3fef49de254da1d5f0cd37c0fc5.json
+rename to .sqlx/query-15da496ba8b3b629da344bc316a9c1be7b12bec01d973b858e1b5b1ad7acffa3.json
+index 8fdf24d..40d84c5 100644
+--- a/.sqlx/query-4282371fb3969f0e262db87c6054028d12e0b3fef49de254da1d5f0cd37c0fc5.json
++++ b/.sqlx/query-15da496ba8b3b629da344bc316a9c1be7b12bec01d973b858e1b5b1ad7acffa3.json
+@@ -1,6 +1,6 @@
+ {
+   "db_name": "PostgreSQL",
+-  "query": "\n        SELECT EXISTS(\n            SELECT 1 FROM enrollments\n            WHERE user_id = $1 AND season_id = $2\n              AND confirmed_ready_at IS NOT NULL\n        ) AS \"exists!\"\n        ",
++  "query": "\n        SELECT EXISTS(\n            SELECT 1 FROM assignments WHERE sender_id = $1 AND season_id = $2\n        ) AS \"exists!\"\n        ",
+   "describe": {
+     "columns": [
+       {
+@@ -19,5 +19,5 @@
+       null
+     ]
+   },
+-  "hash": "4282371fb3969f0e262db87c6054028d12e0b3fef49de254da1d5f0cd37c0fc5"
++  "hash": "15da496ba8b3b629da344bc316a9c1be7b12bec01d973b858e1b5b1ad7acffa3"
+ }
+diff --git a/.sqlx/query-28d8bb9072e2ef860895ccc2dad2df17b6281dd839b65d2cac68c263059fbcc2.json b/.sqlx/query-28d8bb9072e2ef860895ccc2dad2df17b6281dd839b65d2cac68c263059fbcc2.json
+new file mode 100644
+index 0000000..3e43d7e
+--- /dev/null
++++ b/.sqlx/query-28d8bb9072e2ef860895ccc2dad2df17b6281dd839b65d2cac68c263059fbcc2.json
+@@ -0,0 +1,23 @@
++{
++  "db_name": "PostgreSQL",
++  "query": "\n        SELECT confirmed_ready_at\n        FROM enrollments\n        WHERE user_id = $1 AND season_id = $2\n        ",
++  "describe": {
++    "columns": [
++      {
++        "ordinal": 0,
++        "name": "confirmed_ready_at",
++        "type_info": "Timestamptz"
++      }
++    ],
++    "parameters": {
++      "Left": [
++        "Uuid",
++        "Uuid"
++      ]
++    },
++    "nullable": [
++      true
++    ]
++  },
++  "hash": "28d8bb9072e2ef860895ccc2dad2df17b6281dd839b65d2cac68c263059fbcc2"
++}
+diff --git a/.sqlx/query-15c79278bd8cd733ea5ac78ab9ca6ed6389a4f857fcdfbb239fc6a0c34b6e6d3.json b/.sqlx/query-888e587d6552d1f563607918a62a1f86045d89c06da66f5bd31fe67705070d3d.json
+similarity index 54%
+rename from .sqlx/query-15c79278bd8cd733ea5ac78ab9ca6ed6389a4f857fcdfbb239fc6a0c34b6e6d3.json
+rename to .sqlx/query-888e587d6552d1f563607918a62a1f86045d89c06da66f5bd31fe67705070d3d.json
+index 53f9c7b..314b168 100644
+--- a/.sqlx/query-15c79278bd8cd733ea5ac78ab9ca6ed6389a4f857fcdfbb239fc6a0c34b6e6d3.json
++++ b/.sqlx/query-888e587d6552d1f563607918a62a1f86045d89c06da66f5bd31fe67705070d3d.json
+@@ -1,6 +1,6 @@
+ {
+   "db_name": "PostgreSQL",
+-  "query": "\n        UPDATE enrollments\n        SET confirmed_ready_at = now()\n        WHERE user_id = $1 AND season_id = $2\n          AND confirmed_ready_at IS NULL\n        ",
++  "query": "\n        UPDATE enrollments\n        SET confirmed_ready_at = COALESCE(confirmed_ready_at, now())\n        WHERE user_id = $1 AND season_id = $2\n        ",
+   "describe": {
+     "columns": [],
+     "parameters": {
+@@ -11,5 +11,5 @@
+     },
+     "nullable": []
+   },
+-  "hash": "15c79278bd8cd733ea5ac78ab9ca6ed6389a4f857fcdfbb239fc6a0c34b6e6d3"
++  "hash": "888e587d6552d1f563607918a62a1f86045d89c06da66f5bd31fe67705070d3d"
+ }
+diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
+index 10c26f9..7295d92 100644
+--- a/end2end/tests/fixtures/mail_club_page.ts
++++ b/end2end/tests/fixtures/mail_club_page.ts
+@@ -150,6 +150,20 @@ export class MailClubPage {
+     await expect(this.page.locator("main")).toContainText(text);
+   }
+ 
++  async expectNotParticipating() {
++    await expect(this.page.getByTestId("not-participating")).toBeVisible();
++    await expect(this.page.getByTestId("confirm-ready-button")).not.toBeVisible();
++    await expect(this.page.getByTestId("recipient-name")).not.toBeVisible();
++  }
++
++  async expectAssigningInProgress() {
++    await expect(this.page.getByTestId("assigning-in-progress-badge")).toBeVisible();
++  }
++
++  async expectSeasonComplete() {
++    await expect(this.page.getByTestId("season-complete")).toBeVisible();
++  }
++
+   // ── Season enrollment (Story 2.1) ──
+ 
+   async enrollInSeason(city?: string, branchNumber?: string) {
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index aa04249..a355eec 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -29,6 +29,7 @@ const PHONES = {
+   A: "+380670000002",
+   B: "+380670000003",
+   C: "+380670000004",
++  D: "+380670000010",
+ };
+ 
+ // Extra phones for edge-case rejection tests (invite code flow only)
+@@ -42,6 +43,7 @@ const NAMES = {
+   A: "Тестова Людина А",
+   B: "Тестова Людина Б",
+   C: "Тестова Людина В",
++  D: "Тестова Людина Г",
+ };
+ 
+ const CITY_KYIV = "Київ";
+@@ -61,10 +63,11 @@ const SEASON_THEME = "Перший сезон";
+ // Invite codes generated during the test run.
+ // Populated in "1.5 — admin generates invite codes" and consumed by subsequent
+ // self-registration and rejection tests. Module-level so serial tests share state.
+-const CODES: { A: string; B: string; C: string; DEACTIVATE: string; REVOKED: string } = {
++const CODES: { A: string; B: string; C: string; D: string; DEACTIVATE: string; REVOKED: string } = {
+   A: "",
+   B: "",
+   C: "",
++  D: "",
+   DEACTIVATE: "",
+   REVOKED: "",
+ };
+@@ -431,6 +434,17 @@ test.describe.serial("The Mail Club", () => {
+       await app.expectEnrolled();
+     });
+ 
++    // Setup: D exists and is active but never enrolls (non-participant states below).
++    test("setup — participant D registers but does not enroll", async ({ page }) => {
++      const app = new MailClubPage(page);
++      await app.login(ADMIN_PHONE);
++      CODES.D = await app.generateInviteCode();
++      await app.selfRegister(PHONES.D, CODES.D, NAMES.D);
++      await app.expectRedirectedToOnboarding();
++      await app.completeOnboarding(CITY_KYIV, "2");
++      await app.expectRedirectedToHome();
++    });
++
+     // Admin sees enrolled count
+     test("dashboard — enrolled count visible", async ({ page }) => {
+       const app = new MailClubPage(page);
+@@ -480,6 +494,14 @@ test.describe.serial("The Mail Club", () => {
+       await app.expectHomeContent(/create|створ/i);
+     });
+ 
++    // Story 2.2 Given "enrolled participant": a non-enrolled user gets no confirm action.
++    test("2.2 — non-enrolled participant is told they are not in this season", async ({ page }) => {
++      const app = new MailClubPage(page);
++      await app.login(PHONES.D);
++      await app.goHome();
++      await app.expectNotParticipating();
++    });
++
+     // Story 4.4-B: confirm-nudge count shows unconfirmed enrolled count
+     // Placement: Preparation phase — 3 enrolled, none confirmed yet.
+     test("4.4 — confirm-nudge count shows unconfirmed enrolled participants", async ({ page }) => {
+@@ -584,11 +606,18 @@ test.describe.serial("The Mail Club", () => {
+     });
+ 
+     // Architecture Home Screen: assigning phase
+-    test("home screen — participant sees 'preparing' during assignment", async ({ page }) => {
++    test("home screen — confirmed participant sees assignment in progress", async ({ page }) => {
+       const app = new MailClubPage(page);
+       await app.login(PHONES.A);
+       await app.goHome();
+-      await app.expectHomeContent(/розподіл|хвилин|надіслати/i);
++      await app.expectAssigningInProgress();
++    });
++
++    test("home screen — non-participant sees not-participating during assignment", async ({ page }) => {
++      const app = new MailClubPage(page);
++      await app.login(PHONES.D);
++      await app.goHome();
++      await app.expectNotParticipating();
+     });
+ 
+     // Story 3.1 AC: organizer sees confirmed count before generating
+@@ -725,6 +754,13 @@ test.describe.serial("The Mail Club", () => {
+       expect(count).toBe(1);
+     });
+ 
++    test("2.3 — non-participant sees no recipient during delivery", async ({ page }) => {
++      const app = new MailClubPage(page);
++      await app.login(PHONES.D);
++      await app.goHome();
++      await app.expectNotParticipating();
++    });
++
+     // Story 5.2: Receipt nudge SMS
+     test("5.2 — admin triggers receipt-nudge SMS", async ({ page }) => {
+       const app = new MailClubPage(page);
+@@ -787,7 +823,14 @@ test.describe.serial("The Mail Club", () => {
+       const app = new MailClubPage(page);
+       await app.login(PHONES.A);
+       await app.goHome();
+-      await app.expectHomeContent(/complete|завершено/i);
++      await app.expectSeasonComplete();
++    });
++
++    test("home screen — non-participant sees not-participating after completion", async ({ page }) => {
++      const app = new MailClubPage(page);
++      await app.login(PHONES.D);
++      await app.goHome();
++      await app.expectNotParticipating();
+     });
+   });
+ 
+diff --git a/locales/uk.json b/locales/uk.json
+index 048601d..b68def9 100644
+--- a/locales/uk.json
++++ b/locales/uk.json
+@@ -223,5 +223,8 @@
+   "sms_send_receipt_nudge_button": "Нагадати про отримання",
+   "sms_error_no_assignment_delivery_season": "Немає активного сезону на етапі розподілу або доставки.",
+   "sms_error_no_preparation_season": "Немає активного сезону на етапі підготовки.",
+-  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки."
++  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки.",
++  "home_not_participating_heading": "Цей сезон — без тебе",
++  "home_not_participating_body": "Ти не береш участі в поточному сезоні. Коли відкриється реєстрація на наступний — надішлемо SMS.",
++  "home_error_not_enrolled": "Ти не зареєстрований(а) в цьому сезоні."
+ }
 diff --git a/src/lib.rs b/src/lib.rs
 index 4f95058..0df3c07 100644
 --- a/src/lib.rs
@@ -17,10 +281,274 @@ index 875a481..bb14dcd 100644
  #[tokio::main]
  async fn main() {
 diff --git a/src/pages/home.rs b/src/pages/home.rs
-index d326751..b251236 100644
+index d326751..8eef9a5 100644
 --- a/src/pages/home.rs
 +++ b/src/pages/home.rs
-@@ -1238,7 +1238,10 @@ fn render_home_state(
+@@ -49,6 +49,10 @@ pub enum HomeState {
+     /// Assignment phase — organizer is preparing assignments.
+     Assigning,
+ 
++    /// Season is past enrollment (or complete) and this participant is not in
++    /// its cycle: not enrolled, or enrolled but never confirmed ready.
++    NotParticipating,
++
+     /// Delivery phase, assignment exists, receipt not yet confirmed.
+     Assigned {
+         recipient_name: String,
+@@ -151,39 +155,65 @@ async fn resolve_enrollment_state(
+     }
+ }
+ 
+-/// Resolve home state for the Preparation phase.
++/// Load the participant's standing in `season_id`.
+ #[cfg(feature = "ssr")]
+-async fn resolve_preparation_state(
++async fn fetch_participation(
+     pool: &sqlx::PgPool,
+     user_id: uuid::Uuid,
+-    season: &SeasonInfoRow,
+-    confirm_str: String,
+-) -> Result<HomeState, ServerFnError> {
+-    let confirmed = sqlx::query_scalar!(
++    season_id: uuid::Uuid,
++) -> Result<Participation, ServerFnError> {
++    let row = sqlx::query_scalar!(
++        r#"
++        SELECT confirmed_ready_at
++        FROM enrollments
++        WHERE user_id = $1 AND season_id = $2
++        "#,
++        user_id,
++        season_id,
++    )
++    .fetch_optional(pool)
++    .await
++    .map_err(db_err)?;
++    Ok(Participation::from_enrollment(row))
++}
++
++/// Whether the participant sent mail in `season_id` (was in its cycle).
++#[cfg(feature = "ssr")]
++async fn took_part_in(
++    pool: &sqlx::PgPool,
++    user_id: uuid::Uuid,
++    season_id: uuid::Uuid,
++) -> Result<bool, ServerFnError> {
++    sqlx::query_scalar!(
+         r#"
+         SELECT EXISTS(
+-            SELECT 1 FROM enrollments
+-            WHERE user_id = $1 AND season_id = $2
+-              AND confirmed_ready_at IS NOT NULL
++            SELECT 1 FROM assignments WHERE sender_id = $1 AND season_id = $2
+         ) AS "exists!"
+         "#,
+         user_id,
+-        season.id,
++        season_id,
+     )
+     .fetch_one(pool)
+     .await
+-    .map_err(db_err)?;
++    .map_err(db_err)
++}
+ 
+-    if confirmed {
+-        Ok(HomeState::Confirmed)
+-    } else {
+-        let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
+-        let deadline_passed = is_past_deadline(season.confirm_deadline, test_mode);
+-        Ok(HomeState::Preparing {
+-            confirm_deadline: confirm_str,
+-            deadline_passed,
+-        })
+-    }
++/// Resolve home state for the Preparation phase.
++#[cfg(feature = "ssr")]
++async fn resolve_preparation_state(
++    pool: &sqlx::PgPool,
++    user_id: uuid::Uuid,
++    season: &SeasonInfoRow,
++    confirm_str: String,
++) -> Result<HomeState, ServerFnError> {
++    let participation = fetch_participation(pool, user_id, season.id).await?;
++    let test_mode = std::env::var("SAMETE_TEST_MODE").as_deref() == Ok("true");
++    let deadline_passed = is_past_deadline(season.confirm_deadline, test_mode);
++    Ok(preparation_state(
++        participation,
++        confirm_str,
++        deadline_passed,
++    ))
+ }
+ 
+ /// Resolve home state for the Delivery phase.
+@@ -219,9 +249,9 @@ async fn resolve_delivery_state(
+     .await
+     .map_err(db_err)?;
+ 
+-    // No outgoing assignment yet — organizer is still in the assignment phase.
++    // No outgoing assignment in Delivery: not in this season's cycle.
+     let Some(a) = outgoing else {
+-        return Ok(HomeState::Assigning);
++        return Ok(HomeState::NotParticipating);
+     };
+ 
+     // Incoming assignment: has this user confirmed receiving their own mail?
+@@ -253,6 +283,53 @@ async fn resolve_delivery_state(
+ 
+ // ── Pure helpers (testable without SSR context) ────────────────────────────────
+ 
++/// A participant's standing in a season, from their enrollment row.
++#[cfg(any(feature = "ssr", test))]
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++enum Participation {
++    NotEnrolled,
++    Enrolled,
++    Confirmed,
++}
++
++#[cfg(any(feature = "ssr", test))]
++impl Participation {
++    /// `None` = no enrollment row; `Some(confirmed_ready_at)` otherwise.
++    fn from_enrollment(confirmed_ready_at: Option<Option<time::OffsetDateTime>>) -> Self {
++        match confirmed_ready_at {
++            None => Self::NotEnrolled,
++            Some(None) => Self::Enrolled,
++            Some(Some(_)) => Self::Confirmed,
++        }
++    }
++}
++
++/// Home state in the Preparation phase.
++#[cfg(any(feature = "ssr", test))]
++fn preparation_state(
++    participation: Participation,
++    confirm_deadline: String,
++    deadline_passed: bool,
++) -> HomeState {
++    match participation {
++        Participation::NotEnrolled => HomeState::NotParticipating,
++        Participation::Enrolled => HomeState::Preparing {
++            confirm_deadline,
++            deadline_passed,
++        },
++        Participation::Confirmed => HomeState::Confirmed,
++    }
++}
++
++/// Home state in the Assignment phase: only confirmed participants await a recipient.
++#[cfg(any(feature = "ssr", test))]
++fn assignment_state(participation: Participation) -> HomeState {
++    match participation {
++        Participation::Confirmed => HomeState::Assigning,
++        Participation::NotEnrolled | Participation::Enrolled => HomeState::NotParticipating,
++    }
++}
++
+ /// Returns `true` when `deadline` is in the past and `test_mode` is `false`.
+ ///
+ /// Used by [`enroll_in_season`] and [`confirm_ready`] to gate deadline enforcement.
+@@ -301,9 +378,9 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
+         // Show Complete only when the most recently created season is Complete.
+         // A Cancelled season means the organizer abandoned it — the participant
+         // should see "no season / SMS pending", not the completion message.
+-        let most_recent_phase = sqlx::query_scalar!(
++        let most_recent = sqlx::query!(
+             r#"
+-            SELECT phase AS "phase: Phase"
++            SELECT id, phase AS "phase: Phase"
+             FROM seasons
+             ORDER BY created_at DESC
+             LIMIT 1
+@@ -313,9 +390,15 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
+         .await
+         .map_err(db_err)?;
+ 
+-        return match most_recent_phase {
+-            Some(Phase::Complete) => Ok(HomeState::Complete),
+-            Some(Phase::Cancelled) => Ok(HomeState::Cancelled),
++        return match most_recent.map(|r| (r.id, r.phase)) {
++            Some((season_id, Phase::Complete)) => {
++                if took_part_in(&pool, user.id, season_id).await? {
++                    Ok(HomeState::Complete)
++                } else {
++                    Ok(HomeState::NotParticipating)
++                }
++            }
++            Some((_, Phase::Cancelled)) => Ok(HomeState::Cancelled),
+             // Reaching here means this season failed the launched_at filter
+             // above — creation always starts unlaunched in Enrollment phase,
+             // and advancing phase requires already being launched — so any
+@@ -333,7 +416,9 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
+             resolve_enrollment_state(&pool, user.id, &season, signup_str, confirm_str).await
+         }
+         Phase::Preparation => resolve_preparation_state(&pool, user.id, &season, confirm_str).await,
+-        Phase::Assignment => Ok(HomeState::Assigning),
++        Phase::Assignment => Ok(assignment_state(
++            fetch_participation(&pool, user.id, season.id).await?,
++        )),
+         Phase::Delivery => resolve_delivery_state(&pool, user.id, season.id).await,
+         // Cancelled is excluded by the SQL WHERE predicate; only Complete reaches here
+         Phase::Complete => Ok(HomeState::Complete),
+@@ -526,20 +611,28 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
+         )));
+     }
+ 
+-    // Idempotent — if already confirmed, rows_affected == 0, that's fine
+-    sqlx::query!(
++    // Idempotent for an already-confirmed participant (COALESCE keeps the first
++    // timestamp); zero rows means there is no enrollment to confirm.
++    let affected = sqlx::query!(
+         r#"
+         UPDATE enrollments
+-        SET confirmed_ready_at = now()
++        SET confirmed_ready_at = COALESCE(confirmed_ready_at, now())
+         WHERE user_id = $1 AND season_id = $2
+-          AND confirmed_ready_at IS NULL
+         "#,
+         user.id,
+         season.id,
+     )
+     .execute(&pool)
+     .await
+-    .map_err(db_err)?;
++    .map_err(db_err)?
++    .rows_affected();
++
++    if affected == 0 {
++        return Err(ServerFnError::new(td_string!(
++            Locale::uk,
++            home_error_not_enrolled
++        )));
++    }
+ 
+     Ok(())
+ }
+@@ -1201,6 +1294,14 @@ fn render_home_state(
+         }
+         .into_any(),
+ 
++        HomeState::NotParticipating => view! {
++            <div class="empty-state" data-testid="not-participating">
++                <h1 class="empty-state-headline">{t!(i18n, home_not_participating_heading)}</h1>
++                <p class="empty-state-body">{t!(i18n, home_not_participating_body)}</p>
++            </div>
++        }
++        .into_any(),
++
+         HomeState::Assigned {
+             recipient_name,
+             recipient_phone,
+@@ -1219,7 +1320,7 @@ fn render_home_state(
+         HomeState::ReceiptConfirmed { status } => render_receipt_confirmed(status, i18n),
+ 
+         HomeState::Complete => view! {
+-            <div class="empty-state">
++            <div class="empty-state" data-testid="season-complete">
+                 <h1 class="empty-state-headline">{t!(i18n, home_complete_heading)}</h1>
+                 <p class="empty-state-body">{t!(i18n, home_thanks_participation)}</p>
+             </div>
+@@ -1238,7 +1339,10 @@ fn render_home_state(
  
  #[cfg(test)]
  mod tests {
@@ -32,7 +560,7 @@ index d326751..b251236 100644
  
      #[test]
      fn past_deadline_blocks_when_not_test_mode() {
-@@ -1294,4 +1297,75 @@ mod tests {
+@@ -1294,4 +1398,84 @@ mod tests {
      fn both_fields_empty_rejected() {
          assert!(!enrollment_new_address_is_complete("", 0));
      }
@@ -44,12 +572,18 @@ index d326751..b251236 100644
 +
 +    #[test]
 +    fn no_enrollment_row_is_not_enrolled() {
-+        assert_eq!(Participation::from_enrollment(None), Participation::NotEnrolled);
++        assert_eq!(
++            Participation::from_enrollment(None),
++            Participation::NotEnrolled
++        );
 +    }
 +
 +    #[test]
 +    fn enrollment_without_confirmation_is_enrolled() {
-+        assert_eq!(Participation::from_enrollment(Some(None)), Participation::Enrolled);
++        assert_eq!(
++            Participation::from_enrollment(Some(None)),
++            Participation::Enrolled
++        );
 +    }
 +
 +    #[test]
@@ -72,7 +606,10 @@ index d326751..b251236 100644
 +    fn preparation_enrolled_is_preparing() {
 +        assert!(matches!(
 +            preparation_state(Participation::Enrolled, "d".into(), true),
-+            HomeState::Preparing { deadline_passed: true, .. }
++            HomeState::Preparing {
++                deadline_passed: true,
++                ..
++            }
 +        ));
 +    }
 +

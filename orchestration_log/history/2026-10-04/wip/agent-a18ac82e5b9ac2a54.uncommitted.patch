@@ -1,121 +1,364 @@
-diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
-index f947060..169e1de 100644
---- a/.github/workflows/ci.yml
-+++ b/.github/workflows/ci.yml
-@@ -43,6 +43,14 @@ jobs:
-       - name: cargo clippy (hydrate / WASM)
-         run: cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings
+diff --git a/src/admin/page.rs b/src/admin/page.rs
+index 2630041..cd5c0ca 100644
+--- a/src/admin/page.rs
++++ b/src/admin/page.rs
+@@ -1870,165 +1870,17 @@ fn InviteCodesSection(
+                                                         .collect::<Vec<_>>()
+                                                 }
+                                                 key=|c| c.id
+-                                                let:code
+-                                            >
+-                                                <li class="invite-code-card" data-testid="invite-code-row">
+-                                                    // Code — primary identifier
+-                                                    <span
+-                                                        class="invite-code-card-code"
+-                                                        data-testid="invite-code-cell"
+-                                                    >
+-                                                        {code.code.clone()}
+-                                                    </span>
+-                                                    // Distributor — canonical label/value pair (RV-05):
+-                                                    // routed through .info-list so this meta block
+-                                                    // renders with the same overline-label + value
+-                                                    // treatment as every other label/value pair in the
+-                                                    // app, instead of a bare, unlabeled line.
+-                                                    <dl
+-                                                        class="info-list invite-code-card-meta"
+-                                                        data-testid="invite-code-distributor-cell"
+-                                                    >
+-                                                        <div class="info-item">
+-                                                            <dt class="info-label">
+-                                                                {t!(
+-                                                                    i18n,
+-                                                                    admin_invite_codes_distributor_label
+-                                                                )}
+-                                                            </dt>
+-                                                            <dd class="info-value">
+-                                                                {code.distributor_name.clone()}
+-                                                            </dd>
+-                                                        </div>
+-                                                    </dl>
+-                                                    // Status badge
+-                                                    <span data-testid="invite-code-status-cell">
+-                                                        {match code.status {
+-                                                            InviteCodeStatus::Unused => {
+-                                                                view! {
+-                                                                    <span
+-                                                                        class="badge"
+-                                                                        data-testid="invite-code-status-badge"
+-                                                                        data-status="unused"
+-                                                                    >
+-                                                                        {t!(
+-                                                                            i18n,
+-                                                                            admin_invite_codes_status_unused
+-                                                                        )}
+-                                                                    </span>
+-                                                                }
+-                                                                .into_any()
+-                                                            }
+-                                                            InviteCodeStatus::Used => {
+-                                                                view! {
+-                                                                    <span
+-                                                                        class="badge"
+-                                                                        data-testid="invite-code-status-badge"
+-                                                                        data-status="used"
+-                                                                    >
+-                                                                        {t!(
+-                                                                            i18n,
+-                                                                            admin_invite_codes_status_used
+-                                                                        )}
+-                                                                    </span>
+-                                                                }
+-                                                                .into_any()
+-                                                            }
+-                                                            InviteCodeStatus::Revoked => {
+-                                                                view! {
+-                                                                    <span
+-                                                                        class="badge"
+-                                                                        data-testid="invite-code-status-badge"
+-                                                                        data-status="revoked"
+-                                                                    >
+-                                                                        {t!(
+-                                                                            i18n,
+-                                                                            admin_invite_codes_status_revoked
+-                                                                        )}
+-                                                                    </span>
+-                                                                }
+-                                                                .into_any()
+-                                                            }
+-                                                        }}
+-                                                    </span>
+-                                                    // Redeemer + timestamp (only when used).
+-                                                    // Routed through the canonical .info-list
+-                                                    // label:value treatment (R2-03) — the same
+-                                                    // shape as the distributor meta above, so
+-                                                    // the two label:value pairs on the card
+-                                                    // read as one idiom instead of two. Name
+-                                                    // and date stay on separate lines within
+-                                                    // the value cell so a long double-barrel
+-                                                    // name wraps within its own row instead of
+-                                                    // pushing the date to a second line and
+-                                                    // jaggedly varying card height (OV L11).
+-                                                    <dl
+-                                                        class="info-list invite-code-card-redeemer"
+-                                                        data-testid="invite-code-redeemer-cell"
+-                                                    >
+-                                                        {code.redeemer_name.clone().map(|name| {
+-                                                            let redeemed_at = code.redeemed_at.clone();
+-                                                            view! {
+-                                                                <div class="info-item">
+-                                                                    <dt class="info-label">
+-                                                                        {t!(
+-                                                                            i18n,
+-                                                                            admin_invite_codes_redeemer_label
+-                                                                        )}
+-                                                                    </dt>
+-                                                                    <dd class="info-value">
+-                                                                        <span class="invite-code-card-redeemer-name">
+-                                                                            {name}
+-                                                                        </span>
+-                                                                        {redeemed_at.map(|date_str| view! {
+-                                                                            <small class="invite-code-card-redeemer-date">
+-                                                                                {date_str}
+-                                                                            </small>
+-                                                                        })}
+-                                                                    </dd>
+-                                                                </div>
+-                                                            }
+-                                                        })}
+-                                                    </dl>
+-                                                    // Revoke action (only for unused codes)
+-                                                    <span class="invite-code-card-action">
+-                                                        {if code.status == InviteCodeStatus::Unused {
+-                                                            let code_id = code.id.to_string();
+-                                                            view! {
+-                                                                <leptos::form::ActionForm action=revoke_invite_action>
+-                                                                    <input
+-                                                                        type="hidden"
+-                                                                        name="id"
+-                                                                        value=code_id
+-                                                                    />
+-                                                                    // Secondary variant (FU-20): revoke is frequent
+-                                                                    // and low-consequence — demoted off
+-                                                                    // destructive-red so red stays a real danger
+-                                                                    // signal reserved for cancel-confirm. Intent
+-                                                                    // is carried by the label + status badge.
+-                                                                    <button
+-                                                                        class="btn"
+-                                                                        data-variant="secondary"
+-                                                                        data-size="sm"
+-                                                                        type="submit"
+-                                                                        data-testid="invite-code-revoke-button"
+-                                                                        disabled=move || revoke_pending.get() || !hydrated.get()
+-                                                                        attr:aria-busy=move || revoke_pending.get().then_some("true")
+-                                                                    >
+-                                                                        {t!(
+-                                                                            i18n,
+-                                                                            admin_invite_codes_revoke_button
+-                                                                        )}
+-                                                                    </button>
+-                                                                </leptos::form::ActionForm>
+-                                                            }
+-                                                            .into_any()
+-                                                        } else {
+-                                                            ().into_any()
+-                                                        }}
+-                                                    </span>
+-                                                </li>
+-                                            </For>
++                                                children=move |code| {
++                                                    view! {
++                                                        <InviteCodeCard
++                                                            code=code
++                                                            revoke_invite_action=revoke_invite_action
++                                                            revoke_pending=revoke_pending
++                                                            hydrated=hydrated
++                                                        />
++                                                    }
++                                                }
++                                            />
+                                         </ul>
+                                     }
+                                     .into_any()
+@@ -2041,6 +1893,179 @@ fn InviteCodesSection(
+     }
+ }
  
-+      # clippy/test never run codegen, so recursion/layout overflows in Leptos views
-+      # only surface in a real build (see src/main.rs recursion_limit WHY).
-+      - name: cargo build (SSR bin — codegen)
-+        run: cargo build --no-default-features --features ssr --bin samete
++/// One invite code row. Its own component (and `.into_any()`) is a type-erasure
++/// seam: inlined in the `<For>` it nests the list, row and status views into one
++/// type deep enough to overflow rustc's default recursion limit in wasm layout.
++#[component]
++fn InviteCodeCard(
++    code: InviteCodeRow,
++    revoke_invite_action: ServerAction<RevokeInviteCode>,
++    revoke_pending: Memo<bool>,
++    hydrated: ReadSignal<bool>,
++) -> impl IntoView {
++    let i18n = use_i18n();
 +
-+      - name: cargo build (hydrate lib, wasm — codegen)
-+        run: cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate
-+
-       - name: Install cargo-binstall
-         uses: cargo-bins/cargo-binstall@v1.18.1
- 
-diff --git a/justfile b/justfile
-index c627308..7e83657 100644
---- a/justfile
-+++ b/justfile
-@@ -21,22 +21,29 @@ _kill-stale:
-     -lsof -i :3000 -t | xargs kill 2>/dev/null || true
- 
- # Run E2E tests against the release binary (471KB brotli WASM — CI-stable)
-+# All end-to-end recipes assert Playwright actually ran: cargo leptos end-to-end exits 0 on build failure.
- e2e: e2e-release
- 
- # Run E2E tests in dev mode — only for debugging; 14MB WASM may intermittently fail
- e2e-dev: _kill-stale db-reset db-seed
-+    mkdir -p target && touch target/e2e-start.marker
-     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
-+    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
- 
- # Run a single test by grep pattern against the release binary — includes DB reset and rebuild.
- # Only useful for tests that don't depend on prior DB state (e.g. block 1 tests).
- # For dependent tests: run `just e2e` first, then target with `just e2e-single`.
- e2e-single pattern: _kill-stale db-reset db-seed
-+    mkdir -p target && touch target/e2e-start.marker
-     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release -- --grep "{{pattern}}"
-+    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
- 
- # Re-run E2E tests without resetting the DB — use when DB is already in correct state.
- # Rebuilds the release binary. Kills any stale server on :3000 first.
- e2e-rerun: _kill-stale
-+    mkdir -p target && touch target/e2e-start.marker
-     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
-+    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
- 
- # Build release with pre-compressed static assets
- build:
-@@ -49,7 +56,9 @@ serve: build
- 
- # Run E2E tests against release build
- e2e-release: _kill-stale db-reset db-seed
-+    mkdir -p target && touch target/e2e-start.marker
-     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
-+    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
- 
- # Pre-compress static assets (quality: --best for release, -q 5 for dev)
- _precompress quality="--best":
-diff --git a/scripts/assert-playwright-ran.sh b/scripts/assert-playwright-ran.sh
-new file mode 100755
-index 0000000..751fa1f
---- /dev/null
-+++ b/scripts/assert-playwright-ran.sh
-@@ -0,0 +1,32 @@
-+#!/usr/bin/env bash
-+# Fail unless Playwright actually ran during this E2E invocation.
-+#
-+# WHY: `cargo leptos end-to-end` exits 0 when the cargo build fails and then never
-+# starts Playwright — CI was false-green from 2026-07-10 to 2026-07-25 with zero
-+# tests executed. Playwright's JSON reporter (end2end/playwright.config.ts) writes
-+# end2end/results.json on every run; a fresh file with >0 executed tests is the proof.
-+#
-+# Usage (from repo root): scripts/assert-playwright-ran.sh <start-marker>
-+#   <start-marker> — a file touched BEFORE the E2E command started.
-+set -euo pipefail
-+
-+marker="${1:?usage: scripts/assert-playwright-ran.sh <start-marker>}"
-+results="end2end/results.json"
-+
-+[ -f "$results" ] \
-+    || { echo "FATAL: $results missing — Playwright never ran (build failure?)"; exit 1; }
-+[ "$results" -nt "$marker" ] \
-+    || { echo "FATAL: $results predates this run — Playwright never ran (build failure?)"; exit 1; }
-+
-+node -e '
-+const s = require(process.argv[1]).stats;
-+console.log(`playwright ran: expected=${s.expected} unexpected=${s.unexpected} flaky=${s.flaky} skipped=${s.skipped}`);
-+if (s.expected + s.unexpected + s.flaky === 0) {
-+    console.error("FATAL: Playwright executed 0 tests");
-+    process.exit(1);
++    view! {
++        <li class="invite-code-card" data-testid="invite-code-row">
++            // Code — primary identifier
++            <span
++                class="invite-code-card-code"
++                data-testid="invite-code-cell"
++            >
++                {code.code.clone()}
++            </span>
++            // Distributor — canonical label/value pair (RV-05):
++            // routed through .info-list so this meta block
++            // renders with the same overline-label + value
++            // treatment as every other label/value pair in the
++            // app, instead of a bare, unlabeled line.
++            <dl
++                class="info-list invite-code-card-meta"
++                data-testid="invite-code-distributor-cell"
++            >
++                <div class="info-item">
++                    <dt class="info-label">
++                        {t!(
++                            i18n,
++                            admin_invite_codes_distributor_label
++                        )}
++                    </dt>
++                    <dd class="info-value">
++                        {code.distributor_name.clone()}
++                    </dd>
++                </div>
++            </dl>
++            // Status badge
++            <span data-testid="invite-code-status-cell">
++                {match code.status {
++                    InviteCodeStatus::Unused => {
++                        view! {
++                            <span
++                                class="badge"
++                                data-testid="invite-code-status-badge"
++                                data-status="unused"
++                            >
++                                {t!(
++                                    i18n,
++                                    admin_invite_codes_status_unused
++                                )}
++                            </span>
++                        }
++                        .into_any()
++                    }
++                    InviteCodeStatus::Used => {
++                        view! {
++                            <span
++                                class="badge"
++                                data-testid="invite-code-status-badge"
++                                data-status="used"
++                            >
++                                {t!(
++                                    i18n,
++                                    admin_invite_codes_status_used
++                                )}
++                            </span>
++                        }
++                        .into_any()
++                    }
++                    InviteCodeStatus::Revoked => {
++                        view! {
++                            <span
++                                class="badge"
++                                data-testid="invite-code-status-badge"
++                                data-status="revoked"
++                            >
++                                {t!(
++                                    i18n,
++                                    admin_invite_codes_status_revoked
++                                )}
++                            </span>
++                        }
++                        .into_any()
++                    }
++                }}
++            </span>
++            // Redeemer + timestamp (only when used).
++            // Routed through the canonical .info-list
++            // label:value treatment (R2-03) — the same
++            // shape as the distributor meta above, so
++            // the two label:value pairs on the card
++            // read as one idiom instead of two. Name
++            // and date stay on separate lines within
++            // the value cell so a long double-barrel
++            // name wraps within its own row instead of
++            // pushing the date to a second line and
++            // jaggedly varying card height (OV L11).
++            <dl
++                class="info-list invite-code-card-redeemer"
++                data-testid="invite-code-redeemer-cell"
++            >
++                {code.redeemer_name.clone().map(|name| {
++                    let redeemed_at = code.redeemed_at.clone();
++                    view! {
++                        <div class="info-item">
++                            <dt class="info-label">
++                                {t!(
++                                    i18n,
++                                    admin_invite_codes_redeemer_label
++                                )}
++                            </dt>
++                            <dd class="info-value">
++                                <span class="invite-code-card-redeemer-name">
++                                    {name}
++                                </span>
++                                {redeemed_at.map(|date_str| view! {
++                                    <small class="invite-code-card-redeemer-date">
++                                        {date_str}
++                                    </small>
++                                })}
++                            </dd>
++                        </div>
++                    }
++                })}
++            </dl>
++            // Revoke action (only for unused codes)
++            <span class="invite-code-card-action">
++                {if code.status == InviteCodeStatus::Unused {
++                    let code_id = code.id.to_string();
++                    view! {
++                        <leptos::form::ActionForm action=revoke_invite_action>
++                            <input
++                                type="hidden"
++                                name="id"
++                                value=code_id
++                            />
++                            // Secondary variant (FU-20): revoke is frequent
++                            // and low-consequence — demoted off
++                            // destructive-red so red stays a real danger
++                            // signal reserved for cancel-confirm. Intent
++                            // is carried by the label + status badge.
++                            <button
++                                class="btn"
++                                data-variant="secondary"
++                                data-size="sm"
++                                type="submit"
++                                data-testid="invite-code-revoke-button"
++                                disabled=move || revoke_pending.get() || !hydrated.get()
++                                attr:aria-busy=move || revoke_pending.get().then_some("true")
++                            >
++                                {t!(
++                                    i18n,
++                                    admin_invite_codes_revoke_button
++                                )}
++                            </button>
++                        </leptos::form::ActionForm>
++                    }
++                    .into_any()
++                } else {
++                    ().into_any()
++                }}
++            </span>
++        </li>
++    }
++    .into_any()
 +}
-+if (s.unexpected > 0) {
-+    console.error("FATAL: Playwright reported failures");
-+    process.exit(1);
-+}
-+' "$PWD/$results"
-diff --git a/scripts/isolated-capture.sh b/scripts/isolated-capture.sh
-index 3b9c5a4..fa4ad99 100755
---- a/scripts/isolated-capture.sh
-+++ b/scripts/isolated-capture.sh
-@@ -68,7 +68,12 @@ psql "$SIBLING_DBURL" -f seed/test_admin.sql
- 
- # --- build release binary + pre-compress static assets ------------------
- 
-+# Remove the artifacts first so a failed build cannot leave a stale binary/WASM to be
-+# served: cargo leptos has been observed to exit 0 on cargo build failure.
-+rm -f target/release/samete target/site/pkg/samete.wasm
- cargo leptos build --release
-+[ -x target/release/samete ] && [ -f target/site/pkg/samete.wasm ] \
-+    || { echo "[isolated-capture] FATAL: release build produced no binary/WASM — build failed"; exit 1; }
- 
- for asset in target/site/pkg/*.wasm target/site/pkg/*.js target/site/pkg/*.css; do
-     [ -f "$asset" ] || continue
++
+ fn matches_invite_status(status: InviteCodeStatus, query: &str) -> bool {
+     let status_text = match status {
+         InviteCodeStatus::Unused => "unused",
 diff --git a/src/pages/login.rs b/src/pages/login.rs
 index a0abf76..b37f74b 100644
 --- a/src/pages/login.rs

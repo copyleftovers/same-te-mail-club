@@ -11,18 +11,19 @@ Problems live in `PROBLEMS.md` (same dir). This file tracks only solutions: whic
 6. Environment gotchas until unit ENV lands: cargo-leptos install; Playwright browser path (`/opt/pw-browsers`); tailwind glibc binary; local-only `#![recursion_limit="256"]` until T0 lands; build env `CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0`; disk: dedupe `hardlink -c */target/*/deps` across worktrees; max 20 concurrent subagents.
 
 ## Recovery state (2026-10-05 20:40 UTC)
-All implementers were killed by a session limit at ~09:20 UTC. Their work is preserved on this branch as patches in `wip/` (`INDEX.txt` lists per worktree: branch, base, commit count, uncommitted size; `<id>.commits.patch` = committed work, `<id>.uncommitted.patch` = working-tree diff). Apply with `git am` / `git apply` onto the listed base to recover a lane without the remote machine. Worktree target/ dirs were deleted (disk). Order of recovery: land U3+U4 (quality reviews resumed), then resume the lanes (SendMessage to the same agent ids — resume, not relaunch).
+All implementers were killed by a session limit at ~09:20 UTC. Their work is preserved on this branch as patches in `wip/` (`INDEX.txt` lists per worktree: branch, base, commit count, uncommitted size; `<id>.commits.patch` = committed work, `<id>.uncommitted.patch` = working-tree diff). Apply with `git am` / `git apply` onto the listed base to recover a lane without the remote machine. Worktree target/ dirs were deleted (disk). Lane agents resumed 20:45 UTC. A background loop snapshots wip/ patches every 15 min onto this branch. Order of recovery: land U3+U4 (quality reviews resumed), then resume the lanes (SendMessage to the same agent ids — resume, not relaunch).
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
 |---|---|---|---|---|---|---|---|
+| 2026-10-05 20:45 | U4 | 823905e | reviewer gates green in worktree; post-merge gates running |
 | T0 view-type depth root fix + CI build/E2E guards | blockers | TBD | implementing | worktree-agent-a18ac82e5b9ac2a54 | - | - | - |
 | T1 server panic=unwind | blockers | TBD | implementing | worktree-agent-a4d2369a7e8477b86 | - | - | - |
 | ENV reproducible toolchain + SessionStart hook | blockers | TBD | implementing | worktree-agent-a9394f7e60a701d45 | - | - | - |
 | U1 registration tickets (OTP bypass) | blockers | TBD | implementing | worktree-agent-aa77876d6f145827e | - | - | - |
 | U2 test-mode confinement | blockers | TBD | implementing | worktree-agent-ae294272a7d5f6210 (base + U3) | - | - | - |
-| U3 first-admin bootstrap | blockers | TBD | quality review | worktree-agent-a1fe18df1d59b4c14 @ fd94520 | PASS | pending | - |
-| U4 swap position exchange | blockers | TBD | quality review | worktree-agent-a46c4c68440f8d984 @ 066ebf2 | PASS | pending | - |
+| U3 first-admin bootstrap | blockers | TBD | fix cycle (quality: With fixes, 2 important + 3 minor) | worktree-agent-a1fe18df1d59b4c14 @ fd94520 | PASS | With fixes | - |
+| U4 swap position exchange | blockers | TBD | INTEGRATED; minor-findings fix cycle running (same implementer) | worktree-agent-a46c4c68440f8d984 @ 066ebf2 | PASS | Yes (4 minors) | 823905e |
 | A1 attr:aria-busy leak | blockers | TBD | implementing | worktree-agent-aa08619b87efefc0d | - | - | - |
 | P-COPY copy fixes | product | TBD | implementing | worktree-agent-ad7158d9abfc86219 | - | - | - |
 | P-S SMS site link | product | TBD | implementing | worktree-agent-ac57401dbc39b3668 | - | - | - |
