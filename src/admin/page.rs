@@ -1042,6 +1042,7 @@ fn render_sms_report_inline(
             })
         }}
     }
+    .into_any()
 }
 
 // ── Assignment section rendering ───────────────────────────────────────────────
@@ -1160,6 +1161,7 @@ fn render_cycle_visualization(
             {cohorts_view}
         </div>
     }
+    .into_any()
 }
 
 /// Compute circle node positions for SVG ring.
@@ -1651,6 +1653,7 @@ fn SwapFormSection(
             </leptos::form::ActionForm>
         </section>
     }
+    .into_any()
 }
 
 // ── Participant section sub-components ────────────────────────────────────────
@@ -1891,53 +1894,18 @@ fn InviteCodesSection(
             </div>
         </section>
     }
+    .into_any()
 }
 
-/// One invite code row. Its own component (and `.into_any()`) is a type-erasure
-/// seam: inlined in the `<For>` it nests the list, row and status views into one
-/// type deep enough to overflow rustc's default recursion limit in wasm layout.
+/// Status badge cell of an invite code row. Own component (type-erased) so the row
+/// tree is not one nested type deep enough to overflow rustc's recursion limit.
 #[component]
-fn InviteCodeCard(
-    code: InviteCodeRow,
-    revoke_invite_action: ServerAction<RevokeInviteCode>,
-    revoke_pending: Memo<bool>,
-    hydrated: ReadSignal<bool>,
-) -> impl IntoView {
+fn InviteCodeStatusCell(status: InviteCodeStatus) -> impl IntoView {
     let i18n = use_i18n();
 
     view! {
-        <li class="invite-code-card" data-testid="invite-code-row">
-            // Code — primary identifier
-            <span
-                class="invite-code-card-code"
-                data-testid="invite-code-cell"
-            >
-                {code.code.clone()}
-            </span>
-            // Distributor — canonical label/value pair (RV-05):
-            // routed through .info-list so this meta block
-            // renders with the same overline-label + value
-            // treatment as every other label/value pair in the
-            // app, instead of a bare, unlabeled line.
-            <dl
-                class="info-list invite-code-card-meta"
-                data-testid="invite-code-distributor-cell"
-            >
-                <div class="info-item">
-                    <dt class="info-label">
-                        {t!(
-                            i18n,
-                            admin_invite_codes_distributor_label
-                        )}
-                    </dt>
-                    <dd class="info-value">
-                        {code.distributor_name.clone()}
-                    </dd>
-                </div>
-            </dl>
-            // Status badge
-            <span data-testid="invite-code-status-cell">
-                {match code.status {
+        <span data-testid="invite-code-status-cell">
+            {match status {
                     InviteCodeStatus::Unused => {
                         view! {
                             <span
@@ -1984,24 +1952,24 @@ fn InviteCodeCard(
                         .into_any()
                     }
                 }}
-            </span>
-            // Redeemer + timestamp (only when used).
-            // Routed through the canonical .info-list
-            // label:value treatment (R2-03) — the same
-            // shape as the distributor meta above, so
-            // the two label:value pairs on the card
-            // read as one idiom instead of two. Name
-            // and date stay on separate lines within
-            // the value cell so a long double-barrel
-            // name wraps within its own row instead of
-            // pushing the date to a second line and
-            // jaggedly varying card height (OV L11).
+        </span>
+    }
+    .into_any()
+}
+
+/// Redeemer name and date of a used invite code. Own component (type-erased) for the
+/// same layout-depth reason as `InviteCodeStatusCell`.
+#[component]
+fn InviteCodeRedeemer(redeemer_name: Option<String>, redeemed_at: Option<String>) -> impl IntoView {
+    let i18n = use_i18n();
+
+    view! {
             <dl
                 class="info-list invite-code-card-redeemer"
                 data-testid="invite-code-redeemer-cell"
             >
-                {code.redeemer_name.clone().map(|name| {
-                    let redeemed_at = code.redeemed_at.clone();
+                {redeemer_name.map(|name| {
+                    let redeemed_at = redeemed_at.clone();
                     view! {
                         <div class="info-item">
                             <dt class="info-label">
@@ -2024,6 +1992,69 @@ fn InviteCodeCard(
                     }
                 })}
             </dl>
+    }
+    .into_any()
+}
+
+/// One invite code row. Its own component (and `.into_any()`) is a type-erasure
+/// seam: inlined in the `<For>` it nests the list, row and status views into one
+/// type deep enough to overflow rustc's default recursion limit in wasm layout.
+#[component]
+fn InviteCodeCard(
+    code: InviteCodeRow,
+    revoke_invite_action: ServerAction<RevokeInviteCode>,
+    revoke_pending: Memo<bool>,
+    hydrated: ReadSignal<bool>,
+) -> impl IntoView {
+    let i18n = use_i18n();
+
+    view! {
+        <li class="invite-code-card" data-testid="invite-code-row">
+            // Code — primary identifier
+            <span
+                class="invite-code-card-code"
+                data-testid="invite-code-cell"
+            >
+                {code.code.clone()}
+            </span>
+            // Distributor — canonical label/value pair (RV-05):
+            // routed through .info-list so this meta block
+            // renders with the same overline-label + value
+            // treatment as every other label/value pair in the
+            // app, instead of a bare, unlabeled line.
+            <dl
+                class="info-list invite-code-card-meta"
+                data-testid="invite-code-distributor-cell"
+            >
+                <div class="info-item">
+                    <dt class="info-label">
+                        {t!(
+                            i18n,
+                            admin_invite_codes_distributor_label
+                        )}
+                    </dt>
+                    <dd class="info-value">
+                        {code.distributor_name.clone()}
+                    </dd>
+                </div>
+            </dl>
+            // Status badge
+            <InviteCodeStatusCell status=code.status />
+            // Redeemer + timestamp (only when used).
+            // Routed through the canonical .info-list
+            // label:value treatment (R2-03) — the same
+            // shape as the distributor meta above, so
+            // the two label:value pairs on the card
+            // read as one idiom instead of two. Name
+            // and date stay on separate lines within
+            // the value cell so a long double-barrel
+            // name wraps within its own row instead of
+            // pushing the date to a second line and
+            // jaggedly varying card height (OV L11).
+            <InviteCodeRedeemer
+                redeemer_name=code.redeemer_name.clone()
+                redeemed_at=code.redeemed_at.clone()
+            />
             // Revoke action (only for unused codes)
             <span class="invite-code-card-action">
                 {if code.status == InviteCodeStatus::Unused {
@@ -2089,6 +2120,113 @@ fn invite_code_matches_query(code: &InviteCodeRow, query: &str) -> bool {
             .is_some_and(|n| n.to_lowercase().contains(query))
 }
 
+/// One participant table row. Own component (type-erased) so the table tree is not one
+/// nested type deep enough to overflow rustc's default recursion limit in wasm layout.
+#[component]
+fn ParticipantRow(
+    participant: ParticipantSummary,
+    deactivate_action: ServerAction<DeactivateParticipant>,
+    hydrated: ReadSignal<bool>,
+) -> impl IntoView {
+    let i18n = use_i18n();
+    let uid_str = participant.id.to_string();
+    let active = matches!(participant.status, crate::types::UserStatus::Active);
+
+    view! {
+        <tr data-testid="participant-row">
+            <td data-testid="participant-name-cell">
+                {participant.name.clone()}
+            </td>
+            <td>{participant.phone.clone()}</td>
+            <td>
+                {move || {
+                    if active {
+                        view! {
+                            <span
+                                class="badge"
+                                data-status="active"
+                            >
+                                {t!(i18n, participants_status_active)}
+                            </span>
+                        }
+                        .into_any()
+                    } else {
+                        view! {
+                            <span
+                                class="badge"
+                                data-status="inactive"
+                            >
+                                {t!(i18n, participants_status_deactivated)}
+                            </span>
+                        }
+                        .into_any()
+                    }
+                }}
+            </td>
+            <td>
+                {
+                    let deactivate_pending = deactivate_action.pending();
+                    if active {
+                        view! {
+                            <leptos::form::ActionForm action=deactivate_action>
+                                <input
+                                    type="hidden"
+                                    name="user_id"
+                                    value=uid_str
+                                />
+                                // Secondary variant (FU-20): same
+                                // rationale as invite-code revoke —
+                                // frequent, low-consequence, kept
+                                // off destructive-red.
+                                <button
+                                    class="btn"
+                                    data-variant="secondary"
+                                    data-size="sm"
+                                    type="submit"
+                                    data-testid="deactivate-button"
+                                    disabled=move || {
+                                        deactivate_pending.get() || !hydrated.get()
+                                    }
+                                    attr:aria-busy=move || deactivate_pending.get().then_some("true")
+                                >
+                                    {move || if deactivate_pending.get() {
+                                        t!(i18n, admin_participant_deactivating_loading).into_any()
+                                    } else {
+                                        t!(
+                                            i18n,
+                                            participants_deactivate_button
+                                        )
+                                        .into_any()
+                                    }}
+                                </button>
+                            </leptos::form::ActionForm>
+                        }
+                        .into_any()
+                    } else {
+                        // Deactivated rows carry no action. The STATUS
+                        // column already shows the inactive badge, so a
+                        // second gray pill here would double-convey and
+                        // read as a disabled-button false affordance
+                        // (S2). A muted em-dash marks the cell as
+                        // intentionally empty. testid preserved for E2E.
+                        view! {
+                            <span
+                                class="inactive-marker"
+                                aria-hidden="true"
+                                data-testid="inactive-status"
+                            >
+                                "—"
+                            </span>
+                        }
+                        .into_any()
+                    }
+                }
+            </td>
+        </tr>
+    }
+    .into_any()
+}
+
 #[component]
 fn ParticipantListSection(
     participants: Resource<Result<Vec<ParticipantSummary>, ServerFnError>>,
@@ -2132,103 +2270,13 @@ fn ParticipantListSection(
                                                     <For
                                                         each=move || list.clone()
                                                         key=|p| p.id
-                                                        children=move |p| {
-                                                            let uid_str = p.id.to_string();
-                                                            let active = matches!(
-                                                                p.status,
-                                                                crate::types::UserStatus::Active
-                                                            );
+                                                        children=move |participant| {
                                                             view! {
-                                                                <tr data-testid="participant-row">
-                                                                    <td data-testid="participant-name-cell">
-                                                                        {p.name.clone()}
-                                                                    </td>
-                                                                    <td>{p.phone.clone()}</td>
-                                                                    <td>
-                                                                        {move || {
-                                                                            if active {
-                                                                                view! {
-                                                                                    <span
-                                                                                        class="badge"
-                                                                                        data-status="active"
-                                                                                    >
-                                                                                        {t!(i18n, participants_status_active)}
-                                                                                    </span>
-                                                                                }
-                                                                                .into_any()
-                                                                            } else {
-                                                                                view! {
-                                                                                    <span
-                                                                                        class="badge"
-                                                                                        data-status="inactive"
-                                                                                    >
-                                                                                        {t!(i18n, participants_status_deactivated)}
-                                                                                    </span>
-                                                                                }
-                                                                                .into_any()
-                                                                            }
-                                                                        }}
-                                                                    </td>
-                                                                    <td>
-                                                                        {
-                                                                            let deactivate_pending = deactivate_action.pending();
-                                                                            if active {
-                                                                                view! {
-                                                                                    <leptos::form::ActionForm action=deactivate_action>
-                                                                                        <input
-                                                                                            type="hidden"
-                                                                                            name="user_id"
-                                                                                            value=uid_str
-                                                                                        />
-                                                                                        // Secondary variant (FU-20): same
-                                                                                        // rationale as invite-code revoke —
-                                                                                        // frequent, low-consequence, kept
-                                                                                        // off destructive-red.
-                                                                                        <button
-                                                                                            class="btn"
-                                                                                            data-variant="secondary"
-                                                                                            data-size="sm"
-                                                                                            type="submit"
-                                                                                            data-testid="deactivate-button"
-                                                                                            disabled=move || {
-                                                                                                deactivate_pending.get() || !hydrated.get()
-                                                                                            }
-                                                                                            attr:aria-busy=move || deactivate_pending.get().then_some("true")
-                                                                                        >
-                                                                                            {move || if deactivate_pending.get() {
-                                                                                                t!(i18n, admin_participant_deactivating_loading).into_any()
-                                                                                            } else {
-                                                                                                t!(
-                                                                                                    i18n,
-                                                                                                    participants_deactivate_button
-                                                                                                )
-                                                                                                .into_any()
-                                                                                            }}
-                                                                                        </button>
-                                                                                    </leptos::form::ActionForm>
-                                                                                }
-                                                                                .into_any()
-                                                                            } else {
-                                                                                // Deactivated rows carry no action. The STATUS
-                                                                                // column already shows the inactive badge, so a
-                                                                                // second gray pill here would double-convey and
-                                                                                // read as a disabled-button false affordance
-                                                                                // (S2). A muted em-dash marks the cell as
-                                                                                // intentionally empty. testid preserved for E2E.
-                                                                                view! {
-                                                                                    <span
-                                                                                        class="inactive-marker"
-                                                                                        aria-hidden="true"
-                                                                                        data-testid="inactive-status"
-                                                                                    >
-                                                                                        "—"
-                                                                                    </span>
-                                                                                }
-                                                                                .into_any()
-                                                                            }
-                                                                        }
-                                                                    </td>
-                                                                </tr>
+                                                                <ParticipantRow
+                                                                    participant=participant
+                                                                    deactivate_action=deactivate_action
+                                                                    hydrated=hydrated
+                                                                />
                                                             }
                                                         }
                                                     />
@@ -2244,6 +2292,7 @@ fn ParticipantListSection(
             </Suspense>
         </div>
     }
+    .into_any()
 }
 
 #[cfg(test)]
