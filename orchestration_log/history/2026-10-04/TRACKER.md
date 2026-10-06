@@ -20,6 +20,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-06 17:55 UTC: resume policy changed (owner): SMALL BATCHES of 3, each batch finishes (implement -> spec -> quality -> merge) before the next. Order: U3 fix + U4 minors + T0; then T1, U1, U2; then ENV, A1, P lanes; then P-DOC; then F lanes. Loop scripts live at orchestration_log/history/2026-10-04/orchestration/scripts/.
 - 2026-10-06 18:00 UTC: batch 1 = U3-fix (DONE, quality re-review sent to ae5b62914242ed4a1), U4-minors, T0; T1 resumed into U3's freed slot.
 - 2026-10-06 18:25 UTC: U4-minors DONE @781241f, quality re-review sent to aae408a3826c4c153. U1 resumed into the slot. rustc drifted to 1.99 and wasm clippy fails in untouched code (32 errors); this is ENV's scope.
+- 2026-10-06 19:00 UTC: U3 merged (gates: fmt, ssr clippy, ssr tests 92/0) + pushed; U4 minors merged (same gates green) + pushed. Running: T0, T1, U1.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
@@ -30,8 +31,8 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 | ENV reproducible toolchain + SessionStart hook | blockers | TBD | implementing | worktree-agent-a9394f7e60a701d45 | - | - | - |
 | U1 registration tickets (OTP bypass) | blockers | TBD | implementing | worktree-agent-aa77876d6f145827e | - | - | - |
 | U2 test-mode confinement | blockers | TBD | implementing | worktree-agent-ae294272a7d5f6210 (base + U3) | - | - | - |
-| U3 first-admin bootstrap | blockers | TBD | fix cycle (quality: With fixes, 2 important + 3 minor) | worktree-agent-a1fe18df1d59b4c14 @ fd94520 | PASS | With fixes | - |
-| U4 swap position exchange | blockers | TBD | INTEGRATED; minor-findings fix cycle running (same implementer) | worktree-agent-a46c4c68440f8d984 @ 066ebf2 | PASS | Yes (4 minors) | 823905e |
+| U3 first-admin bootstrap | blockers | TBD | INTEGRATED | worktree-agent-a1fe18df1d59b4c14 @ 067b9bd | PASS | Yes | merged 2026-10-06 |
+| U4 swap position exchange | blockers | TBD | INTEGRATED; minors fixed @781241f, quality Yes, merged 2026-10-06 | worktree-agent-a46c4c68440f8d984 @ 066ebf2 | PASS | Yes (4 minors) | 823905e |
 | A1 attr:aria-busy leak | blockers | TBD | implementing | worktree-agent-aa08619b87efefc0d | - | - | - |
 | P-COPY copy fixes | product | TBD | implementing | worktree-agent-ad7158d9abfc86219 | - | - | - |
 | P-S SMS site link | product | TBD | implementing | worktree-agent-ac57401dbc39b3668 | - | - | - |
