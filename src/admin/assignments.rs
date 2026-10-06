@@ -295,7 +295,8 @@ pub async fn swap_assignment(
 
     let mut tx = pool.begin().await.map_err(db_err)?;
 
-    // Lock the season row: serializes concurrent swaps and advance_season.
+    // Lock the season row: serializes concurrent swaps, and makes advance_season's
+    // phase UPDATE wait until this swap commits.
     let phase = sqlx::query_scalar!(
         r#"
         SELECT phase AS "phase: Phase"
@@ -349,7 +350,8 @@ pub async fn swap_assignment(
     // sender_id) and UNIQUE(season_id, recipient_id) are non-deferrable, so
     // per-row UPDATEs would collide mid-swap. Safe to recreate rows: in the
     // Assignment phase no SMS/receipt state exists yet (notified_at,
-    // receipt_* stay at defaults).
+    // receipt_*, receipt_nudge_sent_at stay at defaults); the phase guard
+    // above is what makes dropping them lossless.
     sqlx::query!("DELETE FROM assignments WHERE season_id = $1", sid)
         .execute(&mut *tx)
         .await
