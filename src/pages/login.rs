@@ -834,6 +834,7 @@ fn LoginStepRouter(
             />
         </div>
     }
+    .into_any()
 }
 
 /// Step 1: phone entry. Hidden once the OTP step activates, a pending registration
@@ -1089,6 +1090,7 @@ where
             </button>
         </leptos::form::ActionForm>
     }
+    .into_any()
 }
 
 /// Name collection form (step 4 of the registration flow).
@@ -1186,4 +1188,5 @@ where
             {t!(i18n, login_change_phone_button)}
         </button>
     }
+    .into_any()
 }
