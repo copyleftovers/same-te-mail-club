@@ -1,7 +1,7 @@
 From f01a419c167a882a1b33b0b294f2ea40c55693ac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:29 +0000
-Subject: [PATCH 1/4] ci: codegen builds in Check job and assert Playwright ran
+Subject: [PATCH 1/5] ci: codegen builds in Check job and assert Playwright ran
  in every E2E path
 
 ---
@@ -137,7 +137,7 @@ index 3b9c5a4..fa4ad99 100755
 From 144de77d08a25f06183c47e6c2e159df5b65cbcc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 6 Oct 2026 10:51:24 +0000
-Subject: [PATCH 2/4] refactor(views): extract login steps and invite-code card
+Subject: [PATCH 2/5] refactor(views): extract login steps and invite-code card
  to cut view type depth
 
 ---
@@ -684,7 +684,7 @@ index a0abf76..b37f74b 100644
 From 67b139f2a2637dca285b4c670b539620130916c8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 6 Oct 2026 17:57:28 +0000
-Subject: [PATCH 3/4] refactor(login): type-erase step forms at component
+Subject: [PATCH 3/5] refactor(login): type-erase step forms at component
  boundaries
 
 ---
@@ -724,7 +724,7 @@ index b37f74b..70b721e 100644
 From 4d000e7c27d57c9dc254040dfa00056893f8dc6a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 6 Oct 2026 18:42:12 +0000
-Subject: [PATCH 4/4] refactor(views): erase row/card/recipient view types so
+Subject: [PATCH 4/5] refactor(views): erase row/card/recipient view types so
  builds pass at limit 96
 
 ---
@@ -1261,6 +1261,335 @@ index d326751..4406c86 100644
  
          {render_receipt_form(receipt_action, receipt_pending, hydrated, i18n)}
      }
+-- 
+2.43.0
+
+
+From 3d8f4685564b02b770c15fd4d863e51c0026acbd Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 6 Oct 2026 23:02:44 +0000
+Subject: [PATCH 5/5] refactor(views): add InviteCodeStep/NameStep, erase
+ LoginPage, inline invite sub-cells, fix comments
+
+---
+ .github/workflows/ci.yml |   4 +-
+ src/admin/page.rs        | 187 +++++++++++++++++----------------------
+ src/pages/login.rs       |  53 ++++++++++-
+ 3 files changed, 135 insertions(+), 109 deletions(-)
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 169e1de..a1fa392 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -43,8 +43,8 @@ jobs:
+       - name: cargo clippy (hydrate / WASM)
+         run: cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings
+ 
+-      # clippy/test never run codegen, so recursion/layout overflows in Leptos views
+-      # only surface in a real build (see src/main.rs recursion_limit WHY).
++      # clippy/test never run codegen, so layout-depth overflows in Leptos views
++      # only surface in a real build.
+       - name: cargo build (SSR bin — codegen)
+         run: cargo build --no-default-features --features ssr --bin samete
+ 
+diff --git a/src/admin/page.rs b/src/admin/page.rs
+index 6b23335..1d24616 100644
+--- a/src/admin/page.rs
++++ b/src/admin/page.rs
+@@ -1897,105 +1897,6 @@ fn InviteCodesSection(
+     .into_any()
+ }
+ 
+-/// Status badge cell of an invite code row. Own component (type-erased) so the row
+-/// tree is not one nested type deep enough to overflow rustc's recursion limit.
+-#[component]
+-fn InviteCodeStatusCell(status: InviteCodeStatus) -> impl IntoView {
+-    let i18n = use_i18n();
+-
+-    view! {
+-        <span data-testid="invite-code-status-cell">
+-            {match status {
+-                    InviteCodeStatus::Unused => {
+-                        view! {
+-                            <span
+-                                class="badge"
+-                                data-testid="invite-code-status-badge"
+-                                data-status="unused"
+-                            >
+-                                {t!(
+-                                    i18n,
+-                                    admin_invite_codes_status_unused
+-                                )}
+-                            </span>
+-                        }
+-                        .into_any()
+-                    }
+-                    InviteCodeStatus::Used => {
+-                        view! {
+-                            <span
+-                                class="badge"
+-                                data-testid="invite-code-status-badge"
+-                                data-status="used"
+-                            >
+-                                {t!(
+-                                    i18n,
+-                                    admin_invite_codes_status_used
+-                                )}
+-                            </span>
+-                        }
+-                        .into_any()
+-                    }
+-                    InviteCodeStatus::Revoked => {
+-                        view! {
+-                            <span
+-                                class="badge"
+-                                data-testid="invite-code-status-badge"
+-                                data-status="revoked"
+-                            >
+-                                {t!(
+-                                    i18n,
+-                                    admin_invite_codes_status_revoked
+-                                )}
+-                            </span>
+-                        }
+-                        .into_any()
+-                    }
+-                }}
+-        </span>
+-    }
+-    .into_any()
+-}
+-
+-/// Redeemer name and date of a used invite code. Own component (type-erased) for the
+-/// same layout-depth reason as `InviteCodeStatusCell`.
+-#[component]
+-fn InviteCodeRedeemer(redeemer_name: Option<String>, redeemed_at: Option<String>) -> impl IntoView {
+-    let i18n = use_i18n();
+-
+-    view! {
+-            <dl
+-                class="info-list invite-code-card-redeemer"
+-                data-testid="invite-code-redeemer-cell"
+-            >
+-                {redeemer_name.map(|name| {
+-                    let redeemed_at = redeemed_at.clone();
+-                    view! {
+-                        <div class="info-item">
+-                            <dt class="info-label">
+-                                {t!(
+-                                    i18n,
+-                                    admin_invite_codes_redeemer_label
+-                                )}
+-                            </dt>
+-                            <dd class="info-value">
+-                                <span class="invite-code-card-redeemer-name">
+-                                    {name}
+-                                </span>
+-                                {redeemed_at.map(|date_str| view! {
+-                                    <small class="invite-code-card-redeemer-date">
+-                                        {date_str}
+-                                    </small>
+-                                })}
+-                            </dd>
+-                        </div>
+-                    }
+-                })}
+-            </dl>
+-    }
+-    .into_any()
+-}
+-
+ /// One invite code row. Its own component (and `.into_any()`) is a type-erasure
+ /// seam: inlined in the `<For>` it nests the list, row and status views into one
+ /// type deep enough to overflow rustc's default recursion limit in wasm layout.
+@@ -2039,7 +1940,58 @@ fn InviteCodeCard(
+                 </div>
+             </dl>
+             // Status badge
+-            <InviteCodeStatusCell status=code.status />
++            {view! {
++            <span data-testid="invite-code-status-cell">
++                {match code.status {
++                        InviteCodeStatus::Unused => {
++                            view! {
++                                <span
++                                    class="badge"
++                                    data-testid="invite-code-status-badge"
++                                    data-status="unused"
++                                >
++                                    {t!(
++                                        i18n,
++                                        admin_invite_codes_status_unused
++                                    )}
++                                </span>
++                            }
++                            .into_any()
++                        }
++                        InviteCodeStatus::Used => {
++                            view! {
++                                <span
++                                    class="badge"
++                                    data-testid="invite-code-status-badge"
++                                    data-status="used"
++                                >
++                                    {t!(
++                                        i18n,
++                                        admin_invite_codes_status_used
++                                    )}
++                                </span>
++                            }
++                            .into_any()
++                        }
++                        InviteCodeStatus::Revoked => {
++                            view! {
++                                <span
++                                    class="badge"
++                                    data-testid="invite-code-status-badge"
++                                    data-status="revoked"
++                                >
++                                    {t!(
++                                        i18n,
++                                        admin_invite_codes_status_revoked
++                                    )}
++                                </span>
++                            }
++                            .into_any()
++                        }
++                    }}
++            </span>
++            }
++            .into_any()}
+             // Redeemer + timestamp (only when used).
+             // Routed through the canonical .info-list
+             // label:value treatment (R2-03) — the same
+@@ -2051,10 +2003,37 @@ fn InviteCodeCard(
+             // name wraps within its own row instead of
+             // pushing the date to a second line and
+             // jaggedly varying card height (OV L11).
+-            <InviteCodeRedeemer
+-                redeemer_name=code.redeemer_name.clone()
+-                redeemed_at=code.redeemed_at.clone()
+-            />
++            {view! {
++                <dl
++                    class="info-list invite-code-card-redeemer"
++                    data-testid="invite-code-redeemer-cell"
++                >
++                    {code.redeemer_name.clone().map(|name| {
++                        let redeemed_at = code.redeemed_at.clone();
++                        view! {
++                            <div class="info-item">
++                                <dt class="info-label">
++                                    {t!(
++                                        i18n,
++                                        admin_invite_codes_redeemer_label
++                                    )}
++                                </dt>
++                                <dd class="info-value">
++                                    <span class="invite-code-card-redeemer-name">
++                                        {name}
++                                    </span>
++                                    {redeemed_at.map(|date_str| view! {
++                                        <small class="invite-code-card-redeemer-date">
++                                            {date_str}
++                                        </small>
++                                    })}
++                                </dd>
++                            </div>
++                        }
++                    })}
++                </dl>
++            }
++            .into_any()}
+             // Revoke action (only for unused codes)
+             <span class="invite-code-card-action">
+                 {if code.status == InviteCodeStatus::Unused {
+diff --git a/src/pages/login.rs b/src/pages/login.rs
+index 70b721e..f32311d 100644
+--- a/src/pages/login.rs
++++ b/src/pages/login.rs
+@@ -676,6 +676,7 @@ pub fn LoginPage() -> impl IntoView {
+             </div>
+         </div>
+     }
++    .into_any()
+ }
+ 
+ // ── Sub-components ────────────────────────────────────────────────────────────
+@@ -801,6 +802,35 @@ fn LoginStepRouter(
+             on_resend=resend
+         />
+ 
++        <InviteCodeStep
++            is_pending=is_pending
++            hydrated=hydrated
++            entered_code=entered_code
++            set_entered_code=set_entered_code
++        />
++        <NameStep
++            is_pending=is_pending
++            hydrated=hydrated
++            register_action=register_action
++            entered_code=entered_code
++            set_entered_code=set_entered_code
++        />
++    }
++    .into_any()
++}
++
++/// Step 3: invite code entry. Shown when a registration is pending and no code has
++/// been entered yet.
++#[component]
++fn InviteCodeStep(
++    is_pending: bool,
++    hydrated: ReadSignal<bool>,
++    entered_code: ReadSignal<Option<String>>,
++    set_entered_code: WriteSignal<Option<String>>,
++) -> impl IntoView {
++    let i18n = use_i18n();
++
++    view! {
+         // ── Step 3: Invite code ───────────────────────────────────────────────
+         // Shown when pending_registration is true AND no code entered yet.
+         <div
+@@ -817,7 +847,23 @@ fn LoginStepRouter(
+                 on_submit=move |code| set_entered_code.set(Some(code))
+             />
+         </div>
++    }
++    .into_any()
++}
++
++/// Step 4: name collection. Shown when a registration is pending and a code has been
++/// entered.
++#[component]
++fn NameStep(
++    is_pending: bool,
++    hydrated: ReadSignal<bool>,
++    register_action: ServerAction<RegisterWithCode>,
++    entered_code: ReadSignal<Option<String>>,
++    set_entered_code: WriteSignal<Option<String>>,
++) -> impl IntoView {
++    let i18n = use_i18n();
+ 
++    view! {
+         // ── Step 4: Name collection ────────────────────────────────────────────
+         // Shown when pending_registration is true AND a code has been entered.
+         <div
+@@ -839,9 +885,10 @@ fn LoginStepRouter(
+ 
+ /// Step 1: phone entry. Hidden once the OTP step activates, a pending registration
+ /// is set, or the server redirected back with an OTP error.
+-// WHY `.into_any()`: a login step is its own type-erasure seam. Without it the whole
+-// four-step tree is one nested view type and rustc's layout of the `into_any` async
+-// blocks exceeds the default recursion limit (see conventions: view-type depth).
++// WHY `.into_any()`: each login step is its own type-erasure seam. Without it the whole
++// four-step tree is one nested view type, and rustc's layout of the `into_any` async
++// blocks exceeds its default recursion limit at codegen ("queries overflow the depth
++// limit!"); `cargo clippy` and `cargo test` never reach that layout.
+ #[component]
+ fn PhoneStep(
+     otp_step: Memo<bool>,
 -- 
 2.43.0
 
