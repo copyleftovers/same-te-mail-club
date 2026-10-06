@@ -1,7 +1,7 @@
 From e1736a651dac44df1cfe644bcbb69f7ad08c7e43 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:56 +0000
-Subject: [PATCH] fix(build): unwind panics on the server so a task panic
+Subject: [PATCH 1/2] fix(build): unwind panics on the server so a task panic
  cannot kill it
 
 ---
@@ -75,6 +75,32 @@ index 0000000..57616e1
 +    fi
 +done
 +echo "ALIVE after ${rounds} rounds; panics logged: $(panics)"
+-- 
+2.43.0
+
+
+From a6bb8be1beb8c3a5c3e8735d192760dca9355b1e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 6 Oct 2026 23:19:24 +0000
+Subject: [PATCH 2/2] docs(deferred): drop resolved SSR reactive-disposal panic
+ item
+
+---
+ orchestration_log/reference/deferred_items.md | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/orchestration_log/reference/deferred_items.md b/orchestration_log/reference/deferred_items.md
+index 5ae242e..84951a3 100644
+--- a/orchestration_log/reference/deferred_items.md
++++ b/orchestration_log/reference/deferred_items.md
+@@ -4,7 +4,6 @@ Currently-open items only. Resolved items are deleted, not stamped — history l
+ 
+ ## Open
+ 
+-- Leptos SSR reactive-disposal panic (intermittent `tower_http` 500s) — no fix commit exists; needs a Leptos-lifecycle investigation of the reactive-scope disposal race (first flagged: 2026-06-25).
+ - Manifesto SubagentStart oath hook injects 0 constitution elements — plugin-side, outside this repo's control; mitigated per-dispatch by carrying full manifesto paths in every prompt, but the hook itself is unfixed and taxes every subagent dispatch (first flagged: 2026-07-03).
+ - IP-based OTP rate-limiting absent — only phone-keyed limits exist (`check_otp_rate_limit`); needs middleware or an external store to add an IP dimension (first flagged: 2026-06-22).
+ - Mechanical/geometric visual assertions unbuilt — zero clip/overflow/overprint/`scrollWidth<=innerWidth` checks in `visual-audit.spec.ts`; agent eyes remain the only geometric gate (first flagged: 2026-06-25).
 -- 
 2.43.0
 
