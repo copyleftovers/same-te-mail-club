@@ -1,3 +1,47 @@
+diff --git a/src/admin/page.rs b/src/admin/page.rs
+index cd5c0ca..f8ce200 100644
+--- a/src/admin/page.rs
++++ b/src/admin/page.rs
+@@ -1042,6 +1042,7 @@ fn render_sms_report_inline(
+             })
+         }}
+     }
++    .into_any()
+ }
+ 
+ // ── Assignment section rendering ───────────────────────────────────────────────
+@@ -1160,6 +1161,7 @@ fn render_cycle_visualization(
+             {cohorts_view}
+         </div>
+     }
++    .into_any()
+ }
+ 
+ /// Compute circle node positions for SVG ring.
+@@ -1651,6 +1653,7 @@ fn SwapFormSection(
+             </leptos::form::ActionForm>
+         </section>
+     }
++    .into_any()
+ }
+ 
+ // ── Participant section sub-components ────────────────────────────────────────
+@@ -1891,6 +1894,7 @@ fn InviteCodesSection(
+             </div>
+         </section>
+     }
++    .into_any()
+ }
+ 
+ /// One invite code row. Its own component (and `.into_any()`) is a type-erasure
+@@ -2244,6 +2248,7 @@ fn ParticipantListSection(
+             </Suspense>
+         </div>
+     }
++    .into_any()
+ }
+ 
+ #[cfg(test)]
 diff --git a/src/lib.rs b/src/lib.rs
 index 4f95058..b342e68 100644
 --- a/src/lib.rs
@@ -16,3 +60,15 @@ index 875a481..37ed525 100644
  #[cfg(feature = "ssr")]
  #[tokio::main]
  async fn main() {
+diff --git a/src/pages/home.rs b/src/pages/home.rs
+index d326751..8910f58 100644
+--- a/src/pages/home.rs
++++ b/src/pages/home.rs
+@@ -1030,6 +1030,7 @@ fn render_receipt_form(
+             </leptos::form::ActionForm>
+         </section>
+     }
++    .into_any()
+ }
+ 
+ fn render_assignment_details(
