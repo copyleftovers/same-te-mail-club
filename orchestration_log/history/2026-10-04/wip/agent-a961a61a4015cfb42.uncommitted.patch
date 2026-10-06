@@ -30,10 +30,99 @@ index 875a481..bb14dcd 100644
  #[tokio::main]
  async fn main() {
 diff --git a/src/pages/home.rs b/src/pages/home.rs
-index d326751..524ec49 100644
+index d326751..9590455 100644
 --- a/src/pages/home.rs
 +++ b/src/pages/home.rs
-@@ -1238,7 +1238,8 @@ fn render_home_state(
+@@ -29,6 +29,7 @@ pub enum HomeState {
+     /// Enrollment phase, participant is NOT enrolled.
+     EnrollmentOpen {
+         deadline: String,
++        confirm_deadline: String,
+         theme: Option<String>,
+         /// Pre-filled from onboarding: (city, `branch_number`). `None` if no address on file.
+         existing_address: Option<(String, i32)>,
+@@ -78,6 +79,7 @@ struct SeasonInfoRow {
+     signup_deadline: time::OffsetDateTime,
+     confirm_deadline: time::OffsetDateTime,
+     theme: Option<String>,
++    meetup_details: Option<String>,
+ }
+ 
+ #[cfg(feature = "ssr")]
+@@ -145,6 +147,7 @@ async fn resolve_enrollment_state(
+ 
+         Ok(HomeState::EnrollmentOpen {
+             deadline: signup_str,
++            confirm_deadline: confirm_str,
+             theme: season.theme.clone(),
+             existing_address,
+         })
+@@ -271,23 +274,60 @@ fn enrollment_new_address_is_complete(city: &str, number: i32) -> bool {
+     !city.is_empty() && number > 0
+ }
+ 
++/// Whether the meetup announcement belongs on this page: the current season's
++/// (would-be) participants only.
++#[cfg(any(feature = "ssr", test))]
++fn shows_meetup(state: &HomeState) -> bool {
++    match state {
++        HomeState::EnrollmentOpen { .. }
++        | HomeState::Enrolled { .. }
++        | HomeState::Preparing { .. }
++        | HomeState::Confirmed
++        | HomeState::Assigning
++        | HomeState::Assigned { .. }
++        | HomeState::ReceiptConfirmed { .. }
++        | HomeState::Complete => true,
++        HomeState::NoSeason | HomeState::EnrollmentNotOpen | HomeState::Cancelled => false,
++    }
++}
++
+ // ── Server functions ───────────────────────────────────────────────────────────
+ 
++/// Home page payload: the state plus the season's meetup announcement when this
++/// participant should see it.
++#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
++pub struct HomeView {
++    pub state: HomeState,
++    pub meetup_details: Option<String>,
++}
++
+ /// Compute the home page state for the authenticated participant.
+ ///
+ /// # Errors
+ ///
+ /// Returns `Err` if session is invalid or DB fails.
+ #[server]
+-pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
+-    use crate::{auth, date_format::format_date_uk, types::Phase};
++pub async fn get_home_state() -> Result<HomeView, ServerFnError> {
++    let (pool, user) = crate::auth::require_auth().await?;
++    let (state, meetup_details) = resolve_home(&pool, user.id).await?;
++    Ok(HomeView {
++        meetup_details: meetup_details.filter(|_| shows_meetup(&state)),
++        state,
++    })
++}
+ 
+-    let (pool, user) = auth::require_auth().await?;
++/// Resolve the home state together with the relevant season's meetup announcement.
++#[cfg(feature = "ssr")]
++async fn resolve_home(
++    pool: &sqlx::PgPool,
++    user_id: uuid::Uuid,
++) -> Result<(HomeState, Option<String>), ServerFnError> {
++    use crate::{date_format::format_date_uk, types::Phase};
+ 
+     let season = sqlx::query_as!(
+         SeasonInfoRow,
+         r#"
+-        SELECT id, phase AS "phase: Phase", signup_deadline, confirm_deadline, theme
++        SELECT id, phase AS "phase: Phase", signup_deadline, confirm_deadline, theme, meetup_details
+         FROM seasons
+         WHERE phase NOT IN ('complete', 'cancelled')
+           AND launched_at IS NOT NULL
+@@ -1238,7 +1278,8 @@ fn render_home_state(
  
  #[cfg(test)]
  mod tests {
@@ -43,7 +132,7 @@ index d326751..524ec49 100644
  
      #[test]
      fn past_deadline_blocks_when_not_test_mode() {
-@@ -1294,4 +1295,50 @@ mod tests {
+@@ -1294,4 +1335,50 @@ mod tests {
      fn both_fields_empty_rejected() {
          assert!(!enrollment_new_address_is_complete("", 0));
      }

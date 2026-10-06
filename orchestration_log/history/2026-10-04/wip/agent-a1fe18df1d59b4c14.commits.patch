@@ -1,7 +1,7 @@
 From 1bc1211bfe02857429563d78707e66726f5863be Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 4 Oct 2026 21:14:23 +0000
-Subject: [PATCH 1/4] feat(admin): bootstrap first admin from env at startup
+Subject: [PATCH 1/5] feat(admin): bootstrap first admin from env at startup
 
 ---
  .env.example                                  |  4 +
@@ -255,7 +255,7 @@ index 875a481..920592e 100644
 From 579762fae9ec6f042af272a7eb32d91eeb60ce32 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:42:36 +0000
-Subject: [PATCH 2/4] fix(admin): reactivate deactivated account when
+Subject: [PATCH 2/5] fix(admin): reactivate deactivated account when
  bootstrapping admin
 
 ---
@@ -337,7 +337,7 @@ index bd9141c..bdda03e 100644
 From 3f75ea1d4e63c77c755da10720ad3df1ceab3345 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:37 +0000
-Subject: [PATCH 3/4] test(admin): cover ensure_admin insert, idempotence and
+Subject: [PATCH 3/5] test(admin): cover ensure_admin insert, idempotence and
  reactivation
 
 ---
@@ -412,7 +412,7 @@ index bdda03e..1d98ae0 100644
 From a220687ab541e6dfdc12f0682dfe88a9775d6a99 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:49 +0000
-Subject: [PATCH 4/4] fix(admin): keep admin phone out of boot logs
+Subject: [PATCH 4/5] fix(admin): keep admin phone out of boot logs
 
 ---
  src/main.rs | 2 +-
@@ -431,6 +431,57 @@ index 920592e..a405e6c 100644
      }
  
      // 3b. Shared HTTP client for SMS delivery
+-- 
+2.43.0
+
+
+From 067b9bd0d3253e60a59892416f9f61588c50a285 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 6 Oct 2026 01:08:56 +0000
+Subject: [PATCH 5/5] test(admin): unwrap bootstrap parse results so failures
+ show the error
+
+---
+ src/config.rs | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/config.rs b/src/config.rs
+index c254eed..7743461 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -116,14 +116,14 @@ mod tests {
+ 
+     #[test]
+     fn neither_var_means_no_bootstrap() {
+-        assert_eq!(admin_bootstrap_from_vars(None, None).ok(), Some(None));
++        assert_eq!(admin_bootstrap_from_vars(None, None).unwrap(), None);
+     }
+ 
+     #[test]
+     fn blank_vars_count_as_unset() {
+         assert_eq!(
+-            admin_bootstrap_from_vars(Some("  ".into()), Some(String::new())).ok(),
+-            Some(None)
++            admin_bootstrap_from_vars(Some("  ".into()), Some(String::new())).unwrap(),
++            None
+         );
+     }
+ 
+@@ -131,11 +131,11 @@ mod tests {
+     fn both_vars_normalize_phone_and_trim_name() {
+         assert_eq!(
+             admin_bootstrap_from_vars(Some("067 123 45 67".into()), Some("  Організатор ".into()))
+-                .ok(),
+-            Some(Some(AdminBootstrap {
++                .unwrap(),
++            Some(AdminBootstrap {
+                 phone: "+380671234567".into(),
+                 name: "Організатор".into()
+-            }))
++            })
+         );
+     }
+ 
 -- 
 2.43.0
 
