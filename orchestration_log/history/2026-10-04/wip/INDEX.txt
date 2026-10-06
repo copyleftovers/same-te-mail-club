@@ -1,8 +1,7 @@
 agent-a17d3d793043b76c0 worktree-agent-a17d3d793043b76c0 head=108aa7d base=108aa7d11cb27c1892b1cb848b72454af05a6e2a commits=0
 agent-a18ac82e5b9ac2a54 worktree-agent-a18ac82e5b9ac2a54 head=67b139f base=57f01091549e4a0a7bf880f662b6b59d2b581d74 commits=3
-agent-a1fe18df1d59b4c14 worktree-agent-a1fe18df1d59b4c14 head=067b9bd base=067b9bd0d3253e60a59892416f9f61588c50a285 commits=0
 agent-a36ce1f5f8b4f3c4b worktree-agent-a36ce1f5f8b4f3c4b head=87ccf24 base=87ccf247c90a6103419605153f9c8b149038e3ed commits=0
-agent-a46c4c68440f8d984 worktree-agent-a46c4c68440f8d984 head=781241f base=823905e7e7cf569ad11836fd038397f5bd265fb7 commits=3
+agent-a46c4c68440f8d984 worktree-agent-a46c4c68440f8d984 head=781241f base=781241f0a70e64f8adb2fdaa0c3fb44ae2f076a4 commits=0
 agent-a4d2369a7e8477b86 worktree-agent-a4d2369a7e8477b86 head=e1736a6 base=57f01091549e4a0a7bf880f662b6b59d2b581d74 commits=1
 agent-a82424857366c0f92 worktree-agent-a82424857366c0f92 head=108aa7d base=108aa7d11cb27c1892b1cb848b72454af05a6e2a commits=0
 agent-a8f818e1aa0d43eaa worktree-agent-a8f818e1aa0d43eaa head=823905e base=823905e7e7cf569ad11836fd038397f5bd265fb7 commits=0
