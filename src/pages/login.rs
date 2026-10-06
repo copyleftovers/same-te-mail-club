@@ -715,7 +715,6 @@ fn LoginStepRouter(
     const OTP_RESEND_COOLDOWN_SECS: u32 = 60;
 
     let i18n = use_i18n();
-    let request_pending = request_action.pending();
 
     // ── Resend cooldown (Fault-03) ────────────────────────────────────────────
     // `resend_cooldown` is unconditional: initial value (0u32) is identical on SSR
@@ -784,6 +783,76 @@ fn LoginStepRouter(
     let resend = move || {};
 
     view! {
+        <PhoneStep
+            otp_step=otp_step
+            is_pending=is_pending
+            is_otp_error=is_otp_error
+            hydrated=hydrated
+            request_action=request_action
+        />
+        <OtpStep
+            otp_step=otp_step
+            is_pending=is_pending
+            is_otp_error=is_otp_error
+            hydrated=hydrated
+            request_action=request_action
+            submitted_phone=submitted_phone
+            resend_cooldown=resend_cooldown
+            on_resend=resend
+        />
+
+        // ── Step 3: Invite code ───────────────────────────────────────────────
+        // Shown when pending_registration is true AND no code entered yet.
+        <div
+            data-testid="invite-code-step"
+            style:display=move || {
+                if is_pending && entered_code.get().is_none() { "" } else { "none" }
+            }
+        >
+            <h1>
+                {t!(i18n, auth_invite_code_step_heading)}
+            </h1>
+            <InviteCodeForm
+                hydrated=hydrated
+                on_submit=move |code| set_entered_code.set(Some(code))
+            />
+        </div>
+
+        // ── Step 4: Name collection ────────────────────────────────────────────
+        // Shown when pending_registration is true AND a code has been entered.
+        <div
+            data-testid="name-collection-step"
+            style:display=move || {
+                if is_pending && entered_code.get().is_some() { "" } else { "none" }
+            }
+        >
+            <NameCollectionForm
+                hydrated=hydrated
+                register_action=register_action
+                entered_code=entered_code
+                on_back=move || set_entered_code.set(None)
+            />
+        </div>
+    }
+}
+
+/// Step 1: phone entry. Hidden once the OTP step activates, a pending registration
+/// is set, or the server redirected back with an OTP error.
+// WHY `.into_any()`: a login step is its own type-erasure seam. Without it the whole
+// four-step tree is one nested view type and rustc's layout of the `into_any` async
+// blocks exceeds the default recursion limit (see conventions: view-type depth).
+#[component]
+fn PhoneStep(
+    otp_step: Memo<bool>,
+    is_pending: bool,
+    is_otp_error: bool,
+    hydrated: ReadSignal<bool>,
+    request_action: ServerAction<RequestOtp>,
+) -> impl IntoView {
+    let i18n = use_i18n();
+    let request_pending = request_action.pending();
+
+    view! {
         // ── Step 1: Phone ─────────────────────────────────────────────────────
         // Hidden once OTP step activates, pending_registration is set, or OTP error redirect.
         <div style:display=move || {
@@ -840,7 +909,30 @@ fn LoginStepRouter(
                 </button>
             </leptos::form::ActionForm>
         </div>
+    }
+    .into_any()
+}
 
+/// Step 2: OTP entry, resend, and back-to-phone. Shown when an OTP was requested or
+/// the server redirected back with `?otp_error=1`.
+// WHY `.into_any()`: see `PhoneStep`.
+#[component]
+fn OtpStep<F>(
+    otp_step: Memo<bool>,
+    is_pending: bool,
+    is_otp_error: bool,
+    hydrated: ReadSignal<bool>,
+    request_action: ServerAction<RequestOtp>,
+    submitted_phone: ReadSignal<String>,
+    resend_cooldown: RwSignal<u32>,
+    on_resend: F,
+) -> impl IntoView
+where
+    F: Fn() + 'static,
+{
+    let i18n = use_i18n();
+
+    view! {
         // ── Step 2: OTP ───────────────────────────────────────────────────────
         // Shown when OTP was requested or the server redirected back with ?otp_error=1.
         // Uses native form POST so the browser follows the server-issued 302 redirect.
@@ -897,7 +989,7 @@ fn LoginStepRouter(
                 // expression is parsed as the closing `>` of the tag, causing the
                 // remaining attributes to leak as text nodes.
                 disabled={move || resend_cooldown.get() > 0 || !hydrated.get()}
-                on:click=move |_| resend()
+                on:click=move |_| on_resend()
             >
                 {move || {
                     let secs = resend_cooldown.get();
@@ -918,40 +1010,8 @@ fn LoginStepRouter(
                 {t!(i18n, login_change_phone_button)}
             </button>
         </div>
-
-        // ── Step 3: Invite code ───────────────────────────────────────────────
-        // Shown when pending_registration is true AND no code entered yet.
-        <div
-            data-testid="invite-code-step"
-            style:display=move || {
-                if is_pending && entered_code.get().is_none() { "" } else { "none" }
-            }
-        >
-            <h1>
-                {t!(i18n, auth_invite_code_step_heading)}
-            </h1>
-            <InviteCodeForm
-                hydrated=hydrated
-                on_submit=move |code| set_entered_code.set(Some(code))
-            />
-        </div>
-
-        // ── Step 4: Name collection ────────────────────────────────────────────
-        // Shown when pending_registration is true AND a code has been entered.
-        <div
-            data-testid="name-collection-step"
-            style:display=move || {
-                if is_pending && entered_code.get().is_some() { "" } else { "none" }
-            }
-        >
-            <NameCollectionForm
-                hydrated=hydrated
-                register_action=register_action
-                entered_code=entered_code
-                on_back=move || set_entered_code.set(None)
-            />
-        </div>
     }
+    .into_any()
 }
 
 /// Invite code entry form (step 3).

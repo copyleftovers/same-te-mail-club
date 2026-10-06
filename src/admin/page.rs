@@ -1870,165 +1870,17 @@ fn InviteCodesSection(
                                                         .collect::<Vec<_>>()
                                                 }
                                                 key=|c| c.id
-                                                let:code
-                                            >
-                                                <li class="invite-code-card" data-testid="invite-code-row">
-                                                    // Code — primary identifier
-                                                    <span
-                                                        class="invite-code-card-code"
-                                                        data-testid="invite-code-cell"
-                                                    >
-                                                        {code.code.clone()}
-                                                    </span>
-                                                    // Distributor — canonical label/value pair (RV-05):
-                                                    // routed through .info-list so this meta block
-                                                    // renders with the same overline-label + value
-                                                    // treatment as every other label/value pair in the
-                                                    // app, instead of a bare, unlabeled line.
-                                                    <dl
-                                                        class="info-list invite-code-card-meta"
-                                                        data-testid="invite-code-distributor-cell"
-                                                    >
-                                                        <div class="info-item">
-                                                            <dt class="info-label">
-                                                                {t!(
-                                                                    i18n,
-                                                                    admin_invite_codes_distributor_label
-                                                                )}
-                                                            </dt>
-                                                            <dd class="info-value">
-                                                                {code.distributor_name.clone()}
-                                                            </dd>
-                                                        </div>
-                                                    </dl>
-                                                    // Status badge
-                                                    <span data-testid="invite-code-status-cell">
-                                                        {match code.status {
-                                                            InviteCodeStatus::Unused => {
-                                                                view! {
-                                                                    <span
-                                                                        class="badge"
-                                                                        data-testid="invite-code-status-badge"
-                                                                        data-status="unused"
-                                                                    >
-                                                                        {t!(
-                                                                            i18n,
-                                                                            admin_invite_codes_status_unused
-                                                                        )}
-                                                                    </span>
-                                                                }
-                                                                .into_any()
-                                                            }
-                                                            InviteCodeStatus::Used => {
-                                                                view! {
-                                                                    <span
-                                                                        class="badge"
-                                                                        data-testid="invite-code-status-badge"
-                                                                        data-status="used"
-                                                                    >
-                                                                        {t!(
-                                                                            i18n,
-                                                                            admin_invite_codes_status_used
-                                                                        )}
-                                                                    </span>
-                                                                }
-                                                                .into_any()
-                                                            }
-                                                            InviteCodeStatus::Revoked => {
-                                                                view! {
-                                                                    <span
-                                                                        class="badge"
-                                                                        data-testid="invite-code-status-badge"
-                                                                        data-status="revoked"
-                                                                    >
-                                                                        {t!(
-                                                                            i18n,
-                                                                            admin_invite_codes_status_revoked
-                                                                        )}
-                                                                    </span>
-                                                                }
-                                                                .into_any()
-                                                            }
-                                                        }}
-                                                    </span>
-                                                    // Redeemer + timestamp (only when used).
-                                                    // Routed through the canonical .info-list
-                                                    // label:value treatment (R2-03) — the same
-                                                    // shape as the distributor meta above, so
-                                                    // the two label:value pairs on the card
-                                                    // read as one idiom instead of two. Name
-                                                    // and date stay on separate lines within
-                                                    // the value cell so a long double-barrel
-                                                    // name wraps within its own row instead of
-                                                    // pushing the date to a second line and
-                                                    // jaggedly varying card height (OV L11).
-                                                    <dl
-                                                        class="info-list invite-code-card-redeemer"
-                                                        data-testid="invite-code-redeemer-cell"
-                                                    >
-                                                        {code.redeemer_name.clone().map(|name| {
-                                                            let redeemed_at = code.redeemed_at.clone();
-                                                            view! {
-                                                                <div class="info-item">
-                                                                    <dt class="info-label">
-                                                                        {t!(
-                                                                            i18n,
-                                                                            admin_invite_codes_redeemer_label
-                                                                        )}
-                                                                    </dt>
-                                                                    <dd class="info-value">
-                                                                        <span class="invite-code-card-redeemer-name">
-                                                                            {name}
-                                                                        </span>
-                                                                        {redeemed_at.map(|date_str| view! {
-                                                                            <small class="invite-code-card-redeemer-date">
-                                                                                {date_str}
-                                                                            </small>
-                                                                        })}
-                                                                    </dd>
-                                                                </div>
-                                                            }
-                                                        })}
-                                                    </dl>
-                                                    // Revoke action (only for unused codes)
-                                                    <span class="invite-code-card-action">
-                                                        {if code.status == InviteCodeStatus::Unused {
-                                                            let code_id = code.id.to_string();
-                                                            view! {
-                                                                <leptos::form::ActionForm action=revoke_invite_action>
-                                                                    <input
-                                                                        type="hidden"
-                                                                        name="id"
-                                                                        value=code_id
-                                                                    />
-                                                                    // Secondary variant (FU-20): revoke is frequent
-                                                                    // and low-consequence — demoted off
-                                                                    // destructive-red so red stays a real danger
-                                                                    // signal reserved for cancel-confirm. Intent
-                                                                    // is carried by the label + status badge.
-                                                                    <button
-                                                                        class="btn"
-                                                                        data-variant="secondary"
-                                                                        data-size="sm"
-                                                                        type="submit"
-                                                                        data-testid="invite-code-revoke-button"
-                                                                        disabled=move || revoke_pending.get() || !hydrated.get()
-                                                                        attr:aria-busy=move || revoke_pending.get().then_some("true")
-                                                                    >
-                                                                        {t!(
-                                                                            i18n,
-                                                                            admin_invite_codes_revoke_button
-                                                                        )}
-                                                                    </button>
-                                                                </leptos::form::ActionForm>
-                                                            }
-                                                            .into_any()
-                                                        } else {
-                                                            ().into_any()
-                                                        }}
-                                                    </span>
-                                                </li>
-                                            </For>
+                                                children=move |code| {
+                                                    view! {
+                                                        <InviteCodeCard
+                                                            code=code
+                                                            revoke_invite_action=revoke_invite_action
+                                                            revoke_pending=revoke_pending
+                                                            hydrated=hydrated
+                                                        />
+                                                    }
+                                                }
+                                            />
                                         </ul>
                                     }
                                     .into_any()
@@ -2039,6 +1891,179 @@ fn InviteCodesSection(
             </div>
         </section>
     }
+}
+
+/// One invite code row. Its own component (and `.into_any()`) is a type-erasure
+/// seam: inlined in the `<For>` it nests the list, row and status views into one
+/// type deep enough to overflow rustc's default recursion limit in wasm layout.
+#[component]
+fn InviteCodeCard(
+    code: InviteCodeRow,
+    revoke_invite_action: ServerAction<RevokeInviteCode>,
+    revoke_pending: Memo<bool>,
+    hydrated: ReadSignal<bool>,
+) -> impl IntoView {
+    let i18n = use_i18n();
+
+    view! {
+        <li class="invite-code-card" data-testid="invite-code-row">
+            // Code — primary identifier
+            <span
+                class="invite-code-card-code"
+                data-testid="invite-code-cell"
+            >
+                {code.code.clone()}
+            </span>
+            // Distributor — canonical label/value pair (RV-05):
+            // routed through .info-list so this meta block
+            // renders with the same overline-label + value
+            // treatment as every other label/value pair in the
+            // app, instead of a bare, unlabeled line.
+            <dl
+                class="info-list invite-code-card-meta"
+                data-testid="invite-code-distributor-cell"
+            >
+                <div class="info-item">
+                    <dt class="info-label">
+                        {t!(
+                            i18n,
+                            admin_invite_codes_distributor_label
+                        )}
+                    </dt>
+                    <dd class="info-value">
+                        {code.distributor_name.clone()}
+                    </dd>
+                </div>
+            </dl>
+            // Status badge
+            <span data-testid="invite-code-status-cell">
+                {match code.status {
+                    InviteCodeStatus::Unused => {
+                        view! {
+                            <span
+                                class="badge"
+                                data-testid="invite-code-status-badge"
+                                data-status="unused"
+                            >
+                                {t!(
+                                    i18n,
+                                    admin_invite_codes_status_unused
+                                )}
+                            </span>
+                        }
+                        .into_any()
+                    }
+                    InviteCodeStatus::Used => {
+                        view! {
+                            <span
+                                class="badge"
+                                data-testid="invite-code-status-badge"
+                                data-status="used"
+                            >
+                                {t!(
+                                    i18n,
+                                    admin_invite_codes_status_used
+                                )}
+                            </span>
+                        }
+                        .into_any()
+                    }
+                    InviteCodeStatus::Revoked => {
+                        view! {
+                            <span
+                                class="badge"
+                                data-testid="invite-code-status-badge"
+                                data-status="revoked"
+                            >
+                                {t!(
+                                    i18n,
+                                    admin_invite_codes_status_revoked
+                                )}
+                            </span>
+                        }
+                        .into_any()
+                    }
+                }}
+            </span>
+            // Redeemer + timestamp (only when used).
+            // Routed through the canonical .info-list
+            // label:value treatment (R2-03) — the same
+            // shape as the distributor meta above, so
+            // the two label:value pairs on the card
+            // read as one idiom instead of two. Name
+            // and date stay on separate lines within
+            // the value cell so a long double-barrel
+            // name wraps within its own row instead of
+            // pushing the date to a second line and
+            // jaggedly varying card height (OV L11).
+            <dl
+                class="info-list invite-code-card-redeemer"
+                data-testid="invite-code-redeemer-cell"
+            >
+                {code.redeemer_name.clone().map(|name| {
+                    let redeemed_at = code.redeemed_at.clone();
+                    view! {
+                        <div class="info-item">
+                            <dt class="info-label">
+                                {t!(
+                                    i18n,
+                                    admin_invite_codes_redeemer_label
+                                )}
+                            </dt>
+                            <dd class="info-value">
+                                <span class="invite-code-card-redeemer-name">
+                                    {name}
+                                </span>
+                                {redeemed_at.map(|date_str| view! {
+                                    <small class="invite-code-card-redeemer-date">
+                                        {date_str}
+                                    </small>
+                                })}
+                            </dd>
+                        </div>
+                    }
+                })}
+            </dl>
+            // Revoke action (only for unused codes)
+            <span class="invite-code-card-action">
+                {if code.status == InviteCodeStatus::Unused {
+                    let code_id = code.id.to_string();
+                    view! {
+                        <leptos::form::ActionForm action=revoke_invite_action>
+                            <input
+                                type="hidden"
+                                name="id"
+                                value=code_id
+                            />
+                            // Secondary variant (FU-20): revoke is frequent
+                            // and low-consequence — demoted off
+                            // destructive-red so red stays a real danger
+                            // signal reserved for cancel-confirm. Intent
+                            // is carried by the label + status badge.
+                            <button
+                                class="btn"
+                                data-variant="secondary"
+                                data-size="sm"
+                                type="submit"
+                                data-testid="invite-code-revoke-button"
+                                disabled=move || revoke_pending.get() || !hydrated.get()
+                                attr:aria-busy=move || revoke_pending.get().then_some("true")
+                            >
+                                {t!(
+                                    i18n,
+                                    admin_invite_codes_revoke_button
+                                )}
+                            </button>
+                        </leptos::form::ActionForm>
+                    }
+                    .into_any()
+                } else {
+                    ().into_any()
+                }}
+            </span>
+        </li>
+    }
+    .into_any()
 }
 
 fn matches_invite_status(status: InviteCodeStatus, query: &str) -> bool {
