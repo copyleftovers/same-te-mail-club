@@ -23,6 +23,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-06 19:00 UTC: U3 merged (gates: fmt, ssr clippy, ssr tests 92/0) + pushed; U4 minors merged (same gates green) + pushed. Running: T0, T1, U1.
 - 2026-10-06 ~20:00 UTC: T0, T1 and U1 were killed by a session limit (reset 22:40 UTC). The worker restarted. 22:50 UTC: Postgres and the loops restarted, T0/T1/U1 resumed.
 - 2026-10-06 23:05 UTC: T0 DONE_WITH_CONCERNS @4d000e7 (no recursion_limit; E2E 116/2/0 once; sabotage gates not run). Spec review dispatched (a4164fc74e49884c1, prompt orchestration/prompts/spec-T0.md). T1 and U1 still running.
+- 2026-10-06 23:15 UTC: T0 spec FAIL. Missing: LoginPage .into_any(), the InviteCodeStep and NameStep extractions, sabotage gates, 3x E2E and pasted gate output; the stale CI comment must go; the 2 extra components need justifying. The findings went back to the T0 implementer. Next spec reviewer: give it a shell (general-purpose + role file); the dev-discipline:spec-reviewer type has no Bash.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
