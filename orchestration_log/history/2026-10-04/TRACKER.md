@@ -19,6 +19,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-06 10:50 UTC: all 18 agents resumed; all killed by the weekly limit (reset 17:00 UTC).
 - 2026-10-06 17:55 UTC: resume policy changed (owner): SMALL BATCHES of 3, each batch finishes (implement -> spec -> quality -> merge) before the next. Order: U3 fix + U4 minors + T0; then T1, U1, U2; then ENV, A1, P lanes; then P-DOC; then F lanes. Loop scripts live at orchestration_log/history/2026-10-04/orchestration/scripts/.
 - 2026-10-06 18:00 UTC: batch 1 = U3-fix (DONE, quality re-review sent to ae5b62914242ed4a1), U4-minors, T0; T1 resumed into U3's freed slot.
+- 2026-10-06 18:25 UTC: U4-minors DONE @781241f, quality re-review sent to aae408a3826c4c153. U1 resumed into the slot. rustc drifted to 1.99 and wasm clippy fails in untouched code (32 errors); this is ENV's scope.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
