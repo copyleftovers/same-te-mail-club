@@ -1,4 +1,4 @@
-From 8da5b06f38c92529aab12ecdbe13c32efbabb5c4 Mon Sep 17 00:00:00 2001
+From cace3f23e0c4ea1134bc80d328c86ee5de4d74ac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:33 +0000
 Subject: [PATCH 1/2] fix(auth): require server-verified registration ticket
@@ -846,7 +846,7 @@ index a0abf76..05e249a 100644
 2.43.0
 
 
-From 51b7c9655e328f769de2664139c2207e74026472 Mon Sep 17 00:00:00 2001
+From 4bccd33f53c0ec95b72cd1f13ac53030140cf453 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:47:02 +0000
 Subject: [PATCH 2/2] style(auth): cargo fmt

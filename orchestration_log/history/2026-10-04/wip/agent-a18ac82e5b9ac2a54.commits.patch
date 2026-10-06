@@ -1,4 +1,4 @@
-From fad39624fbfc47a8ad6f0767101fc587534a3491 Mon Sep 17 00:00:00 2001
+From f01a419c167a882a1b33b0b294f2ea40c55693ac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:29 +0000
 Subject: [PATCH] ci: codegen builds in Check job and assert Playwright ran in

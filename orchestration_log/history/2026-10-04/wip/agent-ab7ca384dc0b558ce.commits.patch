@@ -1,4 +1,4 @@
-From 4afcf3aaeb64db64254dd5e3b1e3731746c391ea Mon Sep 17 00:00:00 2001
+From 55510c68b7f218cc0ff17e8b9ea8183ed0103079 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:39 +0000
 Subject: [PATCH] test(e2e): assert actual effects for login, deadline, cancel

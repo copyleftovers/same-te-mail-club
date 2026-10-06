@@ -1,5 +1,5 @@
 diff --git a/src/admin/assignments.rs b/src/admin/assignments.rs
-index 347443c..180bfc1 100644
+index 347443c..c3dcb70 100644
 --- a/src/admin/assignments.rs
 +++ b/src/admin/assignments.rs
 @@ -27,6 +27,15 @@ pub struct AssignmentLink {
@@ -18,10 +18,76 @@ index 347443c..180bfc1 100644
  }
  
  // ── SSR-only row types ───────────────────────────────────────────────────────
-@@ -461,3 +470,79 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
+@@ -55,6 +64,7 @@ struct AssignmentRow {
+     recipient_id: uuid::Uuid,
+     sender_name: String,
+     recipient_name: String,
++    receipt_status: crate::types::ReceiptStatus,
+ }
+ 
+ // ── SSR-only helper functions ────────────────────────────────────────────────
+@@ -159,6 +169,7 @@ async fn store_and_build_preview(
+                 sender_name: names.get(&sender_id).cloned().unwrap_or_default(),
+                 recipient_id: recipient_id.to_string(),
+                 recipient_name: names.get(&recipient_id).cloned().unwrap_or_default(),
++                recipient_receipt: crate::types::ReceiptStatus::NoResponse,
+             });
+         }
+ 
+@@ -404,7 +415,8 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
+             a.sender_id,
+             a.recipient_id,
+             su.name AS sender_name,
+-            ru.name AS recipient_name
++            ru.name AS recipient_name,
++            a.receipt_status AS "receipt_status: crate::types::ReceiptStatus"
+         FROM assignments a
+         JOIN users su ON su.id = a.sender_id
+         JOIN users ru ON ru.id = a.recipient_id
+@@ -450,6 +462,7 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
+                     sender_name: a.sender_name.clone(),
+                     recipient_id: a.recipient_id.to_string(),
+                     recipient_name: a.recipient_name.clone(),
++                    recipient_receipt: a.receipt_status,
+                 })
+                 .collect(),
+         })
+@@ -461,3 +474,111 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
          phase: season.phase,
      }))
  }
++
++/// Forwarding requests for one cohort chain (ordered: link i's recipient is
++/// link i+1's sender). A link failed when its recipient reported `NotReceived`.
++/// Each maximal run of failed links i..=j yields one request: the run's first
++/// sender (who still holds the mail they received) forwards it to link j's
++/// recipient. No requests when nobody — or everybody — failed.
++#[must_use]
++pub fn forwarding_requests(chain: &[AssignmentLink]) -> Vec<ForwardingRequest> {
++    let n = chain.len();
++    let failed = |i: usize| chain[i].recipient_receipt == crate::types::ReceiptStatus::NotReceived;
++    let Some(start) = (0..n).find(|&i| !failed(i)) else {
++        return Vec::new();
++    };
++    let mut requests = Vec::new();
++    let mut run_start: Option<usize> = None;
++    for step in 1..=n {
++        let i = (start + step) % n;
++        match (failed(i), run_start) {
++            (true, None) => run_start = Some(i),
++            (false, Some(first)) => {
++                let last = (i + n - 1) % n;
++                requests.push(ForwardingRequest {
++                    from_name: chain[first].sender_name.clone(),
++                    to_name: chain[last].recipient_name.clone(),
++                });
++                run_start = None;
++            }
++            (true, Some(_)) | (false, None) => {}
++        }
++    }
++    requests
++}
 +
 +#[cfg(test)]
 +mod forwarding_tests {

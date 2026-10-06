@@ -1,3 +1,16 @@
+diff --git a/locales/uk.json b/locales/uk.json
+index 048601d..cda8e7d 100644
+--- a/locales/uk.json
++++ b/locales/uk.json
+@@ -223,5 +223,7 @@
+   "sms_send_receipt_nudge_button": "Нагадати про отримання",
+   "sms_error_no_assignment_delivery_season": "Немає активного сезону на етапі розподілу або доставки.",
+   "sms_error_no_preparation_season": "Немає активного сезону на етапі підготовки.",
+-  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки."
++  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки.",
++  "home_enroll_confirm_deadline": "Лист має бути готовий до {{ deadline }}.",
++  "home_meetup_label": "Зустріч"
+ }
 diff --git a/src/lib.rs b/src/lib.rs
 index 4f95058..0df3c07 100644
 --- a/src/lib.rs
@@ -16,3 +29,68 @@ index 875a481..bb14dcd 100644
  #[cfg(feature = "ssr")]
  #[tokio::main]
  async fn main() {
+diff --git a/src/pages/home.rs b/src/pages/home.rs
+index d326751..524ec49 100644
+--- a/src/pages/home.rs
++++ b/src/pages/home.rs
+@@ -1238,7 +1238,8 @@ fn render_home_state(
+ 
+ #[cfg(test)]
+ mod tests {
+-    use super::{enrollment_new_address_is_complete, is_past_deadline};
++    use super::{enrollment_new_address_is_complete, is_past_deadline, shows_meetup, HomeState};
++    use crate::types::ReceiptStatus;
+ 
+     #[test]
+     fn past_deadline_blocks_when_not_test_mode() {
+@@ -1294,4 +1295,50 @@ mod tests {
+     fn both_fields_empty_rejected() {
+         assert!(!enrollment_new_address_is_complete("", 0));
+     }
++
++    // ── shows_meetup ───────────────────────────────────────────────────────────
++
++    #[test]
++    fn participating_states_show_meetup() {
++        for state in [
++            HomeState::EnrollmentOpen {
++                deadline: String::new(),
++                confirm_deadline: String::new(),
++                theme: None,
++                existing_address: None,
++            },
++            HomeState::Enrolled {
++                confirm_deadline: String::new(),
++            },
++            HomeState::Preparing {
++                confirm_deadline: String::new(),
++                deadline_passed: false,
++            },
++            HomeState::Confirmed,
++            HomeState::Assigning,
++            HomeState::Assigned {
++                recipient_name: String::new(),
++                recipient_phone: String::new(),
++                recipient_city: String::new(),
++                recipient_branch_number: 1,
++            },
++            HomeState::ReceiptConfirmed {
++                status: ReceiptStatus::Received,
++            },
++            HomeState::Complete,
++        ] {
++            assert!(shows_meetup(&state), "{state:?}");
++        }
++    }
++
++    #[test]
++    fn non_participating_states_hide_meetup() {
++        for state in [
++            HomeState::NoSeason,
++            HomeState::EnrollmentNotOpen,
++            HomeState::Cancelled,
++        ] {
++            assert!(!shows_meetup(&state), "{state:?}");
++        }
++    }
+ }

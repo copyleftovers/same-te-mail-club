@@ -1,4 +1,4 @@
-From 4f45a91f152d76ca1ab8b44133edcb7d8b9c30e4 Mon Sep 17 00:00:00 2001
+From f5f5f1b599e46bb503ae5813caea312ac88326b5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:47 +0000
 Subject: [PATCH] feat(home): let participants change their branch during

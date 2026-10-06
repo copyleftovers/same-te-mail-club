@@ -1,3 +1,16 @@
+diff --git a/locales/uk.json b/locales/uk.json
+index 285bf3b..71442a9 100644
+--- a/locales/uk.json
++++ b/locales/uk.json
+@@ -224,5 +224,7 @@
+   "sms_send_receipt_nudge_button": "Нагадати про отримання",
+   "sms_error_no_assignment_delivery_season": "Немає активного сезону на етапі розподілу або доставки.",
+   "sms_error_no_preparation_season": "Немає активного сезону на етапі підготовки.",
+-  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки."
++  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки.",
++  "home_receipt_timing_hint": "Відповідай, коли лист прийде. Якщо за 5 днів після SMS про отримувача нічого немає — натисни «Не отримав(ла)».",
++  "home_received_after_all_button": "Лист усе ж прийшов"
+ }
 diff --git a/src/lib.rs b/src/lib.rs
 index 4f95058..0df3c07 100644
 --- a/src/lib.rs
@@ -16,11 +29,383 @@ index 875a481..bb14dcd 100644
  #[cfg(feature = "ssr")]
  #[tokio::main]
  async fn main() {
+diff --git a/src/pages/home.rs b/src/pages/home.rs
+index d326751..1e52c15 100644
+--- a/src/pages/home.rs
++++ b/src/pages/home.rs
+@@ -49,19 +49,14 @@ pub enum HomeState {
+     /// Assignment phase — organizer is preparing assignments.
+     Assigning,
+ 
+-    /// Delivery phase, assignment exists, receipt not yet confirmed.
+-    Assigned {
+-        recipient_name: String,
+-        recipient_phone: String,
+-        recipient_city: String,
+-        recipient_branch_number: i32,
++    /// Delivery phase, participant is in the cycle. The recipient card stays
++    /// visible whatever they reported about their OWN incoming mail — sending
++    /// and receiving are independent.
++    Delivery {
++        recipient: RecipientCard,
++        own_receipt: ReceiptStatus,
+     },
+ 
+-    /// Delivery phase, participant has confirmed receipt (received or not received).
+-    /// Carries which outcome was confirmed so the rendered copy can distinguish
+-    /// "your mail arrived" from "you reported it never arrived" — see `render_receipt_confirmed`.
+-    ReceiptConfirmed { status: ReceiptStatus },
+-
+     /// Season is complete.
+     Complete,
+ 
+@@ -69,6 +64,15 @@ pub enum HomeState {
+     Cancelled,
+ }
+ 
++/// Who the participant sends to.
++#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
++pub struct RecipientCard {
++    pub name: String,
++    pub phone: String,
++    pub city: String,
++    pub branch_number: i32,
++}
++
+ // ── SSR-only row types ─────────────────────────────────────────────────────────
+ 
+ #[cfg(feature = "ssr")]
+@@ -224,8 +228,8 @@ async fn resolve_delivery_state(
+         return Ok(HomeState::Assigning);
+     };
+ 
+-    // Incoming assignment: has this user confirmed receiving their own mail?
+-    let incoming_status = sqlx::query_scalar!(
++    // Incoming assignment: every cycle member is also a recipient.
++    let own_receipt = sqlx::query_scalar!(
+         r#"
+         SELECT receipt_status AS "receipt_status: ReceiptStatus"
+         FROM assignments
+@@ -234,21 +238,19 @@ async fn resolve_delivery_state(
+         user_id,
+         season_id,
+     )
+-    .fetch_optional(pool)
++    .fetch_one(pool)
+     .await
+     .map_err(db_err)?;
+ 
+-    match incoming_status {
+-        Some(status @ (ReceiptStatus::Received | ReceiptStatus::NotReceived)) => {
+-            Ok(HomeState::ReceiptConfirmed { status })
+-        }
+-        _ => Ok(HomeState::Assigned {
+-            recipient_name: a.recipient_name,
+-            recipient_phone: a.recipient_phone,
+-            recipient_city: a.nova_poshta_city,
+-            recipient_branch_number: a.nova_poshta_number,
+-        }),
+-    }
++    Ok(HomeState::Delivery {
++        recipient: RecipientCard {
++            name: a.recipient_name,
++            phone: a.recipient_phone,
++            city: a.nova_poshta_city,
++            branch_number: a.nova_poshta_number,
++        },
++        own_receipt,
++    })
+ }
+ 
+ // ── Pure helpers (testable without SSR context) ────────────────────────────────
+@@ -547,7 +549,7 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
+ /// Confirm the participant has received (or not received) their mail.
+ ///
+ /// `received` is passed as a string "true"/"false" from the HTML form (submit button value).
+-/// One-way latch: once confirmed, cannot be changed.
++/// Transitions follow `ReceiptStatus::can_transition_to`: a first answer, or a late-arrival correction.
+ /// The participant is the RECIPIENT — this query uses `recipient_id`.
+ ///
+ /// # Errors
+@@ -587,13 +589,24 @@ pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(
+     .map_err(db_err)?
+     .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_no_delivery_season)))?;
+ 
++    let new_status = if received_bool {
++        ReceiptStatus::Received
++    } else {
++        ReceiptStatus::NotReceived
++    };
++
++    // Normalize empty string to None
++    let note = note.and_then(|n| {
++        let t = n.trim().to_owned();
++        if t.is_empty() { None } else { Some(t) }
++    });
++
+     // Find assignment where this user is the RECIPIENT
+-    let assignment_id = sqlx::query_scalar!(
++    let current = sqlx::query!(
+         r#"
+-        SELECT id
++        SELECT id, receipt_status AS "receipt_status: ReceiptStatus"
+         FROM assignments
+         WHERE recipient_id = $1 AND season_id = $2
+-          AND receipt_status = 'no_response'
+         "#,
+         user.id,
+         season_id,
+@@ -601,33 +614,33 @@ pub async fn confirm_receipt(received: String, note: Option<String>) -> Result<(
+     .fetch_optional(&pool)
+     .await
+     .map_err(db_err)?
++    .filter(|row| row.receipt_status.can_transition_to(new_status))
+     .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_already_confirmed)))?;
+ 
+-    let new_status = if received_bool {
+-        ReceiptStatus::Received
+-    } else {
+-        ReceiptStatus::NotReceived
+-    };
+-
+-    // Normalize empty string to None
+-    let note = note.and_then(|n| {
+-        let t = n.trim().to_owned();
+-        if t.is_empty() { None } else { Some(t) }
+-    });
+-
+-    sqlx::query!(
++    // Guarded on the status just read: a concurrent answer cannot be overwritten.
++    // A correction without a new note keeps the original note.
++    let affected = sqlx::query!(
+         r#"
+         UPDATE assignments
+-        SET receipt_status = $1, receipt_note = $2
+-        WHERE id = $3
++        SET receipt_status = $1, receipt_note = COALESCE($2, receipt_note)
++        WHERE id = $3 AND receipt_status = $4
+         "#,
+         new_status as ReceiptStatus,
+         note,
+-        assignment_id,
++        current.id,
++        current.receipt_status as ReceiptStatus,
+     )
+     .execute(&pool)
+     .await
+-    .map_err(db_err)?;
++    .map_err(db_err)?
++    .rows_affected();
++
++    if affected == 0 {
++        return Err(ServerFnError::new(td_string!(
++            Locale::uk,
++            home_error_already_confirmed
++        )));
++    }
+ 
+     Ok(())
+ }
+@@ -674,8 +687,8 @@ pub fn HomePage() -> impl IntoView {
+         }
+     });
+ 
+-    // Receipt confirmation transitions to ReceiptConfirmed, which renders an
+-    // inline thank-you heading — a toast would be redundant, so we omit it.
++    // Receipt confirmation re-renders the Delivery state with an inline
++    // thank-you heading — a toast would be redundant, so we omit it.
+ 
+     // enroll_action's field-discriminated errors (city/np_number) render locally
+     // next to their input (see render_enrollment_open); only the field-less
+@@ -1032,11 +1045,9 @@ fn render_receipt_form(
+     }
+ }
+ 
+-fn render_assignment_details(
+-    recipient_name: &str,
+-    recipient_phone: &str,
+-    recipient_city: &str,
+-    recipient_branch_number: i32,
++fn render_delivery(
++    recipient: RecipientCard,
++    own_receipt: ReceiptStatus,
+     receipt_action: ServerAction<ConfirmReceipt>,
+     hydrated: ReadSignal<bool>,
+     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+@@ -1046,8 +1057,8 @@ fn render_assignment_details(
+     let recipient_branch_text = t!(
+         i18n,
+         home_recipient_branch,
+-        branch_number = recipient_branch_number,
+-        city = recipient_city.to_string()
++        branch_number = recipient.branch_number,
++        city = recipient.city
+     );
+ 
+     view! {
+@@ -1056,7 +1067,7 @@ fn render_assignment_details(
+ 
+         <article class="card">
+             <h3 data-testid="recipient-name">
+-                {recipient_name.to_string()}
++                {recipient.name}
+             </h3>
+             <dl class="info-list">
+                 <div class="info-item">
+@@ -1069,49 +1080,66 @@ fn render_assignment_details(
+                     <dt class="info-label">{t!(i18n, home_phone_label)}</dt>
+                     <dd class="info-value">
+                         <a
+-                            href=format!("tel:{}", recipient_phone.to_string())
++                            href=format!("tel:{}", recipient.phone)
+                             class="info-link"
+                             data-testid="recipient-phone"
+                         >
+-                            {recipient_phone.to_string()}
++                            {recipient.phone}
+                         </a>
+                     </dd>
+                 </div>
+             </dl>
+         </article>
+ 
+-        {render_receipt_form(receipt_action, receipt_pending, hydrated, i18n)}
++        {render_own_receipt(own_receipt, receipt_action, receipt_pending, hydrated, i18n)}
+     }
+     .into_any()
+ }
+ 
+-/// Render the delivery-phase receipt-confirmed state.
+-///
+-/// Branches on `status`: a participant who reported their mail never arrived must
+-/// see that fact reflected back, not the same "thank you" copy shown for a
+-/// successful delivery. `NoResponse` cannot reach here — `resolve_delivery_state`
+-/// only produces `HomeState::ReceiptConfirmed` for `Received`/`NotReceived`.
+-fn render_receipt_confirmed(
+-    status: ReceiptStatus,
++fn render_own_receipt(
++    own_receipt: ReceiptStatus,
++    receipt_action: ServerAction<ConfirmReceipt>,
++    receipt_pending: Memo<bool>,
++    hydrated: ReadSignal<bool>,
+     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+ ) -> AnyView {
+-    match status {
+-        ReceiptStatus::NotReceived => view! {
+-            <div class="empty-state">
+-                <h1 class="empty-state-headline">{t!(i18n, home_not_received_heading)}</h1>
+-                <p class="empty-state-body" data-testid="receipt-thanks">
+-                    {t!(i18n, home_reported_label)}
+-                </p>
+-            </div>
++    match own_receipt {
++        ReceiptStatus::NoResponse => view! {
++            <p class="text-sm text-(--color-text-muted)" data-testid="receipt-timing-hint">
++                {t!(i18n, home_receipt_timing_hint)}
++            </p>
++            {render_receipt_form(receipt_action, receipt_pending, hydrated, i18n)}
+         }
+         .into_any(),
+-        ReceiptStatus::Received | ReceiptStatus::NoResponse => view! {
+-            <div class="empty-state">
+-                <h1 class="empty-state-headline">{t!(i18n, home_thanks_heading)}</h1>
+-                <p class="empty-state-body" data-testid="receipt-thanks">
+-                    {t!(i18n, home_received_confirmed_body)}
+-                </p>
+-            </div>
++        ReceiptStatus::Received => view! {
++            <section>
++                <h2>{t!(i18n, home_thanks_heading)}</h2>
++                <p data-testid="receipt-thanks">{t!(i18n, home_received_confirmed_body)}</p>
++            </section>
++        }
++        .into_any(),
++        ReceiptStatus::NotReceived => view! {
++            <section>
++                <h2>{t!(i18n, home_not_received_heading)}</h2>
++                <p data-testid="receipt-thanks">{t!(i18n, home_reported_label)}</p>
++                <leptos::form::ActionForm action=receipt_action>
++                    <button
++                        class="btn"
++                        data-variant="secondary"
++                        type="submit"
++                        name="received"
++                        value="true"
++                        data-testid="received-after-all-button"
++                        disabled=move || receipt_pending.get() || !hydrated.get()
++                    >
++                        {move || if receipt_pending.get() {
++                            t!(i18n, home_pending_sending).into_any()
++                        } else {
++                            t!(i18n, home_received_after_all_button).into_any()
++                        }}
++                    </button>
++                </leptos::form::ActionForm>
++            </section>
+         }
+         .into_any(),
+     }
+@@ -1201,22 +1229,10 @@ fn render_home_state(
+         }
+         .into_any(),
+ 
+-        HomeState::Assigned {
+-            recipient_name,
+-            recipient_phone,
+-            recipient_city,
+-            recipient_branch_number,
+-        } => render_assignment_details(
+-            &recipient_name,
+-            &recipient_phone,
+-            &recipient_city,
+-            recipient_branch_number,
+-            receipt_action,
+-            hydrated,
+-            i18n,
+-        ),
+-
+-        HomeState::ReceiptConfirmed { status } => render_receipt_confirmed(status, i18n),
++        HomeState::Delivery {
++            recipient,
++            own_receipt,
++        } => render_delivery(recipient, own_receipt, receipt_action, hydrated, i18n),
+ 
+         HomeState::Complete => view! {
+             <div class="empty-state">
 diff --git a/src/types.rs b/src/types.rs
-index d7c1e10..9720f7a 100644
+index d7c1e10..05804bd 100644
 --- a/src/types.rs
 +++ b/src/types.rs
-@@ -249,4 +249,30 @@ mod tests {
+@@ -101,6 +101,8 @@ pub enum UserStatus {
+ /// `NoResponse` = hasn't responded yet (default).
+ /// `Received` = actively confirmed receipt.
+ /// `NotReceived` = actively reported non-receipt.
++///
++/// Participant-driven transitions follow [`ReceiptStatus::can_transition_to`].
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+ #[cfg_attr(feature = "ssr", derive(sqlx::Type))]
+ #[cfg_attr(
+@@ -113,6 +115,19 @@ pub enum ReceiptStatus {
+     NotReceived,
+ }
+ 
++impl ReceiptStatus {
++    /// Participant-driven receipt transitions: a first answer, or correcting a
++    /// `NotReceived` report when the mail arrives late. `Received` is final.
++    #[must_use]
++    pub fn can_transition_to(self, next: Self) -> bool {
++        matches!(
++            (self, next),
++            (Self::NoResponse, Self::Received | Self::NotReceived)
++                | (Self::NotReceived, Self::Received)
++        )
++    }
++}
++
+ /// Invite code lifecycle status — mirrors `invite_code_status` Postgres enum.
+ ///
+ /// - `Unused`: code has been generated but not yet redeemed by any participant.
+@@ -249,4 +264,30 @@ mod tests {
          assert_eq!(Phase::Complete.to_string(), "complete");
          assert_eq!(Phase::Cancelled.to_string(), "cancelled");
      }

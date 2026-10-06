@@ -1,4 +1,4 @@
-From 57836373fae93c607ac56c3e201ba49aa0a15f75 Mon Sep 17 00:00:00 2001
+From e1736a651dac44df1cfe644bcbb69f7ad08c7e43 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:56 +0000
 Subject: [PATCH] fix(build): unwind panics on the server so a task panic

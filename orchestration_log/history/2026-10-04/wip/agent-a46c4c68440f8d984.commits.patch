@@ -1,4 +1,4 @@
-From f85b2c2908cfed03bb84a9f24c3da9dca29156b0 Mon Sep 17 00:00:00 2001
+From b6967d6357cae930bfc190dc0a7542176f27181b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:38 +0000
 Subject: [PATCH] docs(assignments): correct season lock comment to what the

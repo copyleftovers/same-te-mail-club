@@ -1,4 +1,4 @@
-From 294db28004fd9ae6baf53b4c54161360c3a14897 Mon Sep 17 00:00:00 2001
+From 799e2477d6b63a3ac110654539d3299a5ce3daac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 09:02:52 +0000
 Subject: [PATCH] build(env): pin toolchain and add idempotent bootstrap +
