@@ -1,5 +1,5 @@
 diff --git a/src/admin/page.rs b/src/admin/page.rs
-index cd5c0ca..f8ce200 100644
+index cd5c0ca..7b0fdac 100644
 --- a/src/admin/page.rs
 +++ b/src/admin/page.rs
 @@ -1042,6 +1042,7 @@ fn render_sms_report_inline(
@@ -26,15 +26,176 @@ index cd5c0ca..f8ce200 100644
  }
  
  // ── Participant section sub-components ────────────────────────────────────────
-@@ -1891,6 +1894,7 @@ fn InviteCodesSection(
+@@ -1891,53 +1894,18 @@ fn InviteCodesSection(
              </div>
          </section>
      }
 +    .into_any()
  }
  
- /// One invite code row. Its own component (and `.into_any()`) is a type-erasure
-@@ -2244,6 +2248,7 @@ fn ParticipantListSection(
+-/// One invite code row. Its own component (and `.into_any()`) is a type-erasure
+-/// seam: inlined in the `<For>` it nests the list, row and status views into one
+-/// type deep enough to overflow rustc's default recursion limit in wasm layout.
++/// Status badge cell of an invite code row. Own component (type-erased) so the row
++/// tree is not one nested type deep enough to overflow rustc's recursion limit.
+ #[component]
+-fn InviteCodeCard(
+-    code: InviteCodeRow,
+-    revoke_invite_action: ServerAction<RevokeInviteCode>,
+-    revoke_pending: Memo<bool>,
+-    hydrated: ReadSignal<bool>,
+-) -> impl IntoView {
++fn InviteCodeStatusCell(status: InviteCodeStatus) -> impl IntoView {
+     let i18n = use_i18n();
+ 
+     view! {
+-        <li class="invite-code-card" data-testid="invite-code-row">
+-            // Code — primary identifier
+-            <span
+-                class="invite-code-card-code"
+-                data-testid="invite-code-cell"
+-            >
+-                {code.code.clone()}
+-            </span>
+-            // Distributor — canonical label/value pair (RV-05):
+-            // routed through .info-list so this meta block
+-            // renders with the same overline-label + value
+-            // treatment as every other label/value pair in the
+-            // app, instead of a bare, unlabeled line.
+-            <dl
+-                class="info-list invite-code-card-meta"
+-                data-testid="invite-code-distributor-cell"
+-            >
+-                <div class="info-item">
+-                    <dt class="info-label">
+-                        {t!(
+-                            i18n,
+-                            admin_invite_codes_distributor_label
+-                        )}
+-                    </dt>
+-                    <dd class="info-value">
+-                        {code.distributor_name.clone()}
+-                    </dd>
+-                </div>
+-            </dl>
+-            // Status badge
+-            <span data-testid="invite-code-status-cell">
+-                {match code.status {
++        <span data-testid="invite-code-status-cell">
++            {match status {
+                     InviteCodeStatus::Unused => {
+                         view! {
+                             <span
+@@ -1984,24 +1952,24 @@ fn InviteCodeCard(
+                         .into_any()
+                     }
+                 }}
+-            </span>
+-            // Redeemer + timestamp (only when used).
+-            // Routed through the canonical .info-list
+-            // label:value treatment (R2-03) — the same
+-            // shape as the distributor meta above, so
+-            // the two label:value pairs on the card
+-            // read as one idiom instead of two. Name
+-            // and date stay on separate lines within
+-            // the value cell so a long double-barrel
+-            // name wraps within its own row instead of
+-            // pushing the date to a second line and
+-            // jaggedly varying card height (OV L11).
++        </span>
++    }
++    .into_any()
++}
++
++/// Redeemer name and date of a used invite code. Own component (type-erased) for the
++/// same layout-depth reason as `InviteCodeStatusCell`.
++#[component]
++fn InviteCodeRedeemer(redeemer_name: Option<String>, redeemed_at: Option<String>) -> impl IntoView {
++    let i18n = use_i18n();
++
++    view! {
+             <dl
+                 class="info-list invite-code-card-redeemer"
+                 data-testid="invite-code-redeemer-cell"
+             >
+-                {code.redeemer_name.clone().map(|name| {
+-                    let redeemed_at = code.redeemed_at.clone();
++                {redeemer_name.map(|name| {
++                    let redeemed_at = redeemed_at.clone();
+                     view! {
+                         <div class="info-item">
+                             <dt class="info-label">
+@@ -2024,6 +1992,69 @@ fn InviteCodeCard(
+                     }
+                 })}
+             </dl>
++    }
++    .into_any()
++}
++
++/// One invite code row. Its own component (and `.into_any()`) is a type-erasure
++/// seam: inlined in the `<For>` it nests the list, row and status views into one
++/// type deep enough to overflow rustc's default recursion limit in wasm layout.
++#[component]
++fn InviteCodeCard(
++    code: InviteCodeRow,
++    revoke_invite_action: ServerAction<RevokeInviteCode>,
++    revoke_pending: Memo<bool>,
++    hydrated: ReadSignal<bool>,
++) -> impl IntoView {
++    let i18n = use_i18n();
++
++    view! {
++        <li class="invite-code-card" data-testid="invite-code-row">
++            // Code — primary identifier
++            <span
++                class="invite-code-card-code"
++                data-testid="invite-code-cell"
++            >
++                {code.code.clone()}
++            </span>
++            // Distributor — canonical label/value pair (RV-05):
++            // routed through .info-list so this meta block
++            // renders with the same overline-label + value
++            // treatment as every other label/value pair in the
++            // app, instead of a bare, unlabeled line.
++            <dl
++                class="info-list invite-code-card-meta"
++                data-testid="invite-code-distributor-cell"
++            >
++                <div class="info-item">
++                    <dt class="info-label">
++                        {t!(
++                            i18n,
++                            admin_invite_codes_distributor_label
++                        )}
++                    </dt>
++                    <dd class="info-value">
++                        {code.distributor_name.clone()}
++                    </dd>
++                </div>
++            </dl>
++            // Status badge
++            <InviteCodeStatusCell status=code.status />
++            // Redeemer + timestamp (only when used).
++            // Routed through the canonical .info-list
++            // label:value treatment (R2-03) — the same
++            // shape as the distributor meta above, so
++            // the two label:value pairs on the card
++            // read as one idiom instead of two. Name
++            // and date stay on separate lines within
++            // the value cell so a long double-barrel
++            // name wraps within its own row instead of
++            // pushing the date to a second line and
++            // jaggedly varying card height (OV L11).
++            <InviteCodeRedeemer
++                redeemer_name=code.redeemer_name.clone()
++                redeemed_at=code.redeemed_at.clone()
++            />
+             // Revoke action (only for unused codes)
+             <span class="invite-code-card-action">
+                 {if code.status == InviteCodeStatus::Unused {
+@@ -2244,6 +2275,7 @@ fn ParticipantListSection(
              </Suspense>
          </div>
      }
@@ -61,14 +222,101 @@ index 875a481..37ed525 100644
  #[tokio::main]
  async fn main() {
 diff --git a/src/pages/home.rs b/src/pages/home.rs
-index d326751..8910f58 100644
+index d326751..a7a9e78 100644
 --- a/src/pages/home.rs
 +++ b/src/pages/home.rs
-@@ -1030,6 +1030,7 @@ fn render_receipt_form(
+@@ -1030,55 +1030,73 @@ fn render_receipt_form(
              </leptos::form::ActionForm>
          </section>
      }
 +    .into_any()
  }
  
- fn render_assignment_details(
+-fn render_assignment_details(
+-    recipient_name: &str,
+-    recipient_phone: &str,
+-    recipient_city: &str,
+-    recipient_branch_number: i32,
+-    receipt_action: ServerAction<ConfirmReceipt>,
+-    hydrated: ReadSignal<bool>,
+-    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+-) -> AnyView {
+-    let receipt_pending = receipt_action.pending();
+-
+-    let recipient_branch_text = t!(
++/// Recipient name, branch and phone. Its own component (type-erased) so the assignment
++/// view does not nest this tree into one type deep enough to overflow rustc's default
++/// recursion limit during layout.
++#[component]
++fn RecipientCard(name: String, phone: String, city: String, branch_number: i32) -> impl IntoView {
++    let i18n = use_i18n();
++    let branch_text = t!(
+         i18n,
+         home_recipient_branch,
+-        branch_number = recipient_branch_number,
+-        city = recipient_city.to_string()
++        branch_number = branch_number,
++        city = city
+     );
+ 
+     view! {
+-        <h1>{t!(i18n, home_assigned_heading)}</h1>
+-        <p>{t!(i18n, home_send_instructions)}</p>
+-
+         <article class="card">
+             <h3 data-testid="recipient-name">
+-                {recipient_name.to_string()}
++                {name}
+             </h3>
+             <dl class="info-list">
+                 <div class="info-item">
+                     <dt class="info-label">{t!(i18n, home_branch_label)}</dt>
+                     <dd class="info-value" data-testid="recipient-branch">
+-                        {recipient_branch_text}
++                        {branch_text}
+                     </dd>
+                 </div>
+                 <div class="info-item">
+                     <dt class="info-label">{t!(i18n, home_phone_label)}</dt>
+                     <dd class="info-value">
+                         <a
+-                            href=format!("tel:{}", recipient_phone.to_string())
++                            href=format!("tel:{phone}")
+                             class="info-link"
+                             data-testid="recipient-phone"
+                         >
+-                            {recipient_phone.to_string()}
++                            {phone}
+                         </a>
+                     </dd>
+                 </div>
+             </dl>
+         </article>
++    }
++    .into_any()
++}
++
++fn render_assignment_details(
++    recipient_name: &str,
++    recipient_phone: &str,
++    recipient_city: &str,
++    recipient_branch_number: i32,
++    receipt_action: ServerAction<ConfirmReceipt>,
++    hydrated: ReadSignal<bool>,
++    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
++) -> AnyView {
++    let receipt_pending = receipt_action.pending();
++
++    view! {
++        <h1>{t!(i18n, home_assigned_heading)}</h1>
++        <p>{t!(i18n, home_send_instructions)}</p>
++
++        <RecipientCard
++            name=recipient_name.to_string()
++            phone=recipient_phone.to_string()
++            city=recipient_city.to_string()
++            branch_number=recipient_branch_number
++        />
+ 
+         {render_receipt_form(receipt_action, receipt_pending, hydrated, i18n)}
+     }
