@@ -22,6 +22,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-06 18:25 UTC: U4-minors DONE @781241f, quality re-review sent to aae408a3826c4c153. U1 resumed into the slot. rustc drifted to 1.99 and wasm clippy fails in untouched code (32 errors); this is ENV's scope.
 - 2026-10-06 19:00 UTC: U3 merged (gates: fmt, ssr clippy, ssr tests 92/0) + pushed; U4 minors merged (same gates green) + pushed. Running: T0, T1, U1.
 - 2026-10-06 ~20:00 UTC: T0, T1 and U1 were killed by a session limit (reset 22:40 UTC). The worker restarted. 22:50 UTC: Postgres and the loops restarted, T0/T1/U1 resumed.
+- 2026-10-06 23:05 UTC: T0 DONE_WITH_CONCERNS @4d000e7 (no recursion_limit; E2E 116/2/0 once; sabotage gates not run). Spec review dispatched (a4164fc74e49884c1, prompt orchestration/prompts/spec-T0.md). T1 and U1 still running.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
