@@ -1897,105 +1897,6 @@ fn InviteCodesSection(
     .into_any()
 }
 
-/// Status badge cell of an invite code row. Own component (type-erased) so the row
-/// tree is not one nested type deep enough to overflow rustc's recursion limit.
-#[component]
-fn InviteCodeStatusCell(status: InviteCodeStatus) -> impl IntoView {
-    let i18n = use_i18n();
-
-    view! {
-        <span data-testid="invite-code-status-cell">
-            {match status {
-                    InviteCodeStatus::Unused => {
-                        view! {
-                            <span
-                                class="badge"
-                                data-testid="invite-code-status-badge"
-                                data-status="unused"
-                            >
-                                {t!(
-                                    i18n,
-                                    admin_invite_codes_status_unused
-                                )}
-                            </span>
-                        }
-                        .into_any()
-                    }
-                    InviteCodeStatus::Used => {
-                        view! {
-                            <span
-                                class="badge"
-                                data-testid="invite-code-status-badge"
-                                data-status="used"
-                            >
-                                {t!(
-                                    i18n,
-                                    admin_invite_codes_status_used
-                                )}
-                            </span>
-                        }
-                        .into_any()
-                    }
-                    InviteCodeStatus::Revoked => {
-                        view! {
-                            <span
-                                class="badge"
-                                data-testid="invite-code-status-badge"
-                                data-status="revoked"
-                            >
-                                {t!(
-                                    i18n,
-                                    admin_invite_codes_status_revoked
-                                )}
-                            </span>
-                        }
-                        .into_any()
-                    }
-                }}
-        </span>
-    }
-    .into_any()
-}
-
-/// Redeemer name and date of a used invite code. Own component (type-erased) for the
-/// same layout-depth reason as `InviteCodeStatusCell`.
-#[component]
-fn InviteCodeRedeemer(redeemer_name: Option<String>, redeemed_at: Option<String>) -> impl IntoView {
-    let i18n = use_i18n();
-
-    view! {
-            <dl
-                class="info-list invite-code-card-redeemer"
-                data-testid="invite-code-redeemer-cell"
-            >
-                {redeemer_name.map(|name| {
-                    let redeemed_at = redeemed_at.clone();
-                    view! {
-                        <div class="info-item">
-                            <dt class="info-label">
-                                {t!(
-                                    i18n,
-                                    admin_invite_codes_redeemer_label
-                                )}
-                            </dt>
-                            <dd class="info-value">
-                                <span class="invite-code-card-redeemer-name">
-                                    {name}
-                                </span>
-                                {redeemed_at.map(|date_str| view! {
-                                    <small class="invite-code-card-redeemer-date">
-                                        {date_str}
-                                    </small>
-                                })}
-                            </dd>
-                        </div>
-                    }
-                })}
-            </dl>
-    }
-    .into_any()
-}
-
 /// One invite code row. Its own component (and `.into_any()`) is a type-erasure
 /// seam: inlined in the `<For>` it nests the list, row and status views into one
 /// type deep enough to overflow rustc's default recursion limit in wasm layout.
@@ -2039,7 +1940,58 @@ fn InviteCodeCard(
                 </div>
             </dl>
             // Status badge
-            <InviteCodeStatusCell status=code.status />
+            {view! {
+            <span data-testid="invite-code-status-cell">
+                {match code.status {
+                        InviteCodeStatus::Unused => {
+                            view! {
+                                <span
+                                    class="badge"
+                                    data-testid="invite-code-status-badge"
+                                    data-status="unused"
+                                >
+                                    {t!(
+                                        i18n,
+                                        admin_invite_codes_status_unused
+                                    )}
+                                </span>
+                            }
+                            .into_any()
+                        }
+                        InviteCodeStatus::Used => {
+                            view! {
+                                <span
+                                    class="badge"
+                                    data-testid="invite-code-status-badge"
+                                    data-status="used"
+                                >
+                                    {t!(
+                                        i18n,
+                                        admin_invite_codes_status_used
+                                    )}
+                                </span>
+                            }
+                            .into_any()
+                        }
+                        InviteCodeStatus::Revoked => {
+                            view! {
+                                <span
+                                    class="badge"
+                                    data-testid="invite-code-status-badge"
+                                    data-status="revoked"
+                                >
+                                    {t!(
+                                        i18n,
+                                        admin_invite_codes_status_revoked
+                                    )}
+                                </span>
+                            }
+                            .into_any()
+                        }
+                    }}
+            </span>
+            }
+            .into_any()}
             // Redeemer + timestamp (only when used).
             // Routed through the canonical .info-list
             // label:value treatment (R2-03) — the same
@@ -2051,10 +2003,37 @@ fn InviteCodeCard(
             // name wraps within its own row instead of
             // pushing the date to a second line and
             // jaggedly varying card height (OV L11).
-            <InviteCodeRedeemer
-                redeemer_name=code.redeemer_name.clone()
-                redeemed_at=code.redeemed_at.clone()
-            />
+            {view! {
+                <dl
+                    class="info-list invite-code-card-redeemer"
+                    data-testid="invite-code-redeemer-cell"
+                >
+                    {code.redeemer_name.clone().map(|name| {
+                        let redeemed_at = code.redeemed_at.clone();
+                        view! {
+                            <div class="info-item">
+                                <dt class="info-label">
+                                    {t!(
+                                        i18n,
+                                        admin_invite_codes_redeemer_label
+                                    )}
+                                </dt>
+                                <dd class="info-value">
+                                    <span class="invite-code-card-redeemer-name">
+                                        {name}
+                                    </span>
+                                    {redeemed_at.map(|date_str| view! {
+                                        <small class="invite-code-card-redeemer-date">
+                                            {date_str}
+                                        </small>
+                                    })}
+                                </dd>
+                            </div>
+                        }
+                    })}
+                </dl>
+            }
+            .into_any()}
             // Revoke action (only for unused codes)
             <span class="invite-code-card-action">
                 {if code.status == InviteCodeStatus::Unused {

@@ -676,6 +676,7 @@ pub fn LoginPage() -> impl IntoView {
             </div>
         </div>
     }
+    .into_any()
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -801,6 +802,35 @@ fn LoginStepRouter(
             on_resend=resend
         />
 
+        <InviteCodeStep
+            is_pending=is_pending
+            hydrated=hydrated
+            entered_code=entered_code
+            set_entered_code=set_entered_code
+        />
+        <NameStep
+            is_pending=is_pending
+            hydrated=hydrated
+            register_action=register_action
+            entered_code=entered_code
+            set_entered_code=set_entered_code
+        />
+    }
+    .into_any()
+}
+
+/// Step 3: invite code entry. Shown when a registration is pending and no code has
+/// been entered yet.
+#[component]
+fn InviteCodeStep(
+    is_pending: bool,
+    hydrated: ReadSignal<bool>,
+    entered_code: ReadSignal<Option<String>>,
+    set_entered_code: WriteSignal<Option<String>>,
+) -> impl IntoView {
+    let i18n = use_i18n();
+
+    view! {
         // ── Step 3: Invite code ───────────────────────────────────────────────
         // Shown when pending_registration is true AND no code entered yet.
         <div
@@ -817,7 +847,23 @@ fn LoginStepRouter(
                 on_submit=move |code| set_entered_code.set(Some(code))
             />
         </div>
+    }
+    .into_any()
+}
 
+/// Step 4: name collection. Shown when a registration is pending and a code has been
+/// entered.
+#[component]
+fn NameStep(
+    is_pending: bool,
+    hydrated: ReadSignal<bool>,
+    register_action: ServerAction<RegisterWithCode>,
+    entered_code: ReadSignal<Option<String>>,
+    set_entered_code: WriteSignal<Option<String>>,
+) -> impl IntoView {
+    let i18n = use_i18n();
+
+    view! {
         // ── Step 4: Name collection ────────────────────────────────────────────
         // Shown when pending_registration is true AND a code has been entered.
         <div
@@ -839,9 +885,10 @@ fn LoginStepRouter(
 
 /// Step 1: phone entry. Hidden once the OTP step activates, a pending registration
 /// is set, or the server redirected back with an OTP error.
-// WHY `.into_any()`: a login step is its own type-erasure seam. Without it the whole
-// four-step tree is one nested view type and rustc's layout of the `into_any` async
-// blocks exceeds the default recursion limit (see conventions: view-type depth).
+// WHY `.into_any()`: each login step is its own type-erasure seam. Without it the whole
+// four-step tree is one nested view type, and rustc's layout of the `into_any` async
+// blocks exceeds its default recursion limit at codegen ("queries overflow the depth
+// limit!"); `cargo clippy` and `cargo test` never reach that layout.
 #[component]
 fn PhoneStep(
     otp_step: Memo<bool>,
