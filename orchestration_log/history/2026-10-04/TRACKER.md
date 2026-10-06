@@ -13,6 +13,9 @@ Problems live in `PROBLEMS.md` (same dir). This file tracks only solutions: whic
 ## Recovery state (2026-10-05 20:40 UTC)
 All implementers were killed by a session limit at ~09:20 UTC. Their work is preserved on this branch as patches in `wip/` (`INDEX.txt` lists per worktree: branch, base, commit count, uncommitted size; `<id>.commits.patch` = committed work, `<id>.uncommitted.patch` = working-tree diff). Apply with `git am` / `git apply` onto the listed base to recover a lane without the remote machine. Worktree target/ dirs were deleted (disk). Lane agents resumed 20:45 UTC. A background loop snapshots wip/ patches every 15 min onto this branch. Order of recovery: land U3+U4 (quality reviews resumed), then resume the lanes (SendMessage to the same agent ids — resume, not relaunch).
 
+## Recovery log
+- 2026-10-06 00:50 UTC: machine restored from an old disk snapshot (local branch at 5360af1, worktrees at ~09:20 state). Branch fast-forwarded from origin; every worktree rebuilt from wip/ patches of 2026-10-05 21:15 (old state kept in git stash entries `pre-restore-<id>`); Postgres restarted; all 18 agents resumed; loop scripts now tracked in orchestration/scripts/.
+
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
 |---|---|---|---|---|---|---|---|
