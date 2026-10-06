@@ -25,6 +25,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-06 23:05 UTC: T0 DONE_WITH_CONCERNS @4d000e7 (no recursion_limit; E2E 116/2/0 once; sabotage gates not run). Spec review dispatched (a4164fc74e49884c1, prompt orchestration/prompts/spec-T0.md). T1 and U1 still running.
 - 2026-10-06 23:15 UTC: T0 spec FAIL. Missing: LoginPage .into_any(), the InviteCodeStep and NameStep extractions, sabotage gates, 3x E2E and pasted gate output; the stale CI comment must go; the 2 extra components need justifying. The findings went back to the T0 implementer. Next spec reviewer: give it a shell (general-purpose + role file); the dev-discipline:spec-reviewer type has no Bash.
 - 2026-10-06 23:30 UTC: U1 DONE_WITH_CONCERNS @4bccd33 (3x E2E 120/2/0 reported; the curl gate was skipped). Spec review (general-purpose + role file, with shell) dispatched: a2360fe04bb536092, prompt spec-U1.md. U2 is held so no more than 3 agents run at once.
+- 2026-10-06 23:45 UTC: T1 DONE_WITH_CONCERNS @a6bb8be. The stress test went red on the abort build and green on the unwind build. E2E was green on 3 of 4 runs; run 2 flaked at visual-audit:800 (inactive-status matched 2 rows). Spec review dispatched: a8dd9d6cf2adcb3b0 (spec-T1.md); it must root-cause the flake.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
