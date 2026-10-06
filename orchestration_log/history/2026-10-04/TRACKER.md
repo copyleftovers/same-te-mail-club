@@ -16,6 +16,9 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 ## Recovery log
 - 2026-10-06 00:50 UTC: machine restored from an old disk snapshot (local branch at 5360af1, worktrees at ~09:20 state). Branch fast-forwarded from origin; every worktree rebuilt from wip/ patches of 2026-10-05 21:15 (old state kept in git stash entries `pre-restore-<id>`); Postgres restarted; all 18 agents resumed; loop scripts now tracked in orchestration/scripts/.
 
+- 2026-10-06 10:50 UTC: all 18 agents resumed; all killed by the weekly limit (reset 17:00 UTC).
+- 2026-10-06 17:55 UTC: resume policy changed (owner): SMALL BATCHES of 3, each batch finishes (implement -> spec -> quality -> merge) before the next. Order: U3 fix + U4 minors + T0; then T1, U1, U2; then ENV, A1, P lanes; then P-DOC; then F lanes. Loop scripts live at orchestration_log/history/2026-10-04/orchestration/scripts/.
+
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
 |---|---|---|---|---|---|---|---|
