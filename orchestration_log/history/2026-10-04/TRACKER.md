@@ -29,6 +29,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 00:05 UTC: U1 spec PASS. The reviewer ran the curl attack tests itself, all refused; E2E 120/2/0 clean. Quality review dispatched: a28e91d30492f1a82 (quality-U1.md). Note: the reviewer saw a reactive-disposal server abort in one E2E run, which T1 fixes. 23:49 UTC: disk hit 100%; freed idle target/ dirs; disk monitor armed.
 - 2026-10-07 ~00:30 UTC: the T0 implementer, the T1 spec reviewer and the U1 quality reviewer were all killed by a session limit (reset 03:40); the container restarted. 03:50: Postgres and the loops restarted and all three resumed. T0 is at 3d8f468 (spec fixes committed; evidence steps pending).
 - 2026-10-07 04:20 UTC: T1 spec PASS. The reviewer re-ran RED/GREEN and 1x E2E 116/2/0. Quality review dispatched: aaced95f49cc2fd50 (quality-T1.md). New problems: PRB-101 (unscoped `inactive-status` wait in the POM: the flake's root cause) and PRB-102 (rustc 1.99 drift, wasm clippy red). PRB-101 goes to F-COV, PRB-102 to ENV. PLAN-blockers stress-script wording changed burst -> round to match the script.
+- 2026-10-07 04:25 UTC: order changed. ENV now takes the next free slot, ahead of U2, because PRB-102 keeps wasm clippy red on every lane. ENV's resume message must point to the PLAN-blockers ENV addendum; F-COV's resume message must point to its addendum (PRB-101).
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
