@@ -191,7 +191,7 @@ Server-heavy deps (sqlx, reqwest, phonenumber, rand, blake2, sha2, anyhow, tower
 | `TURBOSMS_SENDER` | Yes, unless `SAMETE_SMS_DRY_RUN=true` | Registered alpha-name |
 | `SAMETE_SMS_DRY_RUN` | No (dev/E2E only) | `true` = SMS are logged (including OTP codes), never sent. Never set in production |
 | `SAMETE_TEST_MODE` | No (dev/E2E only) | `true` = fixed OTP `000000`, no OTP rate limits, no deadline gates. Boot is refused unless `SAMETE_SMS_DRY_RUN=true` AND the server binds a loopback address. Never set in production |
-| `SAMETE_ADMIN_PHONE` | No (set both or neither) | Phone of the first organizer. At every boot the app ensures this user exists with role `admin` (creates it, or promotes an existing account). Any Ukrainian format; stored as E.164 |
+| `SAMETE_ADMIN_PHONE` | No (set both or neither) | Phone of the first organizer. At every boot the app ensures this user exists with role `admin` (creates it, or promotes and reactivates an existing account). Any Ukrainian format; stored as E.164 |
 | `SAMETE_ADMIN_NAME` | No (set both or neither) | Display name used only when the admin user is created |
 | `RUST_LOG` | No | Log filter; default `samete=info,tower_http=info` |
 
@@ -206,4 +206,4 @@ docker compose up   # local with Postgres
 
 ### First admin
 
-A fresh database has no organizer, and invite codes can only be created by one. Set `SAMETE_ADMIN_PHONE` and `SAMETE_ADMIN_NAME` in the Coolify environment and deploy: on boot the app creates that admin (or promotes the existing account with that phone). The operation is idempotent — leaving the variables set is safe. Then sign in at `/login` with that phone (real SMS OTP) and generate invite codes from `/admin`. Never run `seed/test_admin.sql` against production: it installs a fixed, publicly known test phone as admin.
+A fresh database has no organizer, and invite codes can only be created by one. Set `SAMETE_ADMIN_PHONE` and `SAMETE_ADMIN_NAME` in the Coolify environment and deploy: on boot the app creates that admin (or promotes and reactivates the existing account with that phone). The operation is idempotent — leaving the variables set is safe. Then sign in at `/login` with that phone (real SMS OTP) and generate invite codes from `/admin`. Never run `seed/test_admin.sql` against production: it installs a fixed, publicly known test phone as admin.

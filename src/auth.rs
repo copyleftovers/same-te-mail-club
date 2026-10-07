@@ -49,16 +49,21 @@ pub(crate) fn constant_time_hash_eq(a: &str, b: &str) -> bool {
     a.as_bytes().ct_eq(b.as_bytes()).into()
 }
 
-fn extract_session_cookie(parts: &http::request::Parts) -> Option<String> {
+/// Generate a random 32-byte URL-safe token (43 chars, no padding).
+pub(crate) fn generate_token() -> String {
+    use rand::RngCore as _;
+    let mut bytes = [0u8; 32];
+    rand::rng().fill_bytes(&mut bytes);
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+}
+
+/// Read cookie `name` from the request's `Cookie` header (exact name match).
+pub(crate) fn extract_cookie(parts: &http::request::Parts, name: &str) -> Option<String> {
     let cookie_header = parts.headers.get(http::header::COOKIE)?.to_str().ok()?;
-    // Parse "session=<token>" from the Cookie header (multiple cookies possible)
-    for pair in cookie_header.split(';') {
-        let pair = pair.trim();
-        if let Some(value) = pair.strip_prefix("session=") {
-            return Some(value.to_owned());
-        }
-    }
-    None
+    cookie_header.split(';').find_map(|pair| {
+        let (key, value) = pair.trim().split_once('=')?;
+        (key == name).then(|| value.to_owned())
+    })
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -239,10 +244,7 @@ pub async fn verify_otp(
 ///
 /// Returns `Err` on database failure.
 pub async fn create_session(pool: &PgPool, user_id: Uuid) -> Result<String, AppError> {
-    use rand::RngCore as _;
-    let mut bytes = [0u8; 32];
-    rand::rng().fill_bytes(&mut bytes);
-    let raw_token = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+    let raw_token = generate_token();
 
     let token_hash = sha256_hex(&raw_token);
 
@@ -258,6 +260,122 @@ pub async fn create_session(pool: &PgPool, user_id: Uuid) -> Result<String, AppE
     .await?;
 
     Ok(raw_token)
+}
+
+/// Maximum invalid invite-code submissions per registration ticket.
+/// After this many, the ticket stops resolving and the user must re-verify by OTP.
+pub const MAX_INVITE_ATTEMPTS: i32 = 5;
+
+/// Record that `phone` passed OTP verification and may self-register.
+///
+/// Returns the raw token for the `registration_ticket` cookie; only its
+/// SHA-256 is stored. Ticket lives 10 minutes.
+///
+/// # Errors
+///
+/// Returns `Err` on database failure.
+pub async fn create_registration_ticket(pool: &PgPool, phone: &str) -> Result<String, AppError> {
+    let raw_token = generate_token();
+    let token_hash = sha256_hex(&raw_token);
+    let mut tx = pool.begin().await?;
+    sqlx::query!("DELETE FROM registration_tickets WHERE expires_at < now()")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query!(
+        r#"
+        INSERT INTO registration_tickets (token_hash, phone, expires_at)
+        VALUES ($1, $2, now() + interval '10 minutes')
+        "#,
+        token_hash,
+        phone,
+    )
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(raw_token)
+}
+
+/// Claim one invite-code attempt on a live ticket, atomically.
+///
+/// WHY a claim and not a check: the single `UPDATE` takes the row lock, so
+/// concurrent submissions on one ticket serialise and the cap cannot be
+/// overrun by a burst (a separate read-then-increment would let every request
+/// in the burst pass the read first). The attempt is spent BEFORE the
+/// code-existence lookup; callers hand it back with [`refund_invite_attempt`]
+/// when the submission turns out not to be a wrong guess.
+///
+/// # Errors
+///
+/// Returns `Err(AppError::Unauthorized)` if the ticket is unknown, expired,
+/// or has no attempts left; `Err(AppError::Database(_))` on DB failure.
+pub async fn claim_invite_attempt(pool: &PgPool, raw_token: &str) -> Result<(), AppError> {
+    let token_hash = sha256_hex(raw_token);
+    let claimed = sqlx::query!(
+        r#"
+        UPDATE registration_tickets
+        SET invite_attempts = invite_attempts + 1
+        WHERE token_hash = $1 AND expires_at > now() AND invite_attempts < $2
+        "#,
+        token_hash,
+        MAX_INVITE_ATTEMPTS,
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if claimed == 1 {
+        Ok(())
+    } else {
+        Err(AppError::Unauthorized)
+    }
+}
+
+/// Hand back an attempt taken by [`claim_invite_attempt`] for a submission that
+/// was not an invalid, used or revoked code (valid code, empty code, or an
+/// infrastructure failure), so only genuine wrong guesses count against the cap.
+///
+/// # Errors
+///
+/// Returns `Err` on database failure.
+pub async fn refund_invite_attempt(pool: &PgPool, raw_token: &str) -> Result<(), AppError> {
+    let token_hash = sha256_hex(raw_token);
+    sqlx::query!(
+        r#"
+        UPDATE registration_tickets
+        SET invite_attempts = invite_attempts - 1
+        WHERE token_hash = $1 AND invite_attempts > 0
+        "#,
+        token_hash,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Consume a live ticket inside the caller's transaction, returning its phone.
+/// Rolling back the transaction restores the ticket. The attempt cap is NOT
+/// re-checked here: callers claim an attempt first ([`claim_invite_attempt`]),
+/// which is the single place the cap is enforced.
+///
+/// # Errors
+///
+/// Returns `Err(AppError::Unauthorized)` if the ticket is unknown or expired;
+/// `Err(AppError::Database(_))` on DB failure.
+pub async fn consume_registration_ticket(
+    conn: &mut sqlx::PgConnection,
+    raw_token: &str,
+) -> Result<String, AppError> {
+    let token_hash = sha256_hex(raw_token);
+    sqlx::query_scalar!(
+        r#"
+        DELETE FROM registration_tickets
+        WHERE token_hash = $1 AND expires_at > now()
+        RETURNING phone
+        "#,
+        token_hash,
+    )
+    .fetch_optional(&mut *conn)
+    .await?
+    .ok_or(AppError::Unauthorized)
 }
 
 /// Validate a session from the raw cookie token value.
@@ -317,7 +435,7 @@ pub async fn current_user(
     pool: &PgPool,
     parts: &http::request::Parts,
 ) -> Result<CurrentUser, AppError> {
-    let raw_token = extract_session_cookie(parts).ok_or(AppError::Unauthorized)?;
+    let raw_token = extract_cookie(parts, "session").ok_or(AppError::Unauthorized)?;
     let user_id = validate_session(pool, &raw_token).await?;
 
     let row = sqlx::query_as!(
@@ -354,7 +472,7 @@ pub use crate::types::CurrentUser;
 
 #[cfg(test)]
 mod tests {
-    use super::{constant_time_hash_eq, sha256_hex};
+    use super::{constant_time_hash_eq, extract_cookie, generate_token, sha256_hex};
 
     // SHA-256 of the empty string — NIST FIPS 180-4 published test vector.
     // This verifies the algorithm identity, not any application constant.
@@ -383,6 +501,58 @@ mod tests {
         let digest = sha256_hex("any input");
         assert_eq!(digest.len(), 64);
         assert!(digest.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    fn parts_with_cookie(header: &str) -> http::request::Parts {
+        http::Request::builder()
+            .header(http::header::COOKIE, header)
+            .body(())
+            .expect("request builds")
+            .into_parts()
+            .0
+    }
+
+    #[test]
+    fn generate_token_is_43_url_safe_characters() {
+        let token = generate_token();
+        assert_eq!(token.len(), 43);
+        assert!(
+            token
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        );
+    }
+
+    #[test]
+    fn generate_token_is_distinct_per_call() {
+        assert_ne!(generate_token(), generate_token());
+    }
+
+    #[test]
+    fn extract_cookie_finds_named_cookie_among_several() {
+        let parts = parts_with_cookie("session=abc; registration_ticket=xyz");
+        assert_eq!(
+            extract_cookie(&parts, "registration_ticket").as_deref(),
+            Some("xyz")
+        );
+        assert_eq!(extract_cookie(&parts, "session").as_deref(), Some("abc"));
+    }
+
+    #[test]
+    fn extract_cookie_does_not_match_a_longer_name() {
+        let parts = parts_with_cookie("registration_ticket_old=zzz; xsession=1");
+        assert_eq!(extract_cookie(&parts, "registration_ticket"), None);
+        assert_eq!(extract_cookie(&parts, "session"), None);
+    }
+
+    #[test]
+    fn extract_cookie_returns_none_without_cookie_header() {
+        let parts = http::Request::builder()
+            .body(())
+            .expect("request builds")
+            .into_parts()
+            .0;
+        assert_eq!(extract_cookie(&parts, "session"), None);
     }
 
     #[test]

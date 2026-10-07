@@ -68,7 +68,12 @@ psql "$SIBLING_DBURL" -f seed/test_admin.sql
 
 # --- build release binary + pre-compress static assets ------------------
 
+# Remove the artifacts first so a failed build cannot leave a stale binary/WASM to be
+# served: cargo leptos has been observed to exit 0 on cargo build failure.
+rm -f target/release/samete target/site/pkg/samete.wasm
 cargo leptos build --release
+[ -x target/release/samete ] && [ -f target/site/pkg/samete.wasm ] \
+    || { echo "[isolated-capture] FATAL: release build produced no binary/WASM — build failed"; exit 1; }
 
 for asset in target/site/pkg/*.wasm target/site/pkg/*.js target/site/pkg/*.css; do
     [ -f "$asset" ] || continue

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO registration_tickets (token_hash, phone, expires_at)\n        VALUES ($1, $2, now() + interval '10 minutes')\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f96827d0faf790f064e1d663cdd41589ed2e2772946b9f86d21cdf1c91dddbe7"
+}

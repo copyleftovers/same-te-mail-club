@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# fire aborted requests at authed + anon pages; stop when server dies or panics
+PORT=$1; LOG=$2; ROUNDS=${3:-40}
+for r in $(seq 1 $ROUNDS); do
+  for p in / /admin /onboarding /login; do
+    for t in 0.003 0.006 0.01 0.02 0.04 0.08; do
+      curl -s -o /dev/null -b session=stresstoken123 --max-time $t http://127.0.0.1:$PORT$p >/dev/null 2>&1 &
+      curl -s -o /dev/null --max-time $t http://127.0.0.1:$PORT$p >/dev/null 2>&1 &
+    done
+  done
+  wait $(jobs -p | grep -v "^$SRV$") 2>/dev/null
+  if [ -z "$CONT" ] && grep -q panicked $LOG; then echo "PANIC at round $r"; exit 0; fi
+  if ! curl -s -o /dev/null --max-time 5 http://127.0.0.1:$PORT/login; then echo "DEAD at round $r"; exit 0; fi
+done
+echo "no panic after $ROUNDS rounds"

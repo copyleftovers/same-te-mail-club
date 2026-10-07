@@ -1,0 +1,619 @@
+lsof -i :3000 -t | xargs kill 2>/dev/null || true
+docker compose exec -T db psql -U samete -d postgres -c "select pg_terminate_backend(pid) from pg_stat_activity where datname='samete' and pid <> pg_backend_pid();" || true
+failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+sqlx database drop -y && sqlx database create && sqlx migrate run
+Applied 20260314000001/migrate create types (2.970823ms)
+Applied 20260314000002/migrate create tables (43.870231ms)
+Applied 20260314000003/migrate create invite codes (11.756162ms)
+Applied 20260624000001/migrate sms idempotency (5.358499ms)
+Applied 20260712000001/migrate add missing indexes (7.0057ms)
+[ -n "${DATABASE_URL:-}" ] || { echo "ERROR: DATABASE_URL not set -- source .env.example"; exit 1; }
+psql $DATABASE_URL -f seed/test_admin.sql
+INSERT 0 1
+SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
+    Metadata keys ["env"] from metadata.leptos are not recognized and will be ignored
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Tailwind finished tailwindcss --input style/tailwind.css --output /home/user/same-te-mail-club/target/tmp/tailwind.css --minify
+    Finished `wasm-release` profile [optimized] target(s) in 0.57s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+       Cargo finished cargo build --package=samete --lib --target-dir=/home/user/same-te-mail-club/target/front --target=wasm32-unknown-unknown --no-default-features --features=hydrate --profile=wasm-release
+       Front generating JS/WASM with wasm-bindgen
+       Using wasm-bindgen version 0.2.114 detected in project
+    Finished `release` profile [optimized] target(s) in 0.64s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+       Cargo finished cargo build --package=samete --bin=samete --no-default-features --features=ssr --release
+[swc_ecma_transforms_optimization] tree-shaker; pass=0
+[swc_ecma_transforms_optimization] tree-shaker; pass=1
+[swc_ecma_transforms_optimization] tree-shaker; pass=2
+[swc_ecma_transforms_optimization] tree-shaker; pass=0
+    Finished generating JS/WASM for front in 12.749809883s
+     Serving at http://127.0.0.1:3000 (with graceful shutdown)
+2026-10-04T21:42:12.702358Z  INFO samete: listening on http://127.0.0.1:3000
+
+Running 118 tests using 1 worker
+
+2026-10-04T21:42:17.506650Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000001" Твій код: 000000
+  ✓    1 [chromium] › tests/mail_club.spec.ts:80:9 › The Mail Club › Epic 1: Join the Community › 1.5 — admin generates invite codes for participants (2.3s)
+2026-10-04T21:42:19.473108Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000001" Твій код: 000000
+  ✓    2 [chromium] › tests/mail_club.spec.ts:98:9 › The Mail Club › Epic 1: Join the Community › 1.5 — generated codes appear in admin list with unused status (840ms)
+2026-10-04T21:42:20.300508Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000001" Твій код: 000000
+  ✓    3 [chromium] › tests/mail_club.spec.ts:110:9 › The Mail Club › Epic 1: Join the Community › 1.6 — admin revokes an unused code (1.5s)
+2026-10-04T21:42:21.820283Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000002" Твій код: 000000
+  ✓    4 [chromium] › tests/mail_club.spec.ts:126:9 › The Mail Club › Epic 1: Join the Community › 1.1 — participant A self-registers with invite code (1.1s)
+2026-10-04T21:42:23.065279Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000005" Твій код: 000000
+2026-10-04T21:42:23.392574Z ERROR tower_http::trace::on_failure: response failed classification=Status code: 500 Internal Server Error latency=2 ms
+  ✓    5 [chromium] › tests/mail_club.spec.ts:134:9 › The Mail Club › Epic 1: Join the Community › 1.1 — invalid invite code is rejected (920ms)
+2026-10-04T21:42:23.966598Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000007" Твій код: 000000
+2026-10-04T21:42:24.279035Z ERROR tower_http::trace::on_failure: response failed classification=Status code: 500 Internal Server Error latency=2 ms
+  ✓    6 [chromium] › tests/mail_club.spec.ts:149:9 › The Mail Club › Epic 1: Join the Community › 1.6 — revoked code cannot be redeemed (946ms)
+2026-10-04T21:42:24.936668Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000006" Твій код: 000000
+2026-10-04T21:42:25.327205Z ERROR tower_http::trace::on_failure: response failed classification=Status code: 500 Internal Server Error latency=0 ms
+  ✓    7 [chromium] › tests/mail_club.spec.ts:162:9 › The Mail Club › Epic 1: Join the Community › 1.1 — used invite code is rejected (944ms)
+2026-10-04T21:42:25.868376Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000002" Твій код: 000000
+  ✓    8 [chromium] › tests/mail_club.spec.ts:177:9 › The Mail Club › Epic 1: Join the Community › 1.2 — registered participant can sign in (764ms)
+2026-10-04T21:42:26.697716Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380679999999" Твій код: 000000
+  ✓    9 [chromium] › tests/mail_club.spec.ts:184:9 › The Mail Club › Epic 1: Join the Community › 1.2 — unregistered phone is rejected (789ms)
+2026-10-04T21:42:28.519978Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000002" Твій код: 000000
+  ✓   10 [chromium] › tests/mail_club.spec.ts:194:9 › The Mail Club › Epic 1: Join the Community › 1.3 — first login redirects to onboarding (6.7s)
+2026-10-04T21:42:34.228988Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000002" Твій код: 000000
+  ✓   11 [chromium] › tests/mail_club.spec.ts:201:9 › The Mail Club › Epic 1: Join the Community › 1.3 — participant completes onboarding (5.9s)
+2026-10-04T21:42:40.102852Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000002" Твій код: 000000
+  ✓   12 [chromium] › tests/mail_club.spec.ts:210:9 › The Mail Club › Epic 1: Join the Community › 1.3 — returning participant skips onboarding (703ms)
+2026-10-04T21:42:40.815987Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000003" Твій код: 000000
+  ✓   13 [chromium] › tests/mail_club.spec.ts:217:9 › The Mail Club › Epic 1: Join the Community › setup — self-register participant B (6.0s)
+2026-10-04T21:42:46.814507Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000004" Твій код: 000000
+  ✓   14 [chromium] › tests/mail_club.spec.ts:226:9 › The Mail Club › Epic 1: Join the Community › setup — self-register participant C (1.2s)
+2026-10-04T21:42:48.068209Z  INFO samete::sms: [DRY RUN] SMS would be sent phone="+380670000002" Твій код: 000000
+  ✓   15 [chromium] › tests/mail_club.spec.ts:236:9 › The Mail Club › Epic 1: Join the Community › 1.1 — non-admin cannot access admin pages (5.7s)
+
+thread 'tokio-rt-worker' (27382) panicked at /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/reactive_graph-0.2.13/src/traits.rs:394:39:
+Tried to access a reactive value that has already been disposed.
+stack backtrace:
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+  ✘   16 [chromium] › tests/mail_club.spec.ts:251:9 › The Mail Club › Epic 4: Season Management › 4.1 — admin creates a season with deadlines and theme (10.4s)
+  -   17 [chromium] › tests/mail_club.spec.ts:263:9 › The Mail Club › Epic 4: Season Management › 4.1 — season not enrollable before launch
+  -   18 [chromium] › tests/mail_club.spec.ts:274:9 › The Mail Club › Epic 4: Season Management › 4.1 — second active season is rejected
+  -   19 [chromium] › tests/mail_club.spec.ts:285:9 › The Mail Club › Epic 4: Season Management › 4.1 — non-admin cannot access season management
+  -   20 [chromium] › tests/mail_club.spec.ts:291:9 › The Mail Club › Epic 4: Season Management › 4.2 — admin launches the season
+  -   21 [chromium] › tests/mail_club.spec.ts:302:9 › The Mail Club › Epic 4: Season Management › 4.5 — all admin functionality on /admin
+  -   22 [chromium] › tests/mail_club.spec.ts:322:9 › The Mail Club › Epic 4: Season Management › 4.5 — phase-stepper visible after launch
+  -   23 [chromium] › tests/mail_club.spec.ts:332:9 › The Mail Club › Epic 4: Season Management › 4.6 — enrollment phase shows only season-open SMS button
+  -   24 [chromium] › tests/mail_club.spec.ts:348:9 › The Mail Club › Epic 4: Season Management › 4.7 — advance not blocked in enrollment phase
+  -   25 [chromium] › tests/mail_club.spec.ts:362:9 › The Mail Club › Epic 4: Season Management › 5.3 — admin triggers season-open SMS
+  -   26 [chromium] › tests/mail_club.spec.ts:376:9 › The Mail Club › Epic 4: Season Management › 4.2 — participants can see season after launch
+  -   27 [chromium] › tests/mail_club.spec.ts:390:9 › The Mail Club › Story 2.1: Enrollment › 2.1 — content guidelines visible during enrollment
+  -   28 [chromium] › tests/mail_club.spec.ts:398:9 › The Mail Club › Story 2.1: Enrollment › 2.1 — season timeline and theme visible
+  -   29 [chromium] › tests/mail_club.spec.ts:407:9 › The Mail Club › Story 2.1: Enrollment › 2.1 — participant enrolls in season
+  -   30 [chromium] › tests/mail_club.spec.ts:417:9 › The Mail Club › Story 2.1: Enrollment › 2.1 — participant can set branch during enrollment
+  -   31 [chromium] › tests/mail_club.spec.ts:426:9 › The Mail Club › Story 2.1: Enrollment › setup — participant C enrolls
+  -   32 [chromium] › tests/mail_club.spec.ts:435:9 › The Mail Club › Story 2.1: Enrollment › dashboard — enrolled count visible
+  -   33 [chromium] › tests/mail_club.spec.ts:450:9 › The Mail Club › Story 2.2: Confirm Ready › phase — advance enrollment → preparation
+  -   34 [chromium] › tests/mail_club.spec.ts:459:9 › The Mail Club › Story 2.2: Confirm Ready › 4.6 — preparation phase shows only confirm-nudge SMS button
+  -   35 [chromium] › tests/mail_club.spec.ts:475:9 › The Mail Club › Story 2.2: Confirm Ready › home screen — creation period message shown
+  -   36 [chromium] › tests/mail_club.spec.ts:485:9 › The Mail Club › Story 2.2: Confirm Ready › 4.4 — confirm-nudge count shows unconfirmed enrolled participants
+  -   37 [chromium] › tests/mail_club.spec.ts:495:9 › The Mail Club › Story 2.2: Confirm Ready › 5.4 — admin triggers pre-deadline nudge SMS
+  -   38 [chromium] › tests/mail_club.spec.ts:503:9 › The Mail Club › Story 2.2: Confirm Ready › 2.2 — ready-confirm deadline visible with countdown
+  -   39 [chromium] › tests/mail_club.spec.ts:511:9 › The Mail Club › Story 2.2: Confirm Ready › 2.2 — enrolled participant confirms ready
+  -   40 [chromium] › tests/mail_club.spec.ts:521:9 › The Mail Club › Story 2.2: Confirm Ready › 2.2 — confirmed participant cannot un-confirm
+  -   41 [chromium] › tests/mail_club.spec.ts:529:9 › The Mail Club › Story 2.2: Confirm Ready › setup — participants B and C confirm ready
+  -   42 [chromium] › tests/mail_club.spec.ts:537:9 › The Mail Club › Story 2.2: Confirm Ready › setup — participant C confirms ready
+  -   43 [chromium] › tests/mail_club.spec.ts:546:9 › The Mail Club › Story 2.2: Confirm Ready › dashboard — confirmed count visible
+  -   44 [chromium] › tests/mail_club.spec.ts:561:9 › The Mail Club › Epic 3: Assignment › phase — advance preparation → assignment
+  -   45 [chromium] › tests/mail_club.spec.ts:570:9 › The Mail Club › Epic 3: Assignment › 4.6 — assignment phase shows no SMS buttons
+  -   46 [chromium] › tests/mail_club.spec.ts:587:9 › The Mail Club › Epic 3: Assignment › home screen — participant sees 'preparing' during assignment
+  -   47 [chromium] › tests/mail_club.spec.ts:595:9 › The Mail Club › Epic 3: Assignment › 3.1 — admin sees confirmed count before generating
+  -   48 [chromium] › tests/mail_club.spec.ts:605:9 › The Mail Club › Epic 3: Assignment › 4.7 — advance blocked before assignments are generated
+  -   49 [chromium] › tests/mail_club.spec.ts:616:9 › The Mail Club › Epic 3: Assignment › 3.1 — admin generates assignments
+  -   50 [chromium] › tests/mail_club.spec.ts:628:9 › The Mail Club › Epic 3: Assignment › 3.3 — participant cannot see assignment before delivery
+  -   51 [chromium] › tests/mail_club.spec.ts:638:9 › The Mail Club › Epic 3: Assignment › 3.3 — swap UI available to admin
+  -   52 [chromium] › tests/mail_club.spec.ts:649:9 › The Mail Club › Epic 3: Assignment › 3.3 — admin swaps two assignments
+  -   53 [chromium] › tests/mail_club.spec.ts:663:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › phase — advance assignment → delivery
+  -   54 [chromium] › tests/mail_club.spec.ts:672:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 4.6 — delivery phase shows assignment and receipt-nudge SMS buttons only
+  -   55 [chromium] › tests/mail_club.spec.ts:691:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 5.1 — admin triggers assignment SMS
+  -   56 [chromium] › tests/mail_club.spec.ts:708:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 2.3 — participant sees recipient details
+  -   57 [chromium] › tests/mail_club.spec.ts:720:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 2.3 — only one recipient visible
+  -   58 [chromium] › tests/mail_club.spec.ts:729:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 5.2 — admin triggers receipt-nudge SMS
+  -   59 [chromium] › tests/mail_club.spec.ts:737:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › home screen — delivery phase prompt shown
+  -   60 [chromium] › tests/mail_club.spec.ts:745:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 2.4 — participant confirms receipt (received)
+  -   61 [chromium] › tests/mail_club.spec.ts:754:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 2.4 — participant reports not received with note
+  -   62 [chromium] › tests/mail_club.spec.ts:763:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 2.4 — admin sees not-received alert
+  -   63 [chromium] › tests/mail_club.spec.ts:777:9 › The Mail Club › Season Complete › phase — advance delivery → complete
+  -   64 [chromium] › tests/mail_club.spec.ts:786:9 › The Mail Club › Season Complete › home screen — season complete message shown
+  -   65 [chromium] › tests/mail_club.spec.ts:801:9 › The Mail Club › Cancel Season › setup — create and launch a new season
+  -   66 [chromium] › tests/mail_club.spec.ts:810:9 › The Mail Club › Cancel Season › cancel — back button dismisses confirmation
+  -   67 [chromium] › tests/mail_club.spec.ts:821:9 › The Mail Club › Cancel Season › cancel — admin cancels the season
+  -   68 [chromium] › tests/mail_club.spec.ts:833:9 › The Mail Club › Cancel Season › home screen — no active season after cancel
+  ✘   69 [chromium] › tests/mail_club.spec.ts:80:9 › The Mail Club › Epic 1: Join the Community › 1.5 — admin generates invite codes for participants (retry #1) (290ms)
+  -   70 [chromium] › tests/mail_club.spec.ts:251:9 › The Mail Club › Epic 4: Season Management › 4.1 — admin creates a season with deadlines and theme (retry #1)
+  -   71 [chromium] › tests/mail_club.spec.ts:98:9 › The Mail Club › Epic 1: Join the Community › 1.5 — generated codes appear in admin list with unused status (retry #1)
+  -   72 [chromium] › tests/mail_club.spec.ts:110:9 › The Mail Club › Epic 1: Join the Community › 1.6 — admin revokes an unused code (retry #1)
+  -   73 [chromium] › tests/mail_club.spec.ts:126:9 › The Mail Club › Epic 1: Join the Community › 1.1 — participant A self-registers with invite code (retry #1)
+  -   74 [chromium] › tests/mail_club.spec.ts:134:9 › The Mail Club › Epic 1: Join the Community › 1.1 — invalid invite code is rejected (retry #1)
+  -   75 [chromium] › tests/mail_club.spec.ts:149:9 › The Mail Club › Epic 1: Join the Community › 1.6 — revoked code cannot be redeemed (retry #1)
+  -   76 [chromium] › tests/mail_club.spec.ts:162:9 › The Mail Club › Epic 1: Join the Community › 1.1 — used invite code is rejected (retry #1)
+  -   77 [chromium] › tests/mail_club.spec.ts:177:9 › The Mail Club › Epic 1: Join the Community › 1.2 — registered participant can sign in (retry #1)
+  -   78 [chromium] › tests/mail_club.spec.ts:184:9 › The Mail Club › Epic 1: Join the Community › 1.2 — unregistered phone is rejected (retry #1)
+  -   79 [chromium] › tests/mail_club.spec.ts:194:9 › The Mail Club › Epic 1: Join the Community › 1.3 — first login redirects to onboarding (retry #1)
+  -   80 [chromium] › tests/mail_club.spec.ts:201:9 › The Mail Club › Epic 1: Join the Community › 1.3 — participant completes onboarding (retry #1)
+  -   81 [chromium] › tests/mail_club.spec.ts:210:9 › The Mail Club › Epic 1: Join the Community › 1.3 — returning participant skips onboarding (retry #1)
+  -   82 [chromium] › tests/mail_club.spec.ts:217:9 › The Mail Club › Epic 1: Join the Community › setup — self-register participant B (retry #1)
+  -   83 [chromium] › tests/mail_club.spec.ts:226:9 › The Mail Club › Epic 1: Join the Community › setup — self-register participant C (retry #1)
+  -   84 [chromium] › tests/mail_club.spec.ts:236:9 › The Mail Club › Epic 1: Join the Community › 1.1 — non-admin cannot access admin pages (retry #1)
+  -   85 [chromium] › tests/mail_club.spec.ts:263:9 › The Mail Club › Epic 4: Season Management › 4.1 — season not enrollable before launch (retry #1)
+  -   86 [chromium] › tests/mail_club.spec.ts:274:9 › The Mail Club › Epic 4: Season Management › 4.1 — second active season is rejected (retry #1)
+  -   87 [chromium] › tests/mail_club.spec.ts:285:9 › The Mail Club › Epic 4: Season Management › 4.1 — non-admin cannot access season management (retry #1)
+  -   88 [chromium] › tests/mail_club.spec.ts:291:9 › The Mail Club › Epic 4: Season Management › 4.2 — admin launches the season (retry #1)
+  -   89 [chromium] › tests/mail_club.spec.ts:302:9 › The Mail Club › Epic 4: Season Management › 4.5 — all admin functionality on /admin (retry #1)
+  -   90 [chromium] › tests/mail_club.spec.ts:322:9 › The Mail Club › Epic 4: Season Management › 4.5 — phase-stepper visible after launch (retry #1)
+  -   91 [chromium] › tests/mail_club.spec.ts:332:9 › The Mail Club › Epic 4: Season Management › 4.6 — enrollment phase shows only season-open SMS button (retry #1)
+  -   92 [chromium] › tests/mail_club.spec.ts:348:9 › The Mail Club › Epic 4: Season Management › 4.7 — advance not blocked in enrollment phase (retry #1)
+  -   93 [chromium] › tests/mail_club.spec.ts:362:9 › The Mail Club › Epic 4: Season Management › 5.3 — admin triggers season-open SMS (retry #1)
+  -   94 [chromium] › tests/mail_club.spec.ts:376:9 › The Mail Club › Epic 4: Season Management › 4.2 — participants can see season after launch (retry #1)
+  -   95 [chromium] › tests/mail_club.spec.ts:390:9 › The Mail Club › Story 2.1: Enrollment › 2.1 — content guidelines visible during enrollment (retry #1)
+  -   96 [chromium] › tests/mail_club.spec.ts:398:9 › The Mail Club › Story 2.1: Enrollment › 2.1 — season timeline and theme visible (retry #1)
+  -   97 [chromium] › tests/mail_club.spec.ts:407:9 › The Mail Club › Story 2.1: Enrollment › 2.1 — participant enrolls in season (retry #1)
+  -   98 [chromium] › tests/mail_club.spec.ts:417:9 › The Mail Club › Story 2.1: Enrollment › 2.1 — participant can set branch during enrollment (retry #1)
+  -   99 [chromium] › tests/mail_club.spec.ts:426:9 › The Mail Club › Story 2.1: Enrollment › setup — participant C enrolls (retry #1)
+  -  100 [chromium] › tests/mail_club.spec.ts:435:9 › The Mail Club › Story 2.1: Enrollment › dashboard — enrolled count visible (retry #1)
+  -  101 [chromium] › tests/mail_club.spec.ts:450:9 › The Mail Club › Story 2.2: Confirm Ready › phase — advance enrollment → preparation (retry #1)
+  -  102 [chromium] › tests/mail_club.spec.ts:459:9 › The Mail Club › Story 2.2: Confirm Ready › 4.6 — preparation phase shows only confirm-nudge SMS button (retry #1)
+  -  103 [chromium] › tests/mail_club.spec.ts:475:9 › The Mail Club › Story 2.2: Confirm Ready › home screen — creation period message shown (retry #1)
+  -  104 [chromium] › tests/mail_club.spec.ts:485:9 › The Mail Club › Story 2.2: Confirm Ready › 4.4 — confirm-nudge count shows unconfirmed enrolled participants (retry #1)
+  -  105 [chromium] › tests/mail_club.spec.ts:495:9 › The Mail Club › Story 2.2: Confirm Ready › 5.4 — admin triggers pre-deadline nudge SMS (retry #1)
+  -  106 [chromium] › tests/mail_club.spec.ts:503:9 › The Mail Club › Story 2.2: Confirm Ready › 2.2 — ready-confirm deadline visible with countdown (retry #1)
+  -  107 [chromium] › tests/mail_club.spec.ts:511:9 › The Mail Club › Story 2.2: Confirm Ready › 2.2 — enrolled participant confirms ready (retry #1)
+  -  108 [chromium] › tests/mail_club.spec.ts:521:9 › The Mail Club › Story 2.2: Confirm Ready › 2.2 — confirmed participant cannot un-confirm (retry #1)
+  -  109 [chromium] › tests/mail_club.spec.ts:529:9 › The Mail Club › Story 2.2: Confirm Ready › setup — participants B and C confirm ready (retry #1)
+  -  110 [chromium] › tests/mail_club.spec.ts:537:9 › The Mail Club › Story 2.2: Confirm Ready › setup — participant C confirms ready (retry #1)
+  -  111 [chromium] › tests/mail_club.spec.ts:546:9 › The Mail Club › Story 2.2: Confirm Ready › dashboard — confirmed count visible (retry #1)
+  -  112 [chromium] › tests/mail_club.spec.ts:561:9 › The Mail Club › Epic 3: Assignment › phase — advance preparation → assignment (retry #1)
+  -  113 [chromium] › tests/mail_club.spec.ts:570:9 › The Mail Club › Epic 3: Assignment › 4.6 — assignment phase shows no SMS buttons (retry #1)
+  -  114 [chromium] › tests/mail_club.spec.ts:587:9 › The Mail Club › Epic 3: Assignment › home screen — participant sees 'preparing' during assignment (retry #1)
+  -  115 [chromium] › tests/mail_club.spec.ts:595:9 › The Mail Club › Epic 3: Assignment › 3.1 — admin sees confirmed count before generating (retry #1)
+  -  116 [chromium] › tests/mail_club.spec.ts:605:9 › The Mail Club › Epic 3: Assignment › 4.7 — advance blocked before assignments are generated (retry #1)
+  -  117 [chromium] › tests/mail_club.spec.ts:616:9 › The Mail Club › Epic 3: Assignment › 3.1 — admin generates assignments (retry #1)
+  -  118 [chromium] › tests/mail_club.spec.ts:628:9 › The Mail Club › Epic 3: Assignment › 3.3 — participant cannot see assignment before delivery (retry #1)
+  -  119 [chromium] › tests/mail_club.spec.ts:638:9 › The Mail Club › Epic 3: Assignment › 3.3 — swap UI available to admin (retry #1)
+  -  120 [chromium] › tests/mail_club.spec.ts:649:9 › The Mail Club › Epic 3: Assignment › 3.3 — admin swaps two assignments (retry #1)
+  -  121 [chromium] › tests/mail_club.spec.ts:663:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › phase — advance assignment → delivery (retry #1)
+  -  122 [chromium] › tests/mail_club.spec.ts:672:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 4.6 — delivery phase shows assignment and receipt-nudge SMS buttons only (retry #1)
+  -  123 [chromium] › tests/mail_club.spec.ts:691:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 5.1 — admin triggers assignment SMS (retry #1)
+  -  124 [chromium] › tests/mail_club.spec.ts:708:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 2.3 — participant sees recipient details (retry #1)
+  -  125 [chromium] › tests/mail_club.spec.ts:720:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 2.3 — only one recipient visible (retry #1)
+  -  126 [chromium] › tests/mail_club.spec.ts:729:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 5.2 — admin triggers receipt-nudge SMS (retry #1)
+  -  127 [chromium] › tests/mail_club.spec.ts:737:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › home screen — delivery phase prompt shown (retry #1)
+  -  128 [chromium] › tests/mail_club.spec.ts:745:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 2.4 — participant confirms receipt (received) (retry #1)
+  -  129 [chromium] › tests/mail_club.spec.ts:754:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 2.4 — participant reports not received with note (retry #1)
+  -  130 [chromium] › tests/mail_club.spec.ts:763:9 › The Mail Club › Stories 2.3–2.4: Delivery & Receipt › 2.4 — admin sees not-received alert (retry #1)
+  -  131 [chromium] › tests/mail_club.spec.ts:777:9 › The Mail Club › Season Complete › phase — advance delivery → complete (retry #1)
+  -  132 [chromium] › tests/mail_club.spec.ts:786:9 › The Mail Club › Season Complete › home screen — season complete message shown (retry #1)
+  -  133 [chromium] › tests/mail_club.spec.ts:801:9 › The Mail Club › Cancel Season › setup — create and launch a new season (retry #1)
+  -  134 [chromium] › tests/mail_club.spec.ts:810:9 › The Mail Club › Cancel Season › cancel — back button dismisses confirmation (retry #1)
+  -  135 [chromium] › tests/mail_club.spec.ts:821:9 › The Mail Club › Cancel Season › cancel — admin cancels the season (retry #1)
+  -  136 [chromium] › tests/mail_club.spec.ts:833:9 › The Mail Club › Cancel Season › home screen — no active season after cancel (retry #1)
+  ✘  137 [chromium] › tests/mail_club.spec.ts:854:7 › Account Management › setup — generate invite code for deactivation target (219ms)
+  -  138 [chromium] › tests/mail_club.spec.ts:861:7 › Account Management › setup — deactivation target self-registers
+  -  139 [chromium] › tests/mail_club.spec.ts:869:7 › Account Management › setup — deactivation target appears in participant list
+  -  140 [chromium] › tests/mail_club.spec.ts:877:7 › Account Management › 6.1 — admin deactivates a participant
+  -  141 [chromium] › tests/mail_club.spec.ts:885:7 › Account Management › 6.1 — deactivated participant cannot sign in
+  ✘  142 [chromium] › tests/mail_club.spec.ts:854:7 › Account Management › setup — generate invite code for deactivation target (retry #1) (243ms)
+  -  143 [chromium] › tests/mail_club.spec.ts:861:7 › Account Management › setup — deactivation target self-registers (retry #1)
+  -  144 [chromium] › tests/mail_club.spec.ts:869:7 › Account Management › setup — deactivation target appears in participant list (retry #1)
+  -  145 [chromium] › tests/mail_club.spec.ts:877:7 › Account Management › 6.1 — admin deactivates a participant (retry #1)
+  -  146 [chromium] › tests/mail_club.spec.ts:885:7 › Account Management › 6.1 — deactivated participant cannot sign in (retry #1)
+  ✘  147 [chromium] › tests/mail_club.spec.ts:901:7 › Session Management › logout — participant logs out and is redirected to login (240ms)
+  -  148 [chromium] › tests/mail_club.spec.ts:914:7 › Session Management › logout — admin logs out and is redirected to login
+  ✘  149 [chromium] › tests/mail_club.spec.ts:901:7 › Session Management › logout — participant logs out and is redirected to login (retry #1) (279ms)
+  -  150 [chromium] › tests/mail_club.spec.ts:914:7 › Session Management › logout — admin logs out and is redirected to login (retry #1)
+  -  151 [chromium] › tests/visual-audit-cohort.spec.ts:148:7 › Cohort Capture › admin — 12-node cycle visualization
+
+  ✘  152 [chromium] › tests/visual-audit.spec.ts:249:7 › Visual Audit › capture login — phone input (231ms)
+  -  153 [chromium] › tests/visual-audit.spec.ts:264:7 › Visual Audit › capture login — otp input
+  -  154 [chromium] › tests/visual-audit.spec.ts:304:7 › Visual Audit › capture admin — invite codes section (initial state)
+  -  155 [chromium] › tests/visual-audit.spec.ts:312:7 › Visual Audit › setup — generate invite codes for audit participants
+  -  156 [chromium] › tests/visual-audit.spec.ts:322:7 › Visual Audit › capture admin — invite codes with data + filter active
+  -  157 [chromium] › tests/visual-audit.spec.ts:339:7 › Visual Audit › capture global — 404 fallback
+  -  158 [chromium] › tests/visual-audit.spec.ts:349:7 › Visual Audit › capture login — invite code input step + error
+  -  159 [chromium] › tests/visual-audit.spec.ts:362:7 › Visual Audit › capture login — name input step
+  -  160 [chromium] › tests/visual-audit.spec.ts:386:7 › Visual Audit › capture onboarding — branch selection + errors
+  -  161 [chromium] › tests/visual-audit.spec.ts:419:7 › Visual Audit › capture login — used invite code error
+  -  162 [chromium] › tests/visual-audit.spec.ts:433:7 › Visual Audit › setup — register and onboard participant B
+  -  163 [chromium] › tests/visual-audit.spec.ts:439:7 › Visual Audit › setup — register and onboard participant C
+  -  164 [chromium] › tests/visual-audit.spec.ts:447:7 › Visual Audit › capture admin — participants list
+  -  165 [chromium] › tests/visual-audit.spec.ts:462:7 › Visual Audit › capture home — no season
+  -  166 [chromium] › tests/visual-audit.spec.ts:482:7 › Visual Audit › capture admin — no active season (participants list + create form)
+  -  167 [chromium] › tests/visual-audit.spec.ts:497:7 › Visual Audit › capture admin — unlaunched season (launch button visible)
+  -  168 [chromium] › tests/visual-audit.spec.ts:513:7 › Visual Audit › capture home — season exists but enrollment not open
+  -  169 [chromium] › tests/visual-audit.spec.ts:524:7 › Visual Audit › capture admin — signup phase (after launch)
+  -  170 [chromium] › tests/visual-audit.spec.ts:542:7 › Visual Audit › capture home — enrollment available
+  -  171 [chromium] › tests/visual-audit.spec.ts:552:7 › Visual Audit › capture home — enrolled (after enroll)
+  -  172 [chromium] › tests/visual-audit.spec.ts:563:7 › Visual Audit › setup — enroll participants B and C
+  -  173 [chromium] › tests/visual-audit.spec.ts:576:7 › Visual Audit › capture admin — confirm phase (preparation)
+  -  174 [chromium] › tests/visual-audit.spec.ts:587:7 › Visual Audit › capture home — confirmed ready (after confirm)
+  -  175 [chromium] › tests/visual-audit.spec.ts:600:7 › Visual Audit › setup — B and C confirm ready
+  -  176 [chromium] › tests/visual-audit.spec.ts:613:7 › Visual Audit › capture admin — assignment phase pre-generate
+  -  177 [chromium] › tests/visual-audit.spec.ts:626:7 › Visual Audit › capture home — assigning state
+  -  178 [chromium] › tests/visual-audit.spec.ts:636:7 › Visual Audit › capture admin — assignment generated (cycle visualization)
+  -  179 [chromium] › tests/visual-audit.spec.ts:654:7 › Visual Audit › capture admin — delivery phase (SMS controls)
+  -  180 [chromium] › tests/visual-audit.spec.ts:665:7 › Visual Audit › capture admin — SMS report (after assignment SMS)
+  -  181 [chromium] › tests/visual-audit.spec.ts:676:7 › Visual Audit › capture home — assignment visible to participant
+  -  182 [chromium] › tests/visual-audit.spec.ts:687:7 › Visual Audit › capture home — receipt confirmed (thank you)
+  -  183 [chromium] › tests/visual-audit.spec.ts:712:7 › Visual Audit › capture home — not-received receipt (participant B)
+  -  184 [chromium] › tests/visual-audit.spec.ts:726:7 › Visual Audit › setup — participant C confirms receipt
+  -  185 [chromium] › tests/visual-audit.spec.ts:738:7 › Visual Audit › capture admin — complete phase
+  -  186 [chromium] › tests/visual-audit.spec.ts:749:7 › Visual Audit › capture home — season complete
+  -  187 [chromium] › tests/visual-audit.spec.ts:759:7 › Visual Audit › setup — create and launch a second season for cancel demo
+  -  188 [chromium] › tests/visual-audit.spec.ts:766:7 › Visual Audit › capture admin — cancelled season
+  -  189 [chromium] › tests/visual-audit.spec.ts:775:7 › Visual Audit › capture home — cancelled season state
+  -  190 [chromium] › tests/visual-audit.spec.ts:789:7 › Visual Audit › capture admin — mixed invite code statuses (after revoke)
+  -  191 [chromium] › tests/visual-audit.spec.ts:800:7 › Visual Audit › capture admin — mixed participant statuses (after deactivate)
+  -  192 [chromium] › tests/visual-audit.spec.ts:815:7 › Visual Audit › setup — create and launch third season for existing-address capture
+  -  193 [chromium] › tests/visual-audit.spec.ts:822:7 › Visual Audit › capture home — enrollment open with existing address
+
+  ✘  194 [chromium] › tests/visual-audit.spec.ts:249:7 › Visual Audit › capture login — phone input (retry #1) (242ms)
+  -  195 [chromium] › tests/visual-audit.spec.ts:264:7 › Visual Audit › capture login — otp input (retry #1)
+  -  196 [chromium] › tests/visual-audit.spec.ts:304:7 › Visual Audit › capture admin — invite codes section (initial state) (retry #1)
+  -  197 [chromium] › tests/visual-audit.spec.ts:312:7 › Visual Audit › setup — generate invite codes for audit participants (retry #1)
+  -  198 [chromium] › tests/visual-audit.spec.ts:322:7 › Visual Audit › capture admin — invite codes with data + filter active (retry #1)
+  -  199 [chromium] › tests/visual-audit.spec.ts:339:7 › Visual Audit › capture global — 404 fallback (retry #1)
+  -  200 [chromium] › tests/visual-audit.spec.ts:349:7 › Visual Audit › capture login — invite code input step + error (retry #1)
+  -  201 [chromium] › tests/visual-audit.spec.ts:362:7 › Visual Audit › capture login — name input step (retry #1)
+  -  202 [chromium] › tests/visual-audit.spec.ts:386:7 › Visual Audit › capture onboarding — branch selection + errors (retry #1)
+  -  203 [chromium] › tests/visual-audit.spec.ts:419:7 › Visual Audit › capture login — used invite code error (retry #1)
+  -  204 [chromium] › tests/visual-audit.spec.ts:433:7 › Visual Audit › setup — register and onboard participant B (retry #1)
+  -  205 [chromium] › tests/visual-audit.spec.ts:439:7 › Visual Audit › setup — register and onboard participant C (retry #1)
+  -  206 [chromium] › tests/visual-audit.spec.ts:447:7 › Visual Audit › capture admin — participants list (retry #1)
+  -  207 [chromium] › tests/visual-audit.spec.ts:462:7 › Visual Audit › capture home — no season (retry #1)
+  -  208 [chromium] › tests/visual-audit.spec.ts:482:7 › Visual Audit › capture admin — no active season (participants list + create form) (retry #1)
+  -  209 [chromium] › tests/visual-audit.spec.ts:497:7 › Visual Audit › capture admin — unlaunched season (launch button visible) (retry #1)
+  -  210 [chromium] › tests/visual-audit.spec.ts:513:7 › Visual Audit › capture home — season exists but enrollment not open (retry #1)
+  -  211 [chromium] › tests/visual-audit.spec.ts:524:7 › Visual Audit › capture admin — signup phase (after launch) (retry #1)
+  -  212 [chromium] › tests/visual-audit.spec.ts:542:7 › Visual Audit › capture home — enrollment available (retry #1)
+  -  213 [chromium] › tests/visual-audit.spec.ts:552:7 › Visual Audit › capture home — enrolled (after enroll) (retry #1)
+  -  214 [chromium] › tests/visual-audit.spec.ts:563:7 › Visual Audit › setup — enroll participants B and C (retry #1)
+  -  215 [chromium] › tests/visual-audit.spec.ts:576:7 › Visual Audit › capture admin — confirm phase (preparation) (retry #1)
+  -  216 [chromium] › tests/visual-audit.spec.ts:587:7 › Visual Audit › capture home — confirmed ready (after confirm) (retry #1)
+  -  217 [chromium] › tests/visual-audit.spec.ts:600:7 › Visual Audit › setup — B and C confirm ready (retry #1)
+  -  218 [chromium] › tests/visual-audit.spec.ts:613:7 › Visual Audit › capture admin — assignment phase pre-generate (retry #1)
+  -  219 [chromium] › tests/visual-audit.spec.ts:626:7 › Visual Audit › capture home — assigning state (retry #1)
+  -  220 [chromium] › tests/visual-audit.spec.ts:636:7 › Visual Audit › capture admin — assignment generated (cycle visualization) (retry #1)
+  -  221 [chromium] › tests/visual-audit.spec.ts:654:7 › Visual Audit › capture admin — delivery phase (SMS controls) (retry #1)
+  -  222 [chromium] › tests/visual-audit.spec.ts:665:7 › Visual Audit › capture admin — SMS report (after assignment SMS) (retry #1)
+  -  223 [chromium] › tests/visual-audit.spec.ts:676:7 › Visual Audit › capture home — assignment visible to participant (retry #1)
+  -  224 [chromium] › tests/visual-audit.spec.ts:687:7 › Visual Audit › capture home — receipt confirmed (thank you) (retry #1)
+  -  225 [chromium] › tests/visual-audit.spec.ts:712:7 › Visual Audit › capture home — not-received receipt (participant B) (retry #1)
+  -  226 [chromium] › tests/visual-audit.spec.ts:726:7 › Visual Audit › setup — participant C confirms receipt (retry #1)
+  -  227 [chromium] › tests/visual-audit.spec.ts:738:7 › Visual Audit › capture admin — complete phase (retry #1)
+  -  228 [chromium] › tests/visual-audit.spec.ts:749:7 › Visual Audit › capture home — season complete (retry #1)
+  -  229 [chromium] › tests/visual-audit.spec.ts:759:7 › Visual Audit › setup — create and launch a second season for cancel demo (retry #1)
+  -  230 [chromium] › tests/visual-audit.spec.ts:766:7 › Visual Audit › capture admin — cancelled season (retry #1)
+  -  231 [chromium] › tests/visual-audit.spec.ts:775:7 › Visual Audit › capture home — cancelled season state (retry #1)
+  -  232 [chromium] › tests/visual-audit.spec.ts:789:7 › Visual Audit › capture admin — mixed invite code statuses (after revoke) (retry #1)
+  -  233 [chromium] › tests/visual-audit.spec.ts:800:7 › Visual Audit › capture admin — mixed participant statuses (after deactivate) (retry #1)
+  -  234 [chromium] › tests/visual-audit.spec.ts:815:7 › Visual Audit › setup — create and launch third season for existing-address capture (retry #1)
+  -  235 [chromium] › tests/visual-audit.spec.ts:822:7 › Visual Audit › capture home — enrollment open with existing address (retry #1)
+
+
+  1) [chromium] › tests/mail_club.spec.ts:251:9 › The Mail Club › Epic 4: Season Management › 4.1 — admin creates a season with deadlines and theme 
+
+    TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event "response"
+
+       at fixtures/mail_club_page.ts:45
+
+      43 |    */
+      44 |   async clickAndWaitForResponse(locator: Locator, urlHint?: string) {
+    > 45 |     const responsePromise = this.page.waitForResponse(
+         |                                       ^
+      46 |       (resp) =>
+      47 |         resp.request().method() === "POST" &&
+      48 |         (urlHint ? resp.url().includes(urlHint) : true),
+        at MailClubPage.clickAndWaitForResponse (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:45:39)
+        at MailClubPage.attemptLogin (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:65:16)
+        at MailClubPage.login (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:74:5)
+        at /home/user/same-te-mail-club/end2end/tests/mail_club.spec.ts:253:7
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/mail_club-The-Mail-Club-Ep-098ed-on-with-deadlines-and-theme-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/mail_club-The-Mail-Club-Ep-098ed-on-with-deadlines-and-theme-chromium/error-context.md
+
+  2) [chromium] › tests/mail_club.spec.ts:854:7 › Account Management › setup — generate invite code for deactivation target 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:3000/login
+    Call log:
+      - navigating to "http://127.0.0.1:3000/login", waiting until "load"
+
+
+       at fixtures/mail_club_page.ts:61
+
+      59 |   // verify step, after which the caller asserts the expected URL.
+      60 |   async attemptLogin(phone: string) {
+    > 61 |     await this.page.goto("/login");
+         |                     ^
+      62 |     const sendBtn = this.page.getByTestId("send-otp-button");
+      63 |     await expect(sendBtn).toBeEnabled();
+      64 |     await this.page.getByTestId("phone-input").fill(phone);
+        at MailClubPage.attemptLogin (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:61:21)
+        at MailClubPage.login (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:74:16)
+        at /home/user/same-te-mail-club/end2end/tests/mail_club.spec.ts:856:15
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/mail_club-Account-Manageme-8999a-ode-for-deactivation-target-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:3000/login
+    Call log:
+      - navigating to "http://127.0.0.1:3000/login", waiting until "load"
+
+
+       at fixtures/mail_club_page.ts:61
+
+      59 |   // verify step, after which the caller asserts the expected URL.
+      60 |   async attemptLogin(phone: string) {
+    > 61 |     await this.page.goto("/login");
+         |                     ^
+      62 |     const sendBtn = this.page.getByTestId("send-otp-button");
+      63 |     await expect(sendBtn).toBeEnabled();
+      64 |     await this.page.getByTestId("phone-input").fill(phone);
+        at MailClubPage.attemptLogin (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:61:21)
+        at MailClubPage.login (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:74:16)
+        at /home/user/same-te-mail-club/end2end/tests/mail_club.spec.ts:856:15
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/mail_club-Account-Manageme-8999a-ode-for-deactivation-target-chromium-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/mail_club-Account-Manageme-8999a-ode-for-deactivation-target-chromium-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/mail_club-Account-Manageme-8999a-ode-for-deactivation-target-chromium-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › tests/mail_club.spec.ts:901:7 › Session Management › logout — participant logs out and is redirected to login 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:3000/login
+    Call log:
+      - navigating to "http://127.0.0.1:3000/login", waiting until "load"
+
+
+       at fixtures/mail_club_page.ts:61
+
+      59 |   // verify step, after which the caller asserts the expected URL.
+      60 |   async attemptLogin(phone: string) {
+    > 61 |     await this.page.goto("/login");
+         |                     ^
+      62 |     const sendBtn = this.page.getByTestId("send-otp-button");
+      63 |     await expect(sendBtn).toBeEnabled();
+      64 |     await this.page.getByTestId("phone-input").fill(phone);
+        at MailClubPage.attemptLogin (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:61:21)
+        at MailClubPage.login (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:74:16)
+        at /home/user/same-te-mail-club/end2end/tests/mail_club.spec.ts:906:15
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/mail_club-Session-Manageme-4dc99--and-is-redirected-to-login-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:3000/login
+    Call log:
+      - navigating to "http://127.0.0.1:3000/login", waiting until "load"
+
+
+       at fixtures/mail_club_page.ts:61
+
+      59 |   // verify step, after which the caller asserts the expected URL.
+      60 |   async attemptLogin(phone: string) {
+    > 61 |     await this.page.goto("/login");
+         |                     ^
+      62 |     const sendBtn = this.page.getByTestId("send-otp-button");
+      63 |     await expect(sendBtn).toBeEnabled();
+      64 |     await this.page.getByTestId("phone-input").fill(phone);
+        at MailClubPage.attemptLogin (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:61:21)
+        at MailClubPage.login (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:74:16)
+        at /home/user/same-te-mail-club/end2end/tests/mail_club.spec.ts:906:15
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/mail_club-Session-Manageme-4dc99--and-is-redirected-to-login-chromium-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/mail_club-Session-Manageme-4dc99--and-is-redirected-to-login-chromium-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/mail_club-Session-Manageme-4dc99--and-is-redirected-to-login-chromium-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › tests/visual-audit.spec.ts:249:7 › Visual Audit › capture login — phone input ────
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:3000/login
+    Call log:
+      - navigating to "http://127.0.0.1:3000/login", waiting until "load"
+
+
+      249 |   test("capture login — phone input", async ({ page }) => {
+      250 |     await page.context().clearCookies();
+    > 251 |     await page.goto("/login");
+          |                ^
+      252 |     await expect(page.getByTestId("send-otp-button")).toBeEnabled();
+      253 |     // ── Focus state: focus the phone input to capture :focus-visible ring ──
+      254 |     await page.getByTestId("phone-input").focus();
+        at /home/user/same-te-mail-club/end2end/tests/visual-audit.spec.ts:251:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/visual-audit-Visual-Audit-capture-login-—-phone-input-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:3000/login
+    Call log:
+      - navigating to "http://127.0.0.1:3000/login", waiting until "load"
+
+
+      249 |   test("capture login — phone input", async ({ page }) => {
+      250 |     await page.context().clearCookies();
+    > 251 |     await page.goto("/login");
+          |                ^
+      252 |     await expect(page.getByTestId("send-otp-button")).toBeEnabled();
+      253 |     // ── Focus state: focus the phone input to capture :focus-visible ring ──
+      254 |     await page.getByTestId("phone-input").focus();
+        at /home/user/same-te-mail-club/end2end/tests/visual-audit.spec.ts:251:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/visual-audit-Visual-Audit-capture-login-—-phone-input-chromium-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/visual-audit-Visual-Audit-capture-login-—-phone-input-chromium-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/visual-audit-Visual-Audit-capture-login-—-phone-input-chromium-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › tests/mail_club.spec.ts:80:9 › The Mail Club › Epic 1: Join the Community › 1.5 — admin generates invite codes for participants 
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:3000/login
+    Call log:
+      - navigating to "http://127.0.0.1:3000/login", waiting until "load"
+
+
+       at fixtures/mail_club_page.ts:61
+
+      59 |   // verify step, after which the caller asserts the expected URL.
+      60 |   async attemptLogin(phone: string) {
+    > 61 |     await this.page.goto("/login");
+         |                     ^
+      62 |     const sendBtn = this.page.getByTestId("send-otp-button");
+      63 |     await expect(sendBtn).toBeEnabled();
+      64 |     await this.page.getByTestId("phone-input").fill(phone);
+        at MailClubPage.attemptLogin (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:61:21)
+        at MailClubPage.login (/home/user/same-te-mail-club/end2end/tests/fixtures/mail_club_page.ts:74:16)
+        at /home/user/same-te-mail-club/end2end/tests/mail_club.spec.ts:82:17
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/mail_club-The-Mail-Club-Ep-5e5c9-vite-codes-for-participants-chromium-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/mail_club-The-Mail-Club-Ep-5e5c9-vite-codes-for-participants-chromium-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/mail_club-The-Mail-Club-Ep-5e5c9-vite-codes-for-participants-chromium-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4 failed
+    [chromium] › tests/mail_club.spec.ts:251:9 › The Mail Club › Epic 4: Season Management › 4.1 — admin creates a season with deadlines and theme 
+    [chromium] › tests/mail_club.spec.ts:854:7 › Account Management › setup — generate invite code for deactivation target 
+    [chromium] › tests/mail_club.spec.ts:901:7 › Session Management › logout — participant logs out and is redirected to login 
+    [chromium] › tests/visual-audit.spec.ts:249:7 › Visual Audit › capture login — phone input ─────
+  1 flaky
+    [chromium] › tests/mail_club.spec.ts:80:9 › The Mail Club › Epic 1: Join the Community › 1.5 — admin generates invite codes for participants 
+  1 skipped
+  98 did not run
+  14 passed (1.0m)
+The application panicked (crashed).
+Message:  Resource 'tokio_process_tools::ProcessHandle' should not have been dropped at this point!
+
+Err: The process was not terminated.
+
+Help: Successfully call `wait_for_completion`, `terminate`, or `kill`, or call `must_not_be_terminated` before the type is dropped!
+
+Backtrace: Backtrace [
+    { fn: "core::ptr::drop_in_place<tokio_process_tools::process_handle::drop_guard::DropMode>" },
+    { fn: "core::ptr::drop_in_place<tokio_process_tools::process_handle::ProcessHandle<tokio_process_tools::output_stream::backend::single_subscriber::SingleSubscriberOutputStream<tokio_process_tools::output_stream::policy::ReliableWithBackpressure,tokio_process_tools::output_stream::policy::ReplayEnabled>>>" },
+    { fn: "core::ptr::drop_in_place<cargo_leptos::service::serve::ServerProcess>" },
+    { fn: "core::ptr::drop_in_place<cargo_leptos::service::serve::spawn::{{closure}}::{{closure}}>" },
+    { fn: "tokio::runtime::task::harness::cancel_task" },
+    { fn: "tokio::runtime::task::raw::shutdown" },
+    { fn: "tokio::runtime::scheduler::multi_thread::worker::run" },
+    { fn: "tokio::runtime::task::raw::poll" },
+    { fn: "std::sys::backtrace::__rust_begin_short_backtrace" },
+    { fn: "core::ops::function::FnOnce::call_once{{vtable.shim}}" },
+    { fn: "<std::sys::thread::unix::Thread>::new::thread_start" },
+]
+Location: /root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-process-tools-0.11.0/src/panic_on_drop.rs:52
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ BACKTRACE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                ⋮ 2 frames hidden ⋮                               
+   3: std[81dea07f8d58f899]::panicking::panic_with_hook<unknown>
+      at <unknown source file>:<unknown line>
+   4: std[81dea07f8d58f899]::panicking::panic_handler::{closure#0}<unknown>
+      at <unknown source file>:<unknown line>
+   5: std[81dea07f8d58f899]::sys::backtrace::__rust_end_short_backtrace::<std[81dea07f8d58f899]::panicking::panic_handler::{closure#0}, !><unknown>
+      at <unknown source file>:<unknown line>
+   6: __rustc[38dafaa32e25e62e]::rust_begin_unwind<unknown>
+      at <unknown source file>:<unknown line>
+   7: core[2c879781252dda23]::panicking::panic_fmt<unknown>
+      at <unknown source file>:<unknown line>
+   8: core::ptr::drop_in_place<tokio_process_tools::process_handle::drop_guard::DropMode>::h5369193e44ead9a7
+      at <unknown source file>:<unknown line>
+   9: core::ptr::drop_in_place<tokio_process_tools::process_handle::ProcessHandle<tokio_process_tools::output_stream::backend::single_subscriber::SingleSubscriberOutputStream<tokio_process_tools::output_stream::policy::ReliableWithBackpressure,tokio_process_tools::output_stream::policy::ReplayEnabled>>>::h4d4b16e75eabc034
+      at <unknown source file>:<unknown line>
+  10: core::ptr::drop_in_place<cargo_leptos::service::serve::ServerProcess>::haf8d1f9543e04e42
+      at <unknown source file>:<unknown line>
+  11: core::ptr::drop_in_place<cargo_leptos::service::serve::spawn::{{closure}}::{{closure}}>::h7403f9b314c60a01
+      at <unknown source file>:<unknown line>
+  12: tokio::runtime::task::harness::cancel_task::he0658b8ad78a53a5
+      at <unknown source file>:<unknown line>
+  13: tokio::runtime::task::raw::shutdown::h187a3b7cbd00296e
+      at <unknown source file>:<unknown line>
+  14: tokio::runtime::scheduler::multi_thread::worker::run::hb7599eb52945cb3c
+      at <unknown source file>:<unknown line>
+  15: tokio::runtime::task::raw::poll::ha9b5a032b45948d6
+      at <unknown source file>:<unknown line>
+  16: std::sys::backtrace::__rust_begin_short_backtrace::h0c35d11207ce0dc6
+      at <unknown source file>:<unknown line>
+  17: core::ops::function::FnOnce::call_once{{vtable.shim}}::h903a4f23e0899c69
+      at <unknown source file>:<unknown line>
+  18: <std[81dea07f8d58f899]::sys::thread::unix::Thread>::new::thread_start<unknown>
+      at <unknown source file>:<unknown line>
+
+Run with COLORBT_SHOW_HIDDEN=1 environment variable to disable frame filtering.
+Run with RUST_BACKTRACE=full to include source snippets.
+Error: 
+   0: running: bash ./precompress-and-test.sh at `src/command/end2end.rs:27:14`
+   1: Command terminated with exit code exit status: 1
+
+Location:
+   src/command/end2end.rs:58
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ BACKTRACE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                ⋮ 2 frames hidden ⋮                               
+   3: cargo_leptos::command::end2end::end2end_all::{{closure}}::h432be1b45d1b1bff
+      at <unknown source file>:<unknown line>
+   4: cargo_leptos::run::{{closure}}::h841a345e3e5629ee
+      at <unknown source file>:<unknown line>
+   5: cargo_leptos::main::{{closure}}::h91284bd9a2354528
+      at <unknown source file>:<unknown line>
+   6: cargo_leptos::main::hcbbc7f19774814fa
+      at <unknown source file>:<unknown line>
+   7: std::sys::backtrace::__rust_begin_short_backtrace::h28e8c6269d90c2c7
+      at <unknown source file>:<unknown line>
+   8: std::rt::lang_start::{{closure}}::h808a462dd08902d5
+      at <unknown source file>:<unknown line>
+   9: std[81dea07f8d58f899]::rt::lang_start_internal<unknown>
+      at <unknown source file>:<unknown line>
+  10: main<unknown>
+      at <unknown source file>:<unknown line>
+
+Run with COLORBT_SHOW_HIDDEN=1 environment variable to disable frame filtering.
+Run with RUST_BACKTRACE=full to include source snippets.
+error: recipe `e2e-release` failed on line 52 with exit code 1
+EXIT=1

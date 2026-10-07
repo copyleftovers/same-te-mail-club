@@ -1,14 +1,15 @@
-# Implementation Plan: Launch Blockers T0, T1, U1–U4, A1
+# Implementation Plan: Launch Blockers ENV, T0, T1, U1–U4, A1
 
-**CANONICAL COPY:** `orchestration_log/history/2026-10-04/plans/PLAN-W1.md` (tracked). `orchestration_log/recon/2026-10-04/fix/PLAN.md` is a byte-identical mirror for convenience; if they ever differ, the tracked file wins — edit only the tracked file, then re-copy.
+**CANONICAL COPY:** `orchestration_log/history/2026-10-04/plans/PLAN-blockers.md` (tracked). `orchestration_log/recon/2026-10-04/fix/PLAN.md` is a byte-identical mirror for convenience; if they ever differ, the tracked file wins — edit only the tracked file, then re-copy.
 
-HEAD at planning: `1a3c8a5`. Evidence: `readiness/l-toolchain.md` + `readiness/logs/l-*.log` (T0), `readiness/n-panic.md` + `logs/n-*.log` (T1), `readiness/f-e2e.md` § attr: leak check (A1), `readiness/d-ops.md` (F1/F2/F5), `readiness/g-authverify.md` (1b), `readiness/i-swapverify.md`, `readiness/a-scope.md` (3.3 rows). Every claim below re-verified against source at HEAD.
+HEAD at planning: `1a3c8a5`. Evidence: `readiness/l-toolchain.md` + `readiness/logs/l-*.log` (T0, ENV), `readiness/f-e2e.md` + `readiness/logs/f-*.log` (ENV), `readiness/n-panic.md` + `logs/n-*.log` (T1), `readiness/f-e2e.md` § attr: leak check (A1), `readiness/d-ops.md` (F1/F2/F5), `readiness/g-authverify.md` (1b), `readiness/i-swapverify.md`, `readiness/a-scope.md` (3.3 rows). Every claim below re-verified against source at HEAD.
 
 ## Preamble
 
 | Unit | Blocker | Verified at |
 |---|---|---|
-| T0 | HEAD does not build: SSR bin and wasm hydrate lib overflow rustc's default `recursion_limit` (128) at codegen. CI is false-green since 2026-07-10: Check never runs codegen; `cargo leptos end-to-end` exits 0 on build failure and skips Playwright. | `readiness/l-toolchain.md`; `src/main.rs:1`, `src/lib.rs:1-2` (no limit); `.github/workflows/ci.yml:39-56` (no build step), `:125` |
+| ENV | E2E only ran in this container with hand-made shims: the musl tailwind picked by a musl-built cargo-leptos, a Playwright browser-revision mismatch, `npm ci` lockfile drift, unpinned tools (sqlx-cli 0.9 vs sqlx 0.8.6), and no session bootstrap. | `cargo-leptos-0.3.7/src/ext/util.rs:27`, `exe.rs:225,353`; `end2end/package.json:11` vs `package-lock.json:12`; `.gitignore:1` |
+| T0 | HEAD does not build: the SSR bin's login view tree and the wasm hydrate lib's invite-code list are each one concrete nested view type, and their layout overflows rustc's default query depth (128) at codegen. CI is false-green since 2026-07-10: Check never runs codegen; `cargo leptos end-to-end` exits 0 on build failure and skips Playwright. | `readiness/l-toolchain.md`; `src/pages/login.rs` (`LoginPage`/`LoginStepRouter`/`NameCollectionForm`), `src/admin/page.rs:1841-2033` (`InviteCodesSection` `<For>`); `.github/workflows/ci.yml:39-56` (no build step), `:125` |
 | T1 | Concurrent SSR load kills the server: leptos_i18n 0.6.1 `context.rs:213` reads a disposed signal in a detached tokio task; `[profile.release] panic = "abort"` turns the task panic into process death (prod builds the same profile). | `Cargo.toml:95-104,127`; `src/app.rs:73`; `n-panic.md` |
 | U1 | Self-registration skips OTP: `register_with_code` / `validate_invite_code` trust a raw, unsigned `pending_phone=<phone>` cookie. curl with any phone + one invite code creates the account. Invite redemption is unthrottled (~39,800-code space). | `src/pages/login.rs:208-219` (cookie = normalized phone), `:320-328`, `:391-399`, `:485-496` |
 | U2 | `SAMETE_TEST_MODE=true` = OTP `000000` for every phone incl. admin + OTP rate limit off. No boot guard. Read ad hoc at 5 sites. Undocumented. | `src/auth.rs:77,121`, `src/pages/home.rs:180,398,521`, `src/config.rs` (no check), `README.md:185-192` |
@@ -20,7 +21,8 @@ Story 3.3 (spec/technical/User Stories.md:228-241): "swap individual sender→re
 
 ## Design decisions (final — do not revisit)
 
-- **T0:** `#![recursion_limit = "256"]` in both crate roots (per-root attribute; 256 = rustc's suggested value, 192 also passes, 256 adds headroom). No toolchain pin (unpinned stable surfaced the defect; a pin hides it). Check job gains real codegen builds of the SSR bin and wasm lib. One guard script `scripts/assert-playwright-ran.sh` (fresh `end2end/results.json` with >0 executed tests and 0 failures) called by every `cargo leptos end-to-end` just recipe — CI's E2E job runs `just e2e-release`, so one home covers local and CI. `isolated-capture.sh` deletes the release artifacts before building and requires them after.
+- **ENV:** one idempotent `scripts/bootstrap-toolchain.sh` holding every pin (cargo-leptos 0.3.7, sqlx-cli 0.8.6, just 1.58.0, wasm-opt 0.116.1, cargo-audit, tailwind v4.2.1 sha256-pinned in `.tools/bin` on `PATH`, Playwright exact 1.58.2 + its browser revision, Postgres+role). CI, a committed Claude Code cloud SessionStart hook and the README call it.
+- **T0:** a root fix with no `recursion_limit` anywhere. Cut view-type depth at existing UI seams: login steps become sub-components, `.into_any()` erasure goes at component and branch boundaries, and the invite-code `<li>` becomes an `InviteCodeCard` component. No DOM change. Headroom proof: both crates still build with a temporary limit of 96. No toolchain pin (unpinned stable surfaced the defect; a pin would hide it). Check job gains real codegen builds of the SSR bin and wasm lib. One guard script `scripts/assert-playwright-ran.sh` (fresh `end2end/results.json` with >0 executed tests and 0 failures) called by every `cargo leptos end-to-end` just recipe — CI's E2E job runs `just e2e-release`, so one home covers local and CI. `isolated-capture.sh` deletes the release artifacts before building and requires them after.
 - **T1:** `panic = "unwind"` in `[profile.release]` (server bin) + explicit `panic = "abort"` in `[profile.wasm-release]` (WASM size unchanged). No `[patch.crates-io]`: conventions forbid it without the crate's own suite, and upstream 0.6.2 has the same code. Regression probe `scripts/ssr-stress.sh`, shown RED with the abort binary and GREEN with the unwind binary.
 - **A1:** bare `aria-busy` at all 13 sites. Proof: a compiled-artifact string gate plus one E2E test that holds the server response with `page.route`.
 - **U1:** Server-side `registration_tickets` table is the sole authority. On OTP success for an unknown phone the server inserts `(sha256(token), phone, expires_at = now()+10min, invite_attempts = 0)` and sets cookie `registration_ticket=<random 32-byte base64url token>`. The phone is read ONLY from the ticket row. Registration consumes the row (`DELETE … RETURNING phone`) inside the registration transaction. Throttle falls out of the same row: each invalid/used/revoked code submission increments `invite_attempts`; a ticket with `invite_attempts >= 5` resolves to nothing → user must re-verify via OTP (itself limited to 5/h/phone). No U1b.
@@ -28,11 +30,12 @@ Story 3.3 (spec/technical/User Stories.md:228-241): "swap individual sender→re
 - **U3:** Idempotent startup bootstrap from `SAMETE_ADMIN_PHONE` + `SAMETE_ADMIN_NAME` (both or neither; phone normalized via `phone::normalize`; invalid → boot refuses). Upsert: insert admin, or promote existing user with that phone to admin. Documented in README + `.env.example`.
 - **U4:** Position-exchange swap as a pure function in `src/assignment.rs`; cohorts recovered from edges by walking (multi-cohort-correct); swap = one transaction: lock season row, load edges, compute, validate, `DELETE` season rows, bulk `INSERT`, commit. `advance_season` re-validates when leaving Assignment. Preview renders every cohort.
 
-## Write-sets and sequencing
+## Write-sets and lanes
 
 | Unit | Files written |
 |---|---|
-| T0 | `src/main.rs`, `src/lib.rs`, `scripts/assert-playwright-ran.sh` (new), `scripts/isolated-capture.sh`, `justfile`, `.github/workflows/ci.yml` |
+| ENV | `scripts/bootstrap-toolchain.sh` (new), `.claude/settings.json` (new), `.claude/hooks/session-start.sh` (new), `.gitignore`, `justfile`, `scripts/isolated-capture.sh`, `end2end/package.json`, `end2end/package-lock.json`, `.github/workflows/ci.yml`, `README.md` |
+| T0 | `src/pages/login.rs`, `src/admin/page.rs`, `scripts/assert-playwright-ran.sh` (new), `scripts/isolated-capture.sh`, `justfile`, `.github/workflows/ci.yml` |
 | T1 | `Cargo.toml`, `scripts/ssr-stress.sh` (new), `orchestration_log/reference/deferred_items.md` |
 | A1 | `src/admin/page.rs`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/mail_club.spec.ts` |
 | U1 | `migrations/20261004000001_registration_tickets.sql` (new), `src/auth.rs`, `src/pages/login.rs`, `.sqlx/*`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/mail_club.spec.ts` |
@@ -42,16 +45,30 @@ Story 3.3 (spec/technical/User Stories.md:228-241): "swap individual sender→re
 
 Overlaps: U1∩U2 = `auth.rs`, `login.rs`. U2∩U3 = `config.rs`, `main.rs`, `README.md`, `.env.example`. U1∩U4 = POM + `mail_club.spec.ts` (disjoint regions: Epic 1 vs Epic 3 / invite vs assignment POM sections) + `.sqlx/` (distinct query files). U3∩U1/U4 = `.sqlx/` only. T1 shares no file with any unit. A1∩U4 = `src/admin/page.rs` (U4: `render_cycle_ring`; A1: 13 button attribute tokens, one inside U4-untouched `SwapFormSection`). A1∩U1/U4 = POM + `mail_club.spec.ts` (A1: invite-codes POM section + one Epic 1 test).
 
-**Order:**
-- **Wave 0 (sequential):** T0, then T1. T1's worktree branches from main after T0 is integrated: T1's build, E2E and stress gates need T0's recursion fix and guard. Their write-sets are disjoint. Both are integrated before any U-unit worktree is created. T0∩U2/U3 = `src/main.rs` (T0 adds lines 1–6 only; U2/U3 branch from post-T0 main, so no conflict).
-- **Wave A (parallel, three worktrees from post-T0+T1 main):** U1, U3, U4.
-- **Integrate wave A** in order U4 → U3 → U1 (each: rebase onto updated main; textual conflicts in `.sqlx/` or test files → resolve, then re-run that unit's sqlx regeneration + all gates).
-- **Wave B (parallel, two worktrees from main after U4, U3 and U1 are integrated):** U2 (edits post-U1 `auth.rs`/`login.rs` and post-U3 `config.rs`/`main.rs`/`README.md`/`.env.example`) ∥ A1 (edits post-U4 `page.rs` and post-U1/U4 POM + spec). U2∩A1 = ∅. Integrate A1 → U2.
+Shared files are not a reason to sequence. Every lane has its own worktree, and conflicts are resolved at integration: union edits, regenerate `.sqlx/`, re-run that unit's gates. Further overlaps: ENV∩T0 = `justfile`, `scripts/isolated-capture.sh`, `.github/workflows/ci.yml` (different lines). T0∩U1 = `src/pages/login.rs` (T0 moves the step blocks into components; U1 edits server fns and adds one testid inside `NameCollectionForm`). T0∩U4/A1 = `src/admin/page.rs` (T0: `InviteCodesSection` `<li>`; U4: `render_cycle_ring`; A1: 13 attribute tokens, one of them inside the `<li>` that T0 moves).
 
+**ENV addendum (2026-10-07, PRB-102).** Pin the Rust toolchain in a committed `rust-toolchain.toml` (channel = the exact version CI's `dtolnay/rust-toolchain` resolves to; add `wasm32-unknown-unknown` and the clippy/rustfmt components). CI must read the same file. Separately, make `cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings` green on the pinned toolchain AND on current stable 1.99.0:
+- fix the 2 `.ok().is_some_and` sites in `src/pages/login.rs`;
+- for the `unused_async_trait_impl` hits on `#[server]` expansions, use a crate-level `#![allow]` with a WHY comment only if the lint fires inside macro-generated code the crate cannot change; prove that with the lint's span output in the report.
+Gate: both clippy targets exit 0 on the pin, and the report pastes the output.
+
+**Lanes (binding: `recon/2026-10-04/fix/prompts/_parallelism.md`).** ENV, T0, T1, U1, U2, U3, U4 and A1 are concurrent lanes. Each starts from the working branch `claude/loving-johnson-7l8hn5`, and each is integrated and reviewed on its own when it finishes. Proven symbol dependencies:
+
+| Dependent | Symbol | Introduced by / file | Base for the dependent lane |
+|---|---|---|---|
+| U2 | `Config.admin_bootstrap: Option<AdminBootstrap>` (U2's `config_with` test constructs `Config` with it; U2's `from_env` keeps it) | U3, `src/config.rs` — exists on branch `worktree-agent-a1fe18df1d59b4c14` | working branch + `git merge worktree-agent-a1fe18df1d59b4c14` |
+
+There are no other symbol dependencies. U2 changes `create_otp`/`check_otp_rate_limit`/`request_otp`, which exist at HEAD and which U1 does not change. A1's 13 sites and `generate-code-button` exist at HEAD. If T0 moved a site, the integrator keeps both edits (the token change applies inside `InviteCodeCard`).
+
+**Build at the default limit (applies to every lane except T0):** HEAD does not compile its SSR bin or wasm lib at rustc's default limit until T0's view refactor is in the tree. That is a build precondition, not a symbol. Any lane whose gates need a release build (T1, U1–U4, A1, ENV) does this: if a branch already containing T0's commit exists, merge it into the worktree for the gate runs, then `git reset --hard` back to the lane's own commit before reporting (the lane's commits never contain T0's). Otherwise export `RUSTC_BOOTSTRAP=1 RUSTFLAGS='-Zcrate-attr=recursion_limit="256"'` in the gate shell only. Never commit it or write it into any file. The integrator re-runs every gate on the integrated branch without it.
+
+**Playwright-ran check without T0's script:** where a gate below calls `bash scripts/assert-playwright-ran.sh <marker>` and the file is absent in the lane's tree, run instead:
+```bash
+[ end2end/results.json -nt <marker> ] && node -e 'const s=require("./end2end/results.json").stats;console.log(`playwright ran: expected=${s.expected} unexpected=${s.unexpected} flaky=${s.flaky} skipped=${s.skipped}`);process.exit(s.expected+s.unexpected+s.flaky>0&&s.unexpected===0?0:1)'; echo "guard=$?"
 ```
-T0 ──► T1 ──► { U1 ∥ U3 ∥ U4 } ──(integrate U4→U3→U1)──► { U2 ∥ A1 } ──(integrate A1→U2)──► Global Gates
-```
-- After the last integration, the orchestrator runs the Global Gates on main.
+Same REQUIRED output.
+
+After every lane is integrated, the orchestrator runs the Global Gates on the working branch.
 
 ## Shared environment (every unit)
 
@@ -106,7 +123,7 @@ Browser-path check (`readiness/n-panic.md` reports the `pwb` shim pointing at a 
 ```bash
 (cd end2end && node -e 'require("@playwright/test").chromium.launch().then(b=>{console.log("launch-ok");return b.close()})')
 ```
-If the shim fails, `export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` and rerun. If neither prints `launch-ok`, report BLOCKED. Never run `npx playwright install`. Baseline for `bash scripts/isolated-capture.sh <suffix> full` on post-T0 main: **116 passed, 2 skipped, 0 failed** — U-unit E2E counts are relative to this.
+If the shim fails, `export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` and rerun. If neither prints `launch-ok`, report BLOCKED. Never run `npx playwright install`. Baseline for `bash scripts/isolated-capture.sh <suffix> full` on a buildable tree: **116 passed, 2 skipped, 0 failed**. Each unit's E2E counts are relative to this.
 
 E2E gate (isolated harness — own port + own DB `samete_e2e_<unit>`; requires release build; run in background, output to file, never pipe through `tail`/`head`):
 ```bash
@@ -119,31 +136,277 @@ grep -E "exit=|[0-9]+ (passed|failed|flaky|skipped)" /tmp/e2e_<unit>.log
 
 ---
 
-# T0 — Build actually compiles; CI and harnesses cannot go false-green (RUNS FIRST)
+# ENV — Reproducible toolchain: a fresh session runs `just e2e-release` with no manual shims
+
+Lane: concurrent, base = working branch `claude/loving-johnson-7l8hn5`. Consumes no symbol introduced by another unit (see the gate note on the build).
 
 ## Why This Matters
-HEAD does not build. `cargo build` of the SSR bin and of the wasm hydrate lib fail with `error: queries overflow the depth limit!` (rustc default `recursion_limit` 128 exceeded by layout of Leptos `into_any` async blocks; trigger commit `ee816fd`; reproduced on rustc 1.97.0/1.97.1/1.99.0 — `readiness/l-toolchain.md`, `readiness/logs/l-debug-bin-1.99.0.log`, `l-wasm-lib-debug-1.99.0.log`). `cargo clippy`/`cargo test` never run codegen, so the Check job stays green. `cargo leptos end-to-end` exits 0 on build failure and skips Playwright, so the E2E job has reported success with zero tests since 2026-07-10 (runs 29118276831 … 30162383205). Every later unit's E2E gate depends on a build that works and a harness that cannot lie.
+Every readiness E2E run needed hand-made shims, and several produced false or misleading results:
+
+| Defect | Evidence (verified) | Root cause |
+|---|---|---|
+| Tailwind fails | f-e2e/readiness logs; `file $(which cargo-leptos)` = static-pie (musl build from `cargo binstall`) | cargo-leptos 0.3.7 picks the tailwind download by its OWN build target (`ext/util.rs:27` `cfg!(target_env = "musl")` → `exe.rs:353,377` downloads `tailwindcss-linux-x64-musl`), which does not run on this glibc host. cargo-leptos prefers a `tailwindcss` already on `PATH` (`exe.rs:225` `from_global_path`). |
+| Playwright browser mismatch | `@playwright/test` resolves to 1.58.2 → chromium-headless-shell rev 1208 (`playwright-core/browsers.json`); container images ship whatever revisions they ship; readiness used a scratchpad `pwb` shim that later broke (`n-panic.md`) | Nothing in the repo ensures the matching browser revision is installed. |
+| `npm ci` lockfile drift | `end2end/package.json` `"@playwright/test": "^1.58.2"` vs `package-lock.json` root `packages[""]` `"^1.44.1"` | Commit `968fe66` edited package.json without regenerating the lock root. |
+| `cargo leptos end-to-end` exit-code blindness | `l-toolchain.md` | Handled by T0 (`scripts/assert-playwright-ran.sh` in every just E2E recipe). ENV does not edit it. ENV's own gate checks `end2end/results.json` directly, so it needs nothing from T0. |
+| Unpinned tools | CI `cargo binstall cargo-leptos` / `sqlx-cli` / `just` / `cargo-audit` unpinned; this container has `sqlx-cli 0.9.0` while `Cargo.lock` has `sqlx 0.8.6` | A cli/lib major mismatch for `cargo sqlx prepare` writes `.sqlx` data the 0.8 macros may not read. cargo-leptos 0.3.11 vs 0.3.7 drift was observed. |
+| No session bootstrap | `.claude` is gitignored wholesale (`.gitignore:1`); no SessionStart hook | Each cloud session starts without the toolchain. |
+
+## Decisions (final)
+- **One bootstrap script** `scripts/bootstrap-toolchain.sh` holds every pin. It is idempotent, non-interactive, holds no secrets, and is the ONLY place versions live. CI, the SessionStart hook and the README call it. Local macOS developers run it too; its Postgres step uses Docker when available.
+- **Tailwind:** a repo-controlled pinned binary at `.tools/bin/tailwindcss` (v4.2.1, glibc linux-x64, sha256-verified; on macOS the matching `macos-arm64`/`macos-x64` asset with its own pinned sha256). `.tools/bin` is prepended to `PATH` by the `justfile` (`export PATH := …`) and by `scripts/isolated-capture.sh`, so cargo-leptos never downloads one.
+- **Playwright:** exact pin `"@playwright/test": "1.58.2"` (no caret) + regenerated lock, so the browser revision is deterministic. The bootstrap installs exactly that revision (`npx playwright install chromium`) unless `PLAYWRIGHT_BROWSERS_PATH` already holds `chromium_headless_shell-<rev>`. Rejected: a config-level `executablePath` fallback, which braids host layout into test config and masks revision drift.
+- **Pins:** cargo-leptos `0.3.7` (last version CI ran green and the one the readiness agents verified), sqlx-cli `0.8.6` (= `Cargo.lock` sqlx), just `1.58.0`, wasm-opt `0.116.1`, cargo-audit latest-at-plan `0.21.x`. The implementer pins the exact version `cargo binstall --dry-run cargo-audit` resolves today and records it.
+- **SessionStart hook:** `.claude/settings.json` + `.claude/hooks/session-start.sh`, synchronous (no async: a racing agent must not see a half-installed toolchain). Remote-only (`$CLAUDE_CODE_REMOTE == true`). It calls the bootstrap and appends `PATH`/`PLAYWRIGHT_BROWSERS_PATH`/`DATABASE_URL` exports to `$CLAUDE_ENV_FILE`.
 
 ## What You Must Do
 
-### T0.1 `src/main.rs` — line 1, before `#[cfg(feature = "ssr")]`
-```rust
-// WHY: rustc lays out Leptos `into_any` async blocks during codegen; the login view
-// tree instantiated by this bin exceeds the default limit of 128 ("queries overflow the
-// depth limit!", depth +130 on rustc 1.97–1.99). 256 = rustc's own suggested value
-// (192 also passes; 256 leaves headroom for view growth). The limit is per crate root:
-// the lib needs its own (src/lib.rs).
-#![recursion_limit = "256"]
+### ENV.1 `scripts/bootstrap-toolchain.sh` (new, `chmod +x`)
+```bash
+#!/usr/bin/env bash
+# Idempotent toolchain bootstrap — the single home of every tool pin.
+# Used by: CI (.github/workflows/ci.yml), the Claude Code cloud SessionStart hook
+# (.claude/hooks/session-start.sh), and developers (README "Setup").
+# Safe to re-run: every step checks before installing. No secrets.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+CARGO_LEPTOS_VERSION="0.3.7"
+SQLX_CLI_VERSION="0.8.6"
+JUST_VERSION="1.58.0"
+WASM_OPT_VERSION="0.116.1"
+CARGO_AUDIT_VERSION="<pinned by implementer, see ENV decisions>"
+TAILWIND_VERSION="v4.2.1"
+TAILWIND_SHA256_LINUX_X64="39e8d4e24b3c83b0a6e69e100a972fbc75d5fef8dce47b3ddac3cf92dea81fe3"
+TAILWIND_SHA256_MACOS_ARM64="<implementer: sha256 of the release asset>"
+TAILWIND_SHA256_MACOS_X64="<implementer: sha256 of the release asset>"
+
+log() { echo "[bootstrap] $*"; }
+
+# --- Rust targets ---
+rustup target list --installed | grep -qx wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
+
+# --- cargo-binstall ---
+command -v cargo-binstall >/dev/null || cargo install --locked cargo-binstall
+
+# --- pinned cargo tools: install only if missing or wrong version ---
+ensure_tool() { # <crate> <version> <version-probe-cmd...>
+    local crate="$1" version="$2"; shift 2
+    if "$@" 2>/dev/null | grep -qF "$version"; then log "$crate $version present"; return; fi
+    log "installing $crate $version"
+    cargo binstall --no-confirm --locked "$crate@$version"
+}
+ensure_tool cargo-leptos "$CARGO_LEPTOS_VERSION" cargo leptos --version
+ensure_tool sqlx-cli "$SQLX_CLI_VERSION" sqlx --version
+ensure_tool just "$JUST_VERSION" just --version
+ensure_tool wasm-opt "$WASM_OPT_VERSION" wasm-opt --version   # probe prints "version 116"; ensure_tool matches the crate version string "116"
+ensure_tool cargo-audit "$CARGO_AUDIT_VERSION" cargo audit --version
+
+# --- tailwind: pinned binary on a repo-controlled PATH entry ---
+mkdir -p .tools/bin
+case "$(uname -s)-$(uname -m)" in
+    Linux-x86_64)  tw_asset=tailwindcss-linux-x64;   tw_sha="$TAILWIND_SHA256_LINUX_X64" ;;
+    Darwin-arm64)  tw_asset=tailwindcss-macos-arm64; tw_sha="$TAILWIND_SHA256_MACOS_ARM64" ;;
+    Darwin-x86_64) tw_asset=tailwindcss-macos-x64;   tw_sha="$TAILWIND_SHA256_MACOS_X64" ;;
+    *) echo "[bootstrap] FATAL: no pinned tailwind for $(uname -s)-$(uname -m)"; exit 1 ;;
+esac
+if ! echo "$tw_sha  .tools/bin/tailwindcss" | sha256sum -c --status 2>/dev/null; then
+    log "installing tailwindcss $TAILWIND_VERSION ($tw_asset)"
+    curl -fsSL -o .tools/bin/tailwindcss \
+        "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${tw_asset}"
+    echo "$tw_sha  .tools/bin/tailwindcss" | sha256sum -c --status \
+        || { echo "[bootstrap] FATAL: tailwindcss sha256 mismatch"; exit 1; }
+    chmod +x .tools/bin/tailwindcss
+fi
+
+# --- Node deps + the exact Playwright browser revision ---
+(cd end2end && npm ci)
+pw_rev="$(node -e 'const b=require("./end2end/node_modules/playwright-core/browsers.json").browsers.find(x=>x.name==="chromium-headless-shell");console.log(b.revision)')"
+pw_dir="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+if [ -f "$pw_dir/chromium_headless_shell-$pw_rev/INSTALLATION_COMPLETE" ]; then
+    log "playwright chromium-headless-shell $pw_rev present in $pw_dir"
+else
+    log "installing playwright chromium $pw_rev into $pw_dir"
+    (cd end2end && PLAYWRIGHT_BROWSERS_PATH="$pw_dir" npx playwright install chromium)
+fi
+
+# --- Postgres (role samete/samete on localhost:5432) ---
+if ! pg_isready -h localhost -p 5432 >/dev/null 2>&1; then
+    if docker info >/dev/null 2>&1; then
+        docker compose up -d db
+    elif command -v pg_ctlcluster >/dev/null; then
+        pg_ctlcluster "$(ls /usr/lib/postgresql | sort -n | tail -1)" main start
+    else
+        echo "[bootstrap] FATAL: no Postgres on :5432 and neither docker nor pg_ctlcluster available"; exit 1
+    fi
+    until pg_isready -h localhost -p 5432 >/dev/null 2>&1; do sleep 1; done
+fi
+if ! psql "postgres://samete:samete@localhost:5432/postgres" -tAc 'select 1' >/dev/null 2>&1; then
+    log "creating role samete"
+    su postgres -c "psql -c \"CREATE ROLE samete LOGIN CREATEDB PASSWORD 'samete'\""
+fi
+
+log "done — export PATH=\"$PWD/.tools/bin:\$PATH\" PLAYWRIGHT_BROWSERS_PATH=\"$pw_dir\""
+```
+Implementer obligations:
+- Replace each `<…>` placeholder with the real value (sha256 from `curl -fsSL <url> | sha256sum`; cargo-audit from `cargo binstall --dry-run cargo-audit`). A placeholder left in = FAIL.
+- Make the `wasm-opt` probe correct: `wasm-opt --version` prints `version 116`, so call `ensure_tool wasm-opt "$WASM_OPT_VERSION"` with a probe that greps `116`. Implement it as a dedicated line `wasm-opt --version 2>/dev/null | grep -q "version 116" || cargo binstall --no-confirm --locked "wasm-opt@$WASM_OPT_VERSION"`, and delete the generic call for wasm-opt.
+- `docker compose up -d db`: the service name must equal the one in `docker-compose.yml` (verify; use that exact name).
+- The `su postgres` branch runs only on the native-cluster path; on Docker the compose env already creates the role.
+
+### ENV.2 `.gitignore`
+Replace the line `.claude` with:
+```
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+.tools/
 ```
 
-### T0.2 `src/lib.rs` — line 1, before the existing `// Leptos components return views…` comment
-```rust
-// WHY: the wasm `hydrate` export instantiates `into_any::hydrate_async` over deep admin
-// views (invite-code list); layout depth exceeds the default limit of 128. Same value
-// and reason as src/main.rs (separate crate root, separate limit).
-#![recursion_limit = "256"]
+### ENV.3 `.claude/settings.json` (new)
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
 ```
-No other change to either file.
+
+### ENV.4 `.claude/hooks/session-start.sh` (new, `chmod +x`)
+```bash
+#!/usr/bin/env bash
+# Claude Code cloud sessions only: install the pinned toolchain so `just e2e-release`
+# works in a fresh container. Synchronous on purpose: no agent turn may race a
+# half-installed toolchain. Idempotent; no secrets.
+set -euo pipefail
+[ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
+cd "$CLAUDE_PROJECT_DIR"
+bash scripts/bootstrap-toolchain.sh >&2
+{
+    echo "export PATH=\"$CLAUDE_PROJECT_DIR/.tools/bin:\$HOME/.cargo/bin:\$PATH\""
+    echo "export PLAYWRIGHT_BROWSERS_PATH=\"${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}\""
+    echo 'export DATABASE_URL="postgres://samete:samete@localhost/samete"'
+} >> "$CLAUDE_ENV_FILE"
+```
+(Bootstrap output goes to stderr so the hook's stdout stays clean for the harness.)
+
+### ENV.5 `justfile`
+Directly after the header comment line add:
+```just
+# Repo-pinned tools (tailwindcss) take precedence; installed by scripts/bootstrap-toolchain.sh.
+export PATH := justfile_directory() + "/.tools/bin:" + env_var("PATH")
+
+# Install/verify the pinned toolchain (idempotent).
+bootstrap:
+    bash scripts/bootstrap-toolchain.sh
+```
+No other justfile change. T0 edits the E2E recipe bodies; any textual conflict is resolved at integration (keep both edits).
+
+### ENV.6 `scripts/isolated-capture.sh`
+After `set -euo pipefail` add:
+```bash
+# Repo-pinned tools (tailwindcss) — see scripts/bootstrap-toolchain.sh.
+export PATH="$(cd "$(dirname "$0")/.." && pwd)/.tools/bin:$PATH"
+```
+
+### ENV.7 `end2end/package.json` + `end2end/package-lock.json`
+In package.json, change `"@playwright/test": "^1.58.2"` to `"@playwright/test": "1.58.2"`. Then run:
+```bash
+(cd end2end && npm install --package-lock-only --ignore-scripts)
+```
+No other dependency change (`git diff end2end/package-lock.json` must touch only the root `packages[""]` entry).
+
+### ENV.8 `.github/workflows/ci.yml`
+In the E2E job, replace the five steps `Install cargo-leptos`, `Install wasm-opt`, `Install sqlx-cli`, `Install just`, `Install Playwright dependencies` with:
+```yaml
+      - name: Bootstrap pinned toolchain
+        run: bash scripts/bootstrap-toolchain.sh
+
+      - name: Playwright system dependencies
+        working-directory: end2end
+        run: npx playwright install-deps chromium
+```
+(`Install Node.js` and `Install cargo-binstall` stay before it. Postgres is the job's service container, so bootstrap's `pg_isready` passes and it skips the start. The `samete` role exists via service env.) In the Check job, replace `cargo binstall --no-confirm cargo-audit && cargo audit` with `cargo binstall --no-confirm --locked cargo-audit@<same pin as bootstrap> && cargo audit`. Leave the Check job's build steps and the `just e2e-release` line exactly as they are (T0 edits nearby; integration keeps both).
+
+### ENV.9 `README.md` — Prerequisites + Setup only
+Replace the Prerequisites bullets for cargo-leptos and sqlx-cli with one bullet: "- Toolchain pins (cargo-leptos, sqlx-cli, just, wasm-opt, cargo-audit, tailwindcss, Playwright browser): `just bootstrap` (or `bash scripts/bootstrap-toolchain.sh` before `just` exists). Claude Code cloud sessions run it automatically (`.claude/hooks/session-start.sh`)." In Setup, insert `bash scripts/bootstrap-toolchain.sh` as the first command. Do not touch the Environment Variables table or Deployment (U2/U3 own them).
+
+## Verification Gates (ENV)
+Static:
+```bash
+grep -c "<" scripts/bootstrap-toolchain.sh | xargs -I{} sh -c 'grep -n "<[a-z]" scripts/bootstrap-toolchain.sh || echo no-placeholders'
+grep -n '"@playwright/test"' end2end/package.json end2end/package-lock.json
+git check-ignore -q .claude/settings.json && echo IGNORED || echo tracked-ok
+git check-ignore -q .claude/hooks/session-start.sh && echo IGNORED || echo tracked-ok
+git check-ignore -q .claude/worktrees && echo still-ignored
+python3 -c "import json;json.load(open('.claude/settings.json'))" && echo json-ok
+python3 -c "import yaml;yaml.safe_load(open('.github/workflows/ci.yml'))" && echo yaml-ok
+bash -n scripts/bootstrap-toolchain.sh .claude/hooks/session-start.sh && echo syntax-ok
+```
+**REQUIRED:** `no-placeholders`; package.json `"1.58.2"` and lock root `"1.58.2"` (both exact); `tracked-ok` ×2; `still-ignored`; `json-ok`; `yaml-ok`; `syntax-ok`.
+
+Idempotence: run `bash scripts/bootstrap-toolchain.sh` twice. **REQUIRED:** both exit 0. The second run prints `present` for every pinned tool and the playwright line, with no `installing` lines (`grep -c installing` = `0` on run 2).
+
+Clean-shell end-to-end (the acceptance gate: no manual shims). Use a login shell with NO readiness exports. The working branch does not build at rustc's default recursion limit, and the root fix is T0's view refactor in `src/pages/login.rs`/`src/admin/page.rs`. If an existing T0 branch (`git branch -a --list '*t0*'`) has that commit, `git merge` it into this worktree for the gate run only, then `git reset --hard` back to ENV's commit before committing. Otherwise set `RUSTC_BOOTSTRAP=1 RUSTFLAGS='-Zcrate-attr=recursion_limit="256"'` inside the gate shell. That compile-only flag is never committed and never added to any script; the integrator re-runs this gate on the integrated branch without it.
+```bash
+env -i HOME="$HOME" PATH="$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/opt/node22/bin" TERM=dumb bash -lc '
+  set -e
+  cd <worktree>
+  mv /root/.cache/cargo-leptos /root/.cache/cargo-leptos.bak-env 2>/dev/null || true   # prove no reliance on cached/shimmed tailwind
+  CLAUDE_CODE_REMOTE=true CLAUDE_PROJECT_DIR="$PWD" CLAUDE_ENV_FILE=/tmp/env-hook.env bash .claude/hooks/session-start.sh
+  source /tmp/env-hook.env
+  export SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true
+  command -v tailwindcss
+  rm -f end2end/results.json
+  just e2e-release || true
+  node -e "const s=require(\"./end2end/results.json\").stats; console.log(\"playwright ran: expected=\"+s.expected+\" unexpected=\"+s.unexpected+\" skipped=\"+s.skipped)"
+' > /tmp/env-clean.log 2>&1; echo "exit=$?"
+mv /root/.cache/cargo-leptos.bak-env /root/.cache/cargo-leptos 2>/dev/null || true
+grep -E "tailwindcss$|playwright ran:|FATAL" /tmp/env-clean.log
+```
+**REQUIRED:** `exit=0`; the `command -v` line ends in `<worktree>/.tools/bin/tailwindcss`; `playwright ran: expected=116 unexpected=0 skipped=2` (if T0's guard is present it also passes); no `FATAL`; no line mentioning `tailwindcss-linux-x64-musl`. `just e2e-release` resets the `samete` DB and uses :3000. This gate is the ONE sanctioned exception to the Shared-environment ban, for ENV only. First run `ss -ltnp | grep -c ':3000 '` → `0`; if it is non-zero, STOP and report BLOCKED instead of killing anything.
+
+Standard gates (Rust unchanged; must still pass).
+
+Commit: `build(env): pin toolchain and add idempotent bootstrap + cloud SessionStart hook`. Write-set exactly: `scripts/bootstrap-toolchain.sh` (new), `.claude/settings.json` (new), `.claude/hooks/session-start.sh` (new), `.gitignore`, `justfile`, `scripts/isolated-capture.sh`, `end2end/package.json`, `end2end/package-lock.json`, `.github/workflows/ci.yml`, `README.md`.
+
+---
+
+# T0 — Build actually compiles at rustc's default limit; CI and harnesses cannot go false-green
+
+## Why This Matters
+HEAD does not build. `cargo build` of the SSR bin and of the wasm hydrate lib fail with `error: queries overflow the depth limit!` (layout of Leptos `into_any` async blocks over one deeply nested view type per page exceeds rustc's default 128; trigger commit `ee816fd`; reproduced on rustc 1.97.0/1.97.1/1.99.0 — `readiness/l-toolchain.md`, `readiness/logs/l-debug-bin-1.99.0.log`, `l-wasm-lib-debug-1.99.0.log`). `cargo clippy`/`cargo test` never run codegen, so the Check job stays green. `cargo leptos end-to-end` exits 0 on build failure and skips Playwright, so the E2E job has reported success with zero tests since 2026-07-10 (runs 29118276831 … 30162383205). Raising the limit would mask the cause, and the views would keep growing past any number. The fix removes the depth.
+
+## What You Must Do
+
+### T0.1 Root fix: cut view-type depth at natural seams (no `recursion_limit` anywhere)
+Cause, from the overflow traces in `readiness/logs/l-debug-bin-1.99.0.log:365` and `l-wasm-lib-debug-1.99.0.log:225`: each failing type is ONE concrete nested `View<…>` type spanning a whole page tree. rustc lays out the `into_any::resolve` / `hydrate_async` async block over that type at codegen, and its depth exceeds 128. `.into_any()` erases a subtree to `AnyView`, so nesting stops at that boundary. Insert erasure at seams that already exist as UI units; markup stays byte-identical.
+
+**Bin tree (`src/pages/login.rs`), named in the trace as `__component_login_step_router` + `__component_name_collection_form` inside LoginPage's `page-frame > auth-card` divs:**
+1. `LoginStepRouter`: move each of the four step `<div …>` blocks (Step 1 phone, Step 2 OTP, Step 3 invite-code wrapper, Step 4 name-collection wrapper) out of the single `view!` into four private `#[component]`s in the same file: `PhoneStep`, `OtpStep`, `InviteCodeStep`, `NameStep`. Each component's body is the exact existing `<div …>…</div>` (same attributes, classes, `style:display` closures, testids, children, comments) and ends with `.into_any()`. Props are exactly the signals/actions/closures each block uses (`is_pending: bool`, `is_otp_error: bool`, `otp_step: Memo<bool>`, `hydrated: ReadSignal<bool>`, `request_action`, `submitted_phone`, `entered_code`, `set_entered_code`, `register_action`, `resend_cooldown: RwSignal<u32>`, and the `resend` callback). Pass `resend` as a prop typed `impl Fn() + Send + Sync + 'static`; the dual-cfg `resend` bindings stay where they are, outside every `view!` (conventions: no `#[cfg]` inside `view!`). `LoginStepRouter`'s `view!` becomes `<PhoneStep …/> <OtpStep …/> <InviteCodeStep …/> <NameStep …/>` followed by `.into_any()`.
+2. `NameCollectionForm` and `InviteCodeForm`: append `.into_any()` to their `view!{…}`.
+3. `LoginPage`: append `.into_any()` to its `view!{…}`.
+No other change in login.rs. Names `InviteCodeForm` and `NameCollectionForm` stay, because U1 edits `NameCollectionForm`'s `<form>`.
+
+**Lib tree (`src/admin/page.rs`), named in the trace as the `<ul class="invite-code-list">` `<For>` at :1841–1872 inside `InviteCodesSection`:**
+4. Extract the `<For>` child, the whole `<li class="invite-code-card" data-testid="invite-code-row">…</li>`, into a private `#[component] fn InviteCodeCard(code: InviteCodeRow, revoke_invite_action: ServerAction<RevokeInviteCode>, hydrated: ReadSignal<bool>) -> impl IntoView`, whose body is the existing `<li>` verbatim, ending in `.into_any()`. The `<For>` child becomes `<InviteCodeCard code=code revoke_invite_action=revoke_invite_action hydrated=hydrated/>`. Pass `revoke_pending` / `i18n` by recomputing them inside the component exactly as the current code computes them; do not change what they read.
+5. Append `.into_any()` to the `Ok(codes) => view!{…}` branch view, if it is not already present.
+
+**Gate-driven extension (exhaustive rule, no discretion):** if either build (T0 gates) still overflows, the new error names the next closure (`file:line`). Apply the same move to the innermost enclosing existing UI unit at that location: a step/section/card/branch `view!` gets `.into_any()`, extracted into a `#[component]` only when it is a `<For>` child or a match/if branch. Repeat until both builds pass at the default limit and at the headroom limit (gates below). Record every extra seam in the report as `file:line → component/erasure`.
+
+**Zero DOM change:** no element, attribute, class, testid, text, or order change. The isolated E2E (116 passed) and the HTML-diff gate below prove it.
+
+**Lint:** new components follow the existing `#[component]` conventions. No `#[allow]` without a WHY comment. `#[allow(clippy::too_many_arguments)]` on a new component carries the same WHY as `LoginStepRouter`'s existing one, and only if clippy demands it.
 
 ### T0.3 `scripts/assert-playwright-ran.sh` (new, `chmod +x`)
 ```bash
@@ -194,8 +457,8 @@ Add above `e2e: e2e-release` a comment line: `# All end-to-end recipes assert Pl
 ### T0.5 `.github/workflows/ci.yml`
 1. Check job: insert directly after the step `cargo clippy (hydrate / WASM)` (features match `[package.metadata.leptos]` `bin-features = ["ssr"]`, `bin-default-features = false`, `lib-features = ["hydrate"]`):
 ```yaml
-      # clippy/test never run codegen, so recursion/layout overflows in Leptos views
-      # only surface in a real build (see src/main.rs recursion_limit WHY).
+      # clippy/test never run codegen, so layout-depth overflows in Leptos views
+      # only surface in a real build.
       - name: cargo build (SSR bin — codegen)
         run: cargo build --no-default-features --features ssr --bin samete
 
@@ -224,9 +487,35 @@ grep -c "overflow the depth limit" /tmp/t0-bin.log /tmp/t0-wasm.log
 ```
 **REQUIRED OUTPUT:** `exit=0`, `exit=0`, both counts `0`.
 ```bash
-grep -n "recursion_limit" src/main.rs src/lib.rs
+grep -rn "recursion_limit" src/ Cargo.toml .cargo 2>/dev/null; echo "count=$(grep -rn recursion_limit src/ Cargo.toml 2>/dev/null | wc -l)"
+echo "${RUSTFLAGS:-}${CARGO_ENCODED_RUSTFLAGS:-}" | grep -c "recursion_limit\|crate-attr"
+rustc --version
 ```
-**REQUIRED:** exactly `src/main.rs:6:#![recursion_limit = "256"]` and `src/lib.rs:4:#![recursion_limit = "256"]` (line numbers after the WHY comments above).
+**REQUIRED:** `count=0`; second line `0` (no env masking: unset any `RUSTFLAGS='-Zcrate-attr=…'` / `RUSTC_BOOTSTRAP` left over from readiness work before ALL T0 gates); `rustc 1.99.0`.
+Release builds at the default limit:
+```bash
+SQLX_OFFLINE=true cargo build --release --no-default-features --features ssr --bin samete > /tmp/t0-rel-bin.log 2>&1; echo "exit=$?"
+cargo leptos build --release > /tmp/t0-leptos-rel.log 2>&1; echo "exit=$?"
+grep -c "overflow the depth limit\|^error" /tmp/t0-rel-bin.log /tmp/t0-leptos-rel.log
+ls -la target/release/samete target/site/pkg/samete.wasm
+```
+**REQUIRED:** `exit=0`, `exit=0`, both counts `0`, both artifacts listed with a timestamp from this run.
+Headroom proof (temporary, then removed): add `#![recursion_limit = "96"]` as line 1 of both `src/main.rs` and `src/lib.rs`, then:
+```bash
+SQLX_OFFLINE=true cargo build --no-default-features --features ssr --bin samete > /tmp/t0-h96-bin.log 2>&1; echo "exit=$?"
+SQLX_OFFLINE=true cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate > /tmp/t0-h96-wasm.log 2>&1; echo "exit=$?"
+sed -i '/^#!\[recursion_limit = "96"\]$/d' src/main.rs src/lib.rs
+git diff --quiet -- src/main.rs src/lib.rs && echo roots-untouched
+```
+**REQUIRED:** `exit=0`, `exit=0`, `roots-untouched`. The views fit with ≥25% margin below rustc's default. If 96 fails, add the next seam (extension rule) and repeat. Lowering the probe value is BANNED.
+HTML identity (SSR output unchanged; hydration comment markers excluded):
+```bash
+# run once with STAGE=before (the lane's base tree, before the view edits) and once with STAGE=after; same DB state, same port
+for path in /login "/login?pending=1"; do curl -s "http://127.0.0.1:3963$path" | sed -E 's/<!--[^>]*-->//g' > "/tmp/t0-html-$(echo $path | tr -c 'a-z0-9' _)-$STAGE.html"; done
+curl -s -b "session=$ADMIN_TOKEN" http://127.0.0.1:3963/admin | sed -E 's/<!--[^>]*-->//g' > /tmp/t0-html-admin-$STAGE.html
+diff -q /tmp/t0-html-_login-before.html /tmp/t0-html-_login-after.html && diff -q /tmp/t0-html-_login_pending_1-before.html /tmp/t0-html-_login_pending_1-after.html && diff -q /tmp/t0-html-admin-before.html /tmp/t0-html-admin-after.html && echo html-identical
+```
+(Server: release binary on 127.0.0.1:3963 with `SAMETE_SMS_DRY_RUN=true SAMETE_TEST_MODE=true` against a sibling DB seeded with `seed/test_admin.sql`, plus ≥1 invite code inserted via `INSERT INTO invite_codes (code, distributor_id) VALUES ('alpha-beta', '00000000-0000-0000-0000-000000000001')`. `ADMIN_TOKEN` comes from logging in with curl: POST `request_otp` then `verify_otp_code` with `000000`, and read the `session=` cookie. The "before" binary is the base tree built with an env-only `RUSTFLAGS='-Zcrate-attr=recursion_limit="256"' RUSTC_BOOTSTRAP=1`, which is the ONLY permitted use of that flag: a throwaway comparison build, never committed, unset afterwards.) **REQUIRED:** `html-identical`.
 ```bash
 grep -c "assert-playwright-ran.sh target/e2e-start.marker" justfile
 grep -c "touch target/e2e-start.marker" justfile
@@ -243,7 +532,7 @@ python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml'))" &
 **REQUIRED:** `yaml-ok`.
 Standard gates (Shared environment).
 
-Positive E2E gates (both paths, after T0.1–T0.6):
+Positive E2E gates (both paths, with T0.1–T0.6 applied):
 1. Isolated harness: the E2E gate from Shared environment with `<unit>=t0`. **REQUIRED:** `exit=0`, `116 passed`, `2 skipped`, no `failed`/`flaky`.
 2. end-to-end path with the guard, on an own port and own DB (do NOT use `just e2e*`: they kill :3000 and reset `samete`):
 ```bash
@@ -261,8 +550,8 @@ DATABASE_URL=$T0DB sqlx database drop -y
 
 Sabotage gates (prove each guard turns RED on a broken build; run AFTER committing T0 so the revert is `git checkout`):
 ```bash
-sed -i '/^#!\[recursion_limit/d' src/main.rs src/lib.rs     # reintroduce the real defect
-git diff --stat                                              # must show src/main.rs, src/lib.rs
+git checkout HEAD~1 -- src/pages/login.rs src/admin/page.rs   # reintroduce the real defect (pre-refactor views)
+git diff --cached --stat                                      # must show exactly those two files
 ```
 (a) CI Check steps:
 ```bash
@@ -287,18 +576,18 @@ grep -c "release build produced no binary/WASM" /tmp/t0-sab-iso.log
 **REQUIRED:** `exit=` non-zero and count `1` (or the build step itself exits non-zero first; then paste the failing line — either way exit ≠ 0 and no Playwright line `passed` appears: `grep -c " passed" /tmp/t0-sab-iso.log` = `0`).
 Revert and prove clean:
 ```bash
-git checkout -- src/main.rs src/lib.rs
+git checkout HEAD -- src/pages/login.rs src/admin/page.rs
 git status --short
-grep -c "recursion_limit" src/main.rs src/lib.rs
+grep -rc "recursion_limit" src/ | grep -v ":0$" | wc -l
 ```
-**REQUIRED:** `git status --short` prints nothing; counts `1` and `1`. Then rerun the T0 build gates once more: `exit=0`, `exit=0`.
+**REQUIRED:** `git status --short` prints nothing; last count `0`. Then rerun the T0 build gates once more: `exit=0`, `exit=0`.
 
 ## T0 Definition of Done (in addition to the common DoD)
-Commit message: `fix(build): raise recursion_limit and make CI/E2E fail on build failure`. Write-set exactly: `src/main.rs`, `src/lib.rs`, `scripts/assert-playwright-ran.sh` (new), `scripts/isolated-capture.sh`, `justfile`, `.github/workflows/ci.yml`. Report all sabotage outputs verbatim.
+Commit message: `fix(build): reduce view type depth at component seams and make CI/E2E fail on build failure`. Write-set exactly: `src/pages/login.rs`, `src/admin/page.rs`, `scripts/assert-playwright-ran.sh` (new), `scripts/isolated-capture.sh`, `justfile`, `.github/workflows/ci.yml`. Report all sabotage outputs verbatim, plus every extra seam added under the extension rule.
 
 ---
 
-# T1 — Server survives the leptos_i18n disposed-signal panic (Wave 0, after T0)
+# T1 — Server survives the leptos_i18n disposed-signal panic
 
 ## Why This Matters
 Under concurrent load the production server process dies. `leptos_i18n` 0.6.1 `context.rs:213` (reached from `src/app.rs:73` `provide_i18n_context()`) reads `locale_signal.get()` inside `Effect::new_isomorphic`. On the server that effect's first run happens in a detached tokio task, which can be polled after `leptos_integration_utils` force-disposes the request Owner. The read then panics with `Tried to access a reactive value that has already been disposed`. Under `[profile.release] panic = "abort"` (Cargo.toml:98) that task panic aborts the whole server. The Dockerfile builds `cargo leptos build --release`, so production has the same exposure. Evidence: `readiness/n-panic.md`, `logs/n-stress-abort-debuginfo-backtrace.log` (8/8 server lifetimes killed), `logs/n-stress-unwind.log` (unwind: 4 panics absorbed, server keeps serving 200s), E2E crashes 4/5 on the cargo-leptos path.
@@ -308,7 +597,7 @@ Under concurrent load the production server process dies. `leptos_i18n` 0.6.1 `c
 
 ## What You Must Do
 
-### T1.0 Record the RED baseline and WASM size BEFORE editing (on post-T0 main, in the T1 worktree)
+### T1.0 Record the RED baseline and WASM size BEFORE editing (in the T1 worktree; build precondition per Lanes)
 ```bash
 cargo leptos build --release > /tmp/t1-build-before.log 2>&1; echo "build=$?"
 brotli -c -q 11 target/site/pkg/samete.wasm | wc -c > /tmp/t1-wasm-br-before.txt
@@ -343,7 +632,7 @@ No other Cargo.toml change. `Cargo.lock` must not change.
 ### T1.2 `scripts/ssr-stress.sh` (new, `chmod +x`) — the regression probe
 ```bash
 #!/usr/bin/env bash
-# SSR concurrency stress: bursts of client-aborted requests at SSR routes, then a
+# SSR concurrency stress: rounds of client-aborted requests at SSR routes, then a
 # liveness check after every round.
 #
 # WHY: leptos_i18n 0.6.x's server-side isomorphic effect (context.rs:213) can read a
@@ -422,7 +711,7 @@ RED (before; `<BIN>=/tmp/t1-samete-abort`, `<N>=red1..red3`): run up to 3 times 
 GREEN (after; `<BIN>=./target/release/samete`, `<N>=green1..green3`): run all 3.
 **REQUIRED:** all 3 print `ALIVE after 80 rounds` with `stress=0`. The sum of `panics logged` across the 3 runs must be ≥ 1, which proves the trigger fired and was absorbed. If the sum is 0, run 3 more. If the sum is still 0, report BLOCKED.
 
-E2E on the path that crashes most (cargo-leptos end-to-end, own port + own DB, with T0's guard). Run 3 times:
+E2E on the path that crashes most (cargo-leptos end-to-end, own port + own DB; Playwright-ran check per Lanes). Run 3 times:
 ```bash
 export T1E=postgres://samete:samete@localhost:5432/samete_t1e2e
 DATABASE_URL=$T1E sqlx database drop -y; DATABASE_URL=$T1E sqlx database create
@@ -887,7 +1176,7 @@ kill $SRV
 
 # U2 — Test mode structurally confined to dry-run + loopback
 
-(Branch from main AFTER U1 and U3 are integrated.)
+Lane base: working branch + `git merge worktree-agent-a1fe18df1d59b4c14` (U3; provides `Config.admin_bootstrap`). `auth.rs`/`login.rs` edits target HEAD's `create_otp`/`check_otp_rate_limit`/`request_otp`, which U1 does not change.
 
 ## Why This Matters
 One stray env var in Coolify turns OTP into `000000` for every account including admin. The flag must be impossible to combine with real SMS and impossible on a network-exposed bind.
@@ -958,7 +1247,7 @@ mod tests {
     }
 }
 ```
-(`admin_bootstrap: None` exists because U3 is integrated first. If U3's field name differs, use U3's actual name.)
+(`admin_bootstrap: None` comes from U3's branch merged into this lane's base; the field is named `admin_bootstrap` there, verified.)
 Step 2 — `SQLX_OFFLINE=true cargo test --features ssr config::tests` → **REQUIRED:** compile errors (red).
 Step 3 — implement. Add `#[derive(PartialEq, Eq)]`-capable types:
 ```rust
@@ -1131,7 +1420,7 @@ env -u TURBOSMS_TOKEN -u SAMETE_SMS_DRY_RUN DATABASE_URL=postgres://x SAMETE_TES
 DATABASE_URL=postgres://x SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true LEPTOS_SITE_ADDR=0.0.0.0:3922 ./target/debug/samete 2>&1 | grep -c "TestModeRequiresLoopback"
 ```
 **REQUIRED:** each prints `1`; both processes exit non-zero immediately.
-Standard gates. E2E gate (passed count unchanged vs the post-U1/U3 baseline; proves `isolated-capture.sh` still boots test mode on 127.0.0.1).
+Standard gates. E2E gate (passed count equal to the lane base's count; proves `isolated-capture.sh` still boots test mode on 127.0.0.1).
 
 ---
 
@@ -1143,7 +1432,7 @@ A fresh production DB has no admin; the only ways in are hand-written SQL or run
 ## What You Must Do
 
 ### U3.1 `src/config.rs` — TDD
-Step 1 — append test module (if U2 already created one — it has not; U3 precedes U2 — create it):
+Step 1 — append a `#[cfg(test)] mod tests` to `src/config.rs` (none exists at HEAD):
 ```rust
 #[cfg(test)]
 mod tests {
@@ -1812,7 +2101,7 @@ sqlx regeneration, standard gates, E2E gate (titles `3.3 — admin swaps two ass
 
 ---
 
-# A1 — `aria-busy` instead of a leaked `attr:aria-busy` (Wave B, after U4 and U1 are integrated)
+# A1 — `aria-busy` instead of a leaked `attr:aria-busy`
 
 ## Why This Matters
 `attr:`-prefixed attributes on NATIVE elements emit a literal attribute named `attr:aria-busy` (Leptos 0.8; empirically confirmed in `readiness/f-e2e.md` § "attr: leak check": `"attr:aria-busy=true"` on `create-season-button` in pending state). Screen readers never get `aria-busy` during any admin loading state.
@@ -1894,7 +2183,7 @@ cargo leptos build --release > /tmp/a1-build.log 2>&1; echo "build=$?"
 grep -c -a "attr:aria-busy" target/release/samete target/site/pkg/samete.wasm
 grep -c -a "aria-busy" target/release/samete target/site/pkg/samete.wasm
 ```
-**REQUIRED:** `build=0`; first grep `0` for both files; second grep ≥ `1` for both files. Run the first grep on post-U4/U1 main BEFORE the edit too, and paste it: it is expected ≥ `1` in at least one file (RED proof).
+**REQUIRED:** `build=0`; first grep `0` for both files; second grep ≥ `1` for both files. Run the first grep on the lane base BEFORE the edit too, and paste it: it is expected ≥ `1` in at least one file (RED proof).
 Standard gates; isolated E2E gate (baseline + U1's 4 + this 1). The new title `1.5 — generate button exposes aria-busy while pending` must pass in all 3 runs.
 
 Commit: `fix(a11y): emit bare aria-busy on admin submit buttons`. Write-set: `src/admin/page.rs`, `end2end/tests/fixtures/mail_club_page.ts`, `end2end/tests/mail_club.spec.ts`.
@@ -1953,10 +2242,10 @@ No changes to: `request_otp` outcome enum, IP rate limiting, OTP hashing, Docker
 4. `.sqlx/` regenerated with `-- --features ssr` (U1, U3, U4) and committed; `SQLX_OFFLINE=true` clippy passes.
 5. E2E gate green 3 consecutive times via `scripts/isolated-capture.sh e2e_<unit> full`; new/changed titles listed as passed.
 6. `git status --short` clean after commit; exactly the unit's write-set files changed (`git diff --stat main...HEAD`).
-7. One-line conventional commit(s) in the worktree; report the SHA(s). Suggested messages: `fix(build): raise recursion_limit and make CI/E2E fail on build failure` (T0), `fix(build): unwind panics on the server so a task panic cannot kill it` (T1), `fix(a11y): emit bare aria-busy on admin submit buttons` (A1), `fix(auth): require server-side registration ticket for self-registration` (U1), `fix(config): confine test mode to dry-run SMS and loopback bind` (U2), `feat(admin): bootstrap first admin from env at startup` (U3), `fix(assignments): make swap a transactional position exchange and guard release` (U4).
+7. One-line conventional commit(s) in the worktree; report the SHA(s). Suggested messages: `build(env): pin toolchain and add idempotent bootstrap + cloud SessionStart hook` (ENV), `fix(build): reduce view type depth at component seams and make CI/E2E fail on build failure` (T0), `fix(build): unwind panics on the server so a task panic cannot kill it` (T1), `fix(a11y): emit bare aria-busy on admin submit buttons` (A1), `fix(auth): require server-side registration ticket for self-registration` (U1), `fix(config): confine test mode to dry-run SMS and loopback bind` (U2), `feat(admin): bootstrap first admin from env at startup` (U3), `fix(assignments): make swap a transactional position exchange and guard release` (U4).
 8. Report status: DONE / DONE_WITH_CONCERNS / BLOCKED with gate evidence. A gate failing twice → STOP and report BLOCKED (task, failing output, attempts).
 
-## Global Gates (orchestrator, on main after the last Wave B integration)
+## Global Gates (orchestrator, on the working branch once every lane is integrated)
 ```bash
 SQLX_OFFLINE=true cargo build --no-default-features --features ssr --bin samete
 SQLX_OFFLINE=true cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate

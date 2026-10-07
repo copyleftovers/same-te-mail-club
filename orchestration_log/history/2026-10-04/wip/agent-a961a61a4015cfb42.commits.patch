@@ -1,0 +1,200 @@
+From 9726689cef40116c64e6dcc78f829eaebfd23b55 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 20:44:42 +0000
+Subject: [PATCH 1/3] feat(db): add seasons.meetup_details column
+
+---
+ migrations/20261004000002_add_season_meetup_details.sql | 5 +++++
+ 1 file changed, 5 insertions(+)
+ create mode 100644 migrations/20261004000002_add_season_meetup_details.sql
+
+diff --git a/migrations/20261004000002_add_season_meetup_details.sql b/migrations/20261004000002_add_season_meetup_details.sql
+new file mode 100644
+index 0000000..8ca114e
+--- /dev/null
++++ b/migrations/20261004000002_add_season_meetup_details.sql
+@@ -0,0 +1,5 @@
++-- Organizer's free-text meetup announcement (date, time, place).
++-- NULL = not announced yet.
++ALTER TABLE seasons
++    ADD COLUMN meetup_details TEXT
++    CHECK (meetup_details IS NULL OR char_length(meetup_details) BETWEEN 1 AND 300);
+-- 
+2.43.0
+
+
+From 6621b05676b07c366a96fa4d1f0635f41fcdab59 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 20:45:18 +0000
+Subject: [PATCH 2/3] test(e2e): assert season timeline and meetup on
+ participant home
+
+---
+ end2end/tests/fixtures/capture-constants.ts | 15 ++++++++++++
+ end2end/tests/fixtures/mail_club_page.ts    | 27 +++++++++++++++++++++
+ end2end/tests/mail_club.spec.ts             | 18 +++++++++++---
+ 3 files changed, 56 insertions(+), 4 deletions(-)
+
+diff --git a/end2end/tests/fixtures/capture-constants.ts b/end2end/tests/fixtures/capture-constants.ts
+index fb06276..944108c 100644
+--- a/end2end/tests/fixtures/capture-constants.ts
++++ b/end2end/tests/fixtures/capture-constants.ts
+@@ -53,3 +53,18 @@ export function futureDeadline(daysFromNow: number): string {
+   const d = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000);
+   return d.toISOString().slice(0, 16);
+ }
++
++const UK_MONTHS_GENITIVE = [
++  "січня", "лютого", "березня", "квітня", "травня", "червня",
++  "липня", "серпня", "вересня", "жовтня", "листопада", "грудня",
++];
++
++/**
++ * Mirror of src/date_format.rs::format_date_uk for a futureDeadline() value
++ * ("YYYY-MM-DDTHH:MM", UTC — create_season stores it as UTC verbatim).
++ */
++export function formatDateUk(isoMinute: string): string {
++  const [date, time] = isoMinute.split("T");
++  const [year, month, day] = date.split("-").map(Number);
++  return `${day} ${UK_MONTHS_GENITIVE[month - 1]} ${year}, ${time}`;
++}
+diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
+index 10c26f9..208dbc5 100644
+--- a/end2end/tests/fixtures/mail_club_page.ts
++++ b/end2end/tests/fixtures/mail_club_page.ts
+@@ -180,6 +180,19 @@ export class MailClubPage {
+     await expect(this.page.getByTestId("enroll-button")).not.toBeVisible();
+   }
+ 
++  async expectEnrollmentTimeline(signup: string, confirm: string) {
++    await expect(this.page.getByTestId("enroll-signup-deadline")).toContainText(signup);
++    await expect(this.page.getByTestId("enroll-confirm-deadline")).toContainText(confirm);
++  }
++
++  async expectMeetup(text: string) {
++    await expect(this.page.getByTestId("season-meetup-details")).toHaveText(text);
++  }
++
++  async expectNoMeetup() {
++    await expect(this.page.getByTestId("season-meetup")).not.toBeVisible();
++  }
++
+   // ── Confirm ready (Story 2.2) ──
+ 
+   async confirmReady() {
+@@ -417,6 +430,20 @@ export class MailClubPage {
+ 
+   // ── Admin: season management (Stories 4.1, 4.2) ──
+ 
++  async setMeetupDetails(text: string) {
++    await this.page.goto("/admin");
++    await expect(this.page.getByTestId("save-meetup-button")).toBeEnabled();
++    await this.page.getByTestId("meetup-details-input").fill(text);
++    await this.clickAndWaitForResponse(this.page.getByTestId("save-meetup-button"), "set_meetup_details");
++  }
++
++  /** Fresh SSR load proves persistence, not the typed DOM value. */
++  async expectMeetupDetailsSaved(text: string) {
++    await this.page.goto("/admin");
++    await expect(this.page.getByTestId("meetup-details-input")).toHaveValue(text);
++  }
++
++
+   async createSeason(
+     signupDeadline: string,
+     confirmDeadline: string,
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index aa04249..eecd00c 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -1,6 +1,6 @@
+ import { test, expect } from "./fixtures/cached-context";
+ import { MailClubPage } from "./fixtures/mail_club_page";
+-import { ADMIN_PHONE, futureDeadline } from "./fixtures/capture-constants";
++import { ADMIN_PHONE, formatDateUk, futureDeadline } from "./fixtures/capture-constants";
+ 
+ /**
+  * The Mail Club — E2E Test Suite
+@@ -57,6 +57,7 @@ const BRANCH_10 = "10";
+ const SIGNUP_DEADLINE = futureDeadline(7);
+ const CONFIRM_DEADLINE = futureDeadline(21);
+ const SEASON_THEME = "Перший сезон";
++const MEETUP_DETAILS = "15 листопада, 18:00 — Арт-простір «Купол», вул. Січових Стрільців, 1";
+ 
+ // Invite codes generated during the test run.
+ // Populated in "1.5 — admin generates invite codes" and consumed by subsequent
+@@ -394,13 +395,14 @@ test.describe.serial("The Mail Club", () => {
+       await expect(page.getByTestId("season-theme")).toBeVisible();
+     });
+ 
+-    // Story 2.1 AC: season timeline visible (deadlines, theme)
+-    test("2.1 — season timeline and theme visible", async ({ page }) => {
++    // Story 2.1 AC: season timeline visible (deadlines, theme, meetup)
++    test("2.1 — season timeline visible: deadlines and meetup", async ({ page }) => {
+       const app = new MailClubPage(page);
+       await app.login(PHONES.A);
+       await app.goHome();
+-      // Theme should be visible
+       await app.expectHomeContent(SEASON_THEME);
++      await app.expectEnrollmentTimeline(formatDateUk(SIGNUP_DEADLINE), formatDateUk(CONFIRM_DEADLINE));
++      await app.expectMeetup(MEETUP_DETAILS);
+     });
+ 
+     // Story 2.1: Participant A enrolls
+@@ -725,6 +727,13 @@ test.describe.serial("The Mail Club", () => {
+       expect(count).toBe(1);
+     });
+ 
++    test("2.3 — participant sees the meetup announcement during delivery", async ({ page }) => {
++      const app = new MailClubPage(page);
++      await app.login(PHONES.A);
++      await app.goHome();
++      await app.expectMeetup(MEETUP_DETAILS);
++    });
++
+     // Story 5.2: Receipt nudge SMS
+     test("5.2 — admin triggers receipt-nudge SMS", async ({ page }) => {
+       const app = new MailClubPage(page);
+@@ -788,6 +797,7 @@ test.describe.serial("The Mail Club", () => {
+       await app.login(PHONES.A);
+       await app.goHome();
+       await app.expectHomeContent(/complete|завершено/i);
++      await app.expectMeetup(MEETUP_DETAILS);
+     });
+   });
+ 
+-- 
+2.43.0
+
+
+From 2c52252559ce3bfcedf952accfc5480b920dc93b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 20:45:30 +0000
+Subject: [PATCH 3/3] test(e2e): announce meetup in lifecycle suite
+
+---
+ end2end/tests/mail_club.spec.ts | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index eecd00c..50b426b 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -380,6 +380,14 @@ test.describe.serial("The Mail Club", () => {
+       await app.goHome();
+       await app.expectEnrollAvailable();
+     });
++
++    // Story 2.1 timeline AC (meetup window): organizer announces the meetup.
++    test("2.1 — admin announces the meetup for the season", async ({ page }) => {
++      const app = new MailClubPage(page);
++      await app.login(ADMIN_PHONE);
++      await app.setMeetupDetails(MEETUP_DETAILS);
++      await app.expectMeetupDetailsSaved(MEETUP_DETAILS);
++    });
+   });
+ 
+   // ════════════════════════════════════════════
+-- 
+2.43.0
+

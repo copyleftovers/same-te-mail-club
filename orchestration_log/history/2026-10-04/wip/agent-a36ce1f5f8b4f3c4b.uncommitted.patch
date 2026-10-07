@@ -1,0 +1,430 @@
+diff --git a/.sqlx/query-44d6887ae9042f3604af29fef047cf6614f92e4be582c73e46452f2d9cf142ab.json b/.sqlx/query-44d6887ae9042f3604af29fef047cf6614f92e4be582c73e46452f2d9cf142ab.json
+new file mode 100644
+index 0000000..fbdf039
+--- /dev/null
++++ b/.sqlx/query-44d6887ae9042f3604af29fef047cf6614f92e4be582c73e46452f2d9cf142ab.json
+@@ -0,0 +1,57 @@
++{
++  "db_name": "PostgreSQL",
++  "query": "\n        SELECT\n            a.sender_id,\n            a.recipient_id,\n            su.name AS sender_name,\n            ru.name AS recipient_name,\n            a.receipt_status AS \"receipt_status: crate::types::ReceiptStatus\"\n        FROM assignments a\n        JOIN users su ON su.id = a.sender_id\n        JOIN users ru ON ru.id = a.recipient_id\n        WHERE a.season_id = $1\n        ORDER BY a.created_at, a.sender_id\n        ",
++  "describe": {
++    "columns": [
++      {
++        "ordinal": 0,
++        "name": "sender_id",
++        "type_info": "Uuid"
++      },
++      {
++        "ordinal": 1,
++        "name": "recipient_id",
++        "type_info": "Uuid"
++      },
++      {
++        "ordinal": 2,
++        "name": "sender_name",
++        "type_info": "Text"
++      },
++      {
++        "ordinal": 3,
++        "name": "recipient_name",
++        "type_info": "Text"
++      },
++      {
++        "ordinal": 4,
++        "name": "receipt_status: crate::types::ReceiptStatus",
++        "type_info": {
++          "Custom": {
++            "name": "receipt_status",
++            "kind": {
++              "Enum": [
++                "no_response",
++                "received",
++                "not_received"
++              ]
++            }
++          }
++        }
++      }
++    ],
++    "parameters": {
++      "Left": [
++        "Uuid"
++      ]
++    },
++    "nullable": [
++      false,
++      false,
++      false,
++      false,
++      false
++    ]
++  },
++  "hash": "44d6887ae9042f3604af29fef047cf6614f92e4be582c73e46452f2d9cf142ab"
++}
+diff --git a/.sqlx/query-cda1a886408011658e8f4945fb0582184f822e80b6756e5ae44aacc7246b7b7d.json b/.sqlx/query-cda1a886408011658e8f4945fb0582184f822e80b6756e5ae44aacc7246b7b7d.json
+deleted file mode 100644
+index cecd3f1..0000000
+--- a/.sqlx/query-cda1a886408011658e8f4945fb0582184f822e80b6756e5ae44aacc7246b7b7d.json
++++ /dev/null
+@@ -1,40 +0,0 @@
+-{
+-  "db_name": "PostgreSQL",
+-  "query": "\n        SELECT\n            a.sender_id,\n            a.recipient_id,\n            su.name AS sender_name,\n            ru.name AS recipient_name\n        FROM assignments a\n        JOIN users su ON su.id = a.sender_id\n        JOIN users ru ON ru.id = a.recipient_id\n        WHERE a.season_id = $1\n        ORDER BY a.created_at, a.sender_id\n        ",
+-  "describe": {
+-    "columns": [
+-      {
+-        "ordinal": 0,
+-        "name": "sender_id",
+-        "type_info": "Uuid"
+-      },
+-      {
+-        "ordinal": 1,
+-        "name": "recipient_id",
+-        "type_info": "Uuid"
+-      },
+-      {
+-        "ordinal": 2,
+-        "name": "sender_name",
+-        "type_info": "Text"
+-      },
+-      {
+-        "ordinal": 3,
+-        "name": "recipient_name",
+-        "type_info": "Text"
+-      }
+-    ],
+-    "parameters": {
+-      "Left": [
+-        "Uuid"
+-      ]
+-    },
+-    "nullable": [
+-      false,
+-      false,
+-      false,
+-      false
+-    ]
+-  },
+-  "hash": "cda1a886408011658e8f4945fb0582184f822e80b6756e5ae44aacc7246b7b7d"
+-}
+diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
+index 58fa73d..521b7a5 100644
+--- a/end2end/tests/fixtures/mail_club_page.ts
++++ b/end2end/tests/fixtures/mail_club_page.ts
+@@ -520,6 +520,21 @@ export class MailClubPage {
+     return (await link.getAttribute("data-sender-id")) as string;
+   }
+ 
++  /** Name of the participant who sends to `recipientName`, from the cycle link list. */
++  async cycleSenderNameFor(recipientName: string): Promise<string> {
++    const recipientId = await this.cycleSenderId(recipientName);
++    const link = this.page.getByTestId("cycle-link").and(this.page.locator(`[data-recipient-id="${recipientId}"]`));
++    await expect(link).toBeAttached();
++    return (await link.getAttribute("data-sender-name")) as string;
++  }
++
++  async expectForwardingRequest(fromName: string, toName: string) {
++    const requests = this.page.getByTestId("forwarding-request");
++    await expect(requests).toHaveCount(1);
++    await expect(requests.first()).toHaveAttribute("data-from-name", fromName);
++    await expect(requests.first()).toHaveAttribute("data-to-name", toName);
++  }
++
+   async expectCycleVisualization() {
+     await expect(this.page.getByTestId("cycle-visualization")).toBeVisible();
+   }
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index 72259a4..741adc8 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -785,6 +785,15 @@ test.describe.serial("The Mail Club", () => {
+       // Dashboard should show the "not received" alert for participant B
+       await app.expectDashboardContent(/not received|не отримано/i);
+     });
++
++    // Product Spec §Non-compliance: B got nothing → B's sender forwards what they received to B.
++    test("2.4 — admin is told who should forward mail to the participant who got nothing", async ({ page }) => {
++      const app = new MailClubPage(page);
++      await app.login(ADMIN_PHONE);
++      await app.goToDashboard();
++      const senderOfB = await app.cycleSenderNameFor(NAMES.B);
++      await app.expectForwardingRequest(senderOfB, NAMES.B);
++    });
+   });
+ 
+   // ════════════════════════════════════════════
+diff --git a/locales/uk.json b/locales/uk.json
+index 285bf3b..d9c9472 100644
+--- a/locales/uk.json
++++ b/locales/uk.json
+@@ -224,5 +224,8 @@
+   "sms_send_receipt_nudge_button": "Нагадати про отримання",
+   "sms_error_no_assignment_delivery_season": "Немає активного сезону на етапі розподілу або доставки.",
+   "sms_error_no_preparation_season": "Немає активного сезону на етапі підготовки.",
+-  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки."
++  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки.",
++  "admin_forwarding_title": "Пересилання",
++  "admin_forwarding_description": "Хтось не надіслав свій лист. Попроси першого учасника кожного зламаного відрізка переслати отриманий лист далі:",
++  "admin_forwarding_request": "{{ from }} → {{ to }}"
+ }
+diff --git a/src/admin/assignments.rs b/src/admin/assignments.rs
+index 347443c..c3dcb70 100644
+--- a/src/admin/assignments.rs
++++ b/src/admin/assignments.rs
+@@ -27,6 +27,15 @@ pub struct AssignmentLink {
+     pub sender_name: String,
+     pub recipient_id: String,
+     pub recipient_name: String,
++    /// Receipt the recipient reported for this link (`NoResponse` until they answer).
++    pub recipient_receipt: crate::types::ReceiptStatus,
++}
++
++/// Ask `from_name` to forward the mail they received to `to_name`.
++#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
++pub struct ForwardingRequest {
++    pub from_name: String,
++    pub to_name: String,
+ }
+ 
+ // ── SSR-only row types ───────────────────────────────────────────────────────
+@@ -55,6 +64,7 @@ struct AssignmentRow {
+     recipient_id: uuid::Uuid,
+     sender_name: String,
+     recipient_name: String,
++    receipt_status: crate::types::ReceiptStatus,
+ }
+ 
+ // ── SSR-only helper functions ────────────────────────────────────────────────
+@@ -159,6 +169,7 @@ async fn store_and_build_preview(
+                 sender_name: names.get(&sender_id).cloned().unwrap_or_default(),
+                 recipient_id: recipient_id.to_string(),
+                 recipient_name: names.get(&recipient_id).cloned().unwrap_or_default(),
++                recipient_receipt: crate::types::ReceiptStatus::NoResponse,
+             });
+         }
+ 
+@@ -404,7 +415,8 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
+             a.sender_id,
+             a.recipient_id,
+             su.name AS sender_name,
+-            ru.name AS recipient_name
++            ru.name AS recipient_name,
++            a.receipt_status AS "receipt_status: crate::types::ReceiptStatus"
+         FROM assignments a
+         JOIN users su ON su.id = a.sender_id
+         JOIN users ru ON ru.id = a.recipient_id
+@@ -450,6 +462,7 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
+                     sender_name: a.sender_name.clone(),
+                     recipient_id: a.recipient_id.to_string(),
+                     recipient_name: a.recipient_name.clone(),
++                    recipient_receipt: a.receipt_status,
+                 })
+                 .collect(),
+         })
+@@ -461,3 +474,111 @@ pub async fn get_assignment_preview() -> Result<Option<AssignmentPreview>, Serve
+         phase: season.phase,
+     }))
+ }
++
++/// Forwarding requests for one cohort chain (ordered: link i's recipient is
++/// link i+1's sender). A link failed when its recipient reported `NotReceived`.
++/// Each maximal run of failed links i..=j yields one request: the run's first
++/// sender (who still holds the mail they received) forwards it to link j's
++/// recipient. No requests when nobody — or everybody — failed.
++#[must_use]
++pub fn forwarding_requests(chain: &[AssignmentLink]) -> Vec<ForwardingRequest> {
++    let n = chain.len();
++    let failed = |i: usize| chain[i].recipient_receipt == crate::types::ReceiptStatus::NotReceived;
++    let Some(start) = (0..n).find(|&i| !failed(i)) else {
++        return Vec::new();
++    };
++    let mut requests = Vec::new();
++    let mut run_start: Option<usize> = None;
++    for step in 1..=n {
++        let i = (start + step) % n;
++        match (failed(i), run_start) {
++            (true, None) => run_start = Some(i),
++            (false, Some(first)) => {
++                let last = (i + n - 1) % n;
++                requests.push(ForwardingRequest {
++                    from_name: chain[first].sender_name.clone(),
++                    to_name: chain[last].recipient_name.clone(),
++                });
++                run_start = None;
++            }
++            (true, Some(_)) | (false, None) => {}
++        }
++    }
++    requests
++}
++
++#[cfg(test)]
++mod forwarding_tests {
++    use super::{AssignmentLink, ForwardingRequest, forwarding_requests};
++    use crate::types::ReceiptStatus::{self, NoResponse, NotReceived, Received};
++
++    /// Ring names[0]→names[1]→…→names[0]; statuses[i] = what names[i+1] reported.
++    fn ring(names: &[&str], statuses: &[ReceiptStatus]) -> Vec<AssignmentLink> {
++        (0..names.len())
++            .map(|i| {
++                let r = names[(i + 1) % names.len()];
++                AssignmentLink {
++                    sender_id: names[i].into(),
++                    sender_name: names[i].into(),
++                    recipient_id: r.into(),
++                    recipient_name: r.into(),
++                    recipient_receipt: statuses[i],
++                }
++            })
++            .collect()
++    }
++
++    fn req(from: &str, to: &str) -> ForwardingRequest {
++        ForwardingRequest { from_name: from.into(), to_name: to.into() }
++    }
++
++    const ABCDE: [&str; 5] = ["A", "B", "C", "D", "E"];
++
++    #[test]
++    fn nobody_failed_needs_no_forwarding() {
++        assert!(forwarding_requests(&ring(&ABCDE, &[Received; 5])).is_empty());
++    }
++
++    #[test]
++    fn single_failure_forwards_to_skipped_recipient() {
++        // B never sent to C: B forwards what B received (A's mail) to C.
++        let chain = ring(&ABCDE, &[Received, NotReceived, Received, Received, Received]);
++        assert_eq!(forwarding_requests(&chain), vec![req("B", "C")]);
++    }
++
++    #[test]
++    fn contiguous_failures_need_one_request() {
++        // Product Spec example: B and C fail → B forwards A's mail to D.
++        let chain = ring(&ABCDE, &[Received, NotReceived, NotReceived, Received, Received]);
++        assert_eq!(forwarding_requests(&chain), vec![req("B", "D")]);
++    }
++
++    #[test]
++    fn separate_blocks_get_separate_requests() {
++        let chain = ring(&ABCDE, &[NotReceived, Received, NotReceived, Received, Received]);
++        assert_eq!(forwarding_requests(&chain), vec![req("C", "D"), req("A", "B")]);
++    }
++
++    #[test]
++    fn block_wrapping_the_ring_end_is_one_request() {
++        let chain = ring(&ABCDE, &[NotReceived, Received, Received, Received, NotReceived]);
++        assert_eq!(forwarding_requests(&chain), vec![req("E", "B")]);
++    }
++
++    #[test]
++    fn all_but_one_failed_returns_own_mail() {
++        // Only A sent; B forwards A's mail back to A.
++        let chain = ring(&ABCDE, &[Received, NotReceived, NotReceived, NotReceived, NotReceived]);
++        assert_eq!(forwarding_requests(&chain), vec![req("B", "A")]);
++    }
++
++    #[test]
++    fn everybody_failed_has_nobody_to_forward() {
++        assert!(forwarding_requests(&ring(&ABCDE, &[NotReceived; 5])).is_empty());
++    }
++
++    #[test]
++    fn no_response_is_not_a_failure() {
++        assert!(forwarding_requests(&ring(&ABCDE, &[NoResponse; 5])).is_empty());
++    }
++}
+diff --git a/src/admin/page.rs b/src/admin/page.rs
+index 83a32d2..fabc0e7 100644
+--- a/src/admin/page.rs
++++ b/src/admin/page.rs
+@@ -1,6 +1,6 @@
+ use crate::admin::assignments::{
+-    AssignmentLink, AssignmentPreview, CohortPreview, GenerateAssignments, SwapAssignment,
+-    get_assignment_preview,
++    AssignmentLink, AssignmentPreview, CohortPreview, ForwardingRequest, GenerateAssignments,
++    SwapAssignment, forwarding_requests, get_assignment_preview,
+ };
+ use crate::admin::invite_codes::{
+     DistributorOption, GenerateInviteCode, InviteCodeRow, RevokeInviteCode,
+@@ -1078,6 +1078,16 @@ fn render_assignment_section(
+ 
+     let cohorts_for_viz = p.cohorts.clone();
+ 
++    // Forwarding is only meaningful once assignments are released.
++    let forwarding: Vec<ForwardingRequest> = if is_assignment_phase {
++        Vec::new()
++    } else {
++        p.cohorts
++            .iter()
++            .flat_map(|c| forwarding_requests(&c.chain))
++            .collect()
++    };
++
+     view! {
+         <section class="admin-section" data-testid="assignment-section">
+             <h2>{t!(i18n, assignments_page_title)}</h2>
+@@ -1124,6 +1134,8 @@ fn render_assignment_section(
+                 ().into_any()
+             }}
+ 
++            {render_forwarding_requests(forwarding, i18n)}
++
+             // Swap UI — only in assignment phase with assignments
+             {if has_assignments && is_assignment_phase {
+                 view! {
+@@ -1143,6 +1155,37 @@ fn render_assignment_section(
+     .into_any()
+ }
+ 
++/// Organizer instructions for the Product Spec forwarding protocol.
++fn render_forwarding_requests(
++    requests: Vec<ForwardingRequest>,
++    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
++) -> AnyView {
++    if requests.is_empty() {
++        return ().into_any();
++    }
++    view! {
++        <div data-testid="forwarding-requests">
++            <h3 class="overline-label">{t!(i18n, admin_forwarding_title)}</h3>
++            <p>{t!(i18n, admin_forwarding_description)}</p>
++            <ul>
++                {requests
++                    .into_iter()
++                    .map(|r| view! {
++                        <li
++                            data-testid="forwarding-request"
++                            data-from-name=r.from_name.clone()
++                            data-to-name=r.to_name.clone()
++                        >
++                            {t!(i18n, admin_forwarding_request, from = r.from_name.clone(), to = r.to_name.clone())}
++                        </li>
++                    })
++                    .collect_view()}
++            </ul>
++        </div>
++    }
++    .into_any()
++}
++
+ /// Render the cycle visualization for all cohorts.
+ fn render_cycle_visualization(
+     cohorts: &[CohortPreview],
+diff --git a/src/lib.rs b/src/lib.rs
+index 4f95058..0df3c07 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,3 +1,4 @@
++#![recursion_limit = "256"]
+ // Leptos components return views used in macros, not directly by callers
+ #![allow(clippy::must_use_candidate)]
+ 
+diff --git a/src/main.rs b/src/main.rs
+index 875a481..bb14dcd 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,3 +1,4 @@
++#![recursion_limit = "256"]
+ #[cfg(feature = "ssr")]
+ #[tokio::main]
+ async fn main() {
