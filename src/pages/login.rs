@@ -612,8 +612,7 @@ pub fn LoginPage() -> impl IntoView {
             leptos::prelude::window()
                 .location()
                 .search()
-                .ok()
-                .is_some_and(|s| s.contains("pending=1"))
+                .is_ok_and(|s| s.contains("pending=1"))
         }
     };
     let (is_pending_signal, _) = signal(is_pending);
@@ -632,8 +631,7 @@ pub fn LoginPage() -> impl IntoView {
             leptos::prelude::window()
                 .location()
                 .search()
-                .ok()
-                .is_some_and(|s| s.contains("otp_error=1"))
+                .is_ok_and(|s| s.contains("otp_error=1"))
         }
     };
 
