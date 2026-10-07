@@ -17,11 +17,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-          components: rustfmt, clippy
+      - name: Install pinned Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
 
       - name: Cache cargo registry and target
         uses: actions/cache@v4
@@ -81,10 +78,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
+      - name: Install pinned Rust toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
 
       - name: Cache cargo registry and target
         uses: actions/cache@v4
