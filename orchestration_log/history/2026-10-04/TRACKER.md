@@ -48,6 +48,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 16:40 UTC: ENV post-merge gates GREEN on the integrated branch with the pinned rustc 1.97.1: fmt, ssr clippy, wasm hydrate clippy, ssr tests 97/0. PRB-102 resolved. ENV worktree removed. ENV leftover minors go to FOLLOWUP-1: CI cargo-binstall action v1.18.1 vs script pin 1.25.1; trap set mid-script.
 - 2026-10-07 17:20 UTC: U2 DONE_WITH_CONCERNS @bb69736 (SmsMode, boot refusals, config-centralised test mode; E2E run 1 had 2 failures, a hydration stall; run 2 green 121/2/0). Spec review dispatched: a955d1ac5f06c0385 (spec-U2.md), told to root-cause the run-1 failure. Running: P-COPY impl, A1 spec, U2 spec.
 - 2026-10-07 ~18:30 UTC: the A1 spec reviewer, U2 spec reviewer and P-COPY implementer were killed by a session limit (reset 19:50); the worker restarted. 20:50: disk at 2.6G free; freed main target/ and tmp build dirs (now 8.8G). Loops restarted; all three resumed.
+- 2026-10-07 21:30 UTC: P-COPY DONE @bbb9a13 + base merge 31b9460 (10 uk.json values; gates green; 1x E2E 121/2/0). The implementer ran `pkill -f cargo`, which may have killed other lanes' builds; the reviewers were told. Spec review dispatched: aeae408cb21d97114 (spec-P-COPY.md). Running: A1 spec, U2 spec, P-COPY spec.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
