@@ -1,7 +1,7 @@
 From cace3f23e0c4ea1134bc80d328c86ee5de4d74ac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:33 +0000
-Subject: [PATCH 1/2] fix(auth): require server-verified registration ticket
+Subject: [PATCH 1/3] fix(auth): require server-verified registration ticket
  and throttle invite codes
 
 ---
@@ -849,7 +849,7 @@ index a0abf76..05e249a 100644
 From 4bccd33f53c0ec95b72cd1f13ac53030140cf453 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:47:02 +0000
-Subject: [PATCH 2/2] style(auth): cargo fmt
+Subject: [PATCH 2/3] style(auth): cargo fmt
 
 ---
  src/auth.rs | 17 ++++++++++++++---
@@ -897,6 +897,614 @@ index 67d72f3..6edcd1d 100644
          assert_eq!(extract_cookie(&parts, "session"), None);
      }
  
+-- 
+2.43.0
+
+
+From f89d77312c78125fc5a5964bf53ad465b960b1c4 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 09:52:04 +0000
+Subject: [PATCH 3/3] fix(auth): claim invite attempts atomically before the
+ code lookup
+
+---
+ ...1f09c532257a0c5b983a02ceb52008d9d56af.json |  15 ++
+ ...cd6561c7baf90aee05cc28223ba60f6c06b05.json |  14 ++
+ ...6faa3894930ddfea27240f090eeea9c0f8ab8.json |  14 --
+ ...30165ad5dd0a915e191ee2f8fac8a1886f06.json} |   6 +-
+ ...b6e6543c185f3b9f7b8538a6c930af497d5a4.json |  23 ---
+ ...d4b475e933c994ea974c43c9c13cebb426de.json} |   7 +-
+ end2end/tests/fixtures/mail_club_page.ts      |  34 ++++
+ end2end/tests/mail_club.spec.ts               |  18 ++
+ src/auth.rs                                   |  76 +++++---
+ src/pages/login.rs                            | 184 ++++++++++++------
+ 10 files changed, 256 insertions(+), 135 deletions(-)
+ create mode 100644 .sqlx/query-0436fca41a189e8f62b484b5ffd1f09c532257a0c5b983a02ceb52008d9d56af.json
+ create mode 100644 .sqlx/query-4177a8d0a80d56823f508d5069ecd6561c7baf90aee05cc28223ba60f6c06b05.json
+ delete mode 100644 .sqlx/query-c7c908d5f89fdcf82433fb34fc06faa3894930ddfea27240f090eeea9c0f8ab8.json
+ rename .sqlx/{query-d2db050239d8783a805387b2785337c968c7b40f7b4980805c75fbf093cc9b17.json => query-cdbb31d2b0034dc61114a7f1b22030165ad5dd0a915e191ee2f8fac8a1886f06.json} (71%)
+ delete mode 100644 .sqlx/query-e82b23d3c5fe848aa596c7bbc48b6e6543c185f3b9f7b8538a6c930af497d5a4.json
+ rename .sqlx/{query-2b61545115ad8012eeed46094f762dcc449670406e10384cf9af2403e215ce28.json => query-e8dabc1a7645ea2d13d70a073541d4b475e933c994ea974c43c9c13cebb426de.json} (59%)
+
+diff --git a/.sqlx/query-0436fca41a189e8f62b484b5ffd1f09c532257a0c5b983a02ceb52008d9d56af.json b/.sqlx/query-0436fca41a189e8f62b484b5ffd1f09c532257a0c5b983a02ceb52008d9d56af.json
+new file mode 100644
+index 0000000..61e4c25
+--- /dev/null
++++ b/.sqlx/query-0436fca41a189e8f62b484b5ffd1f09c532257a0c5b983a02ceb52008d9d56af.json
+@@ -0,0 +1,15 @@
++{
++  "db_name": "PostgreSQL",
++  "query": "\n        UPDATE registration_tickets\n        SET invite_attempts = invite_attempts + 1\n        WHERE token_hash = $1 AND expires_at > now() AND invite_attempts < $2\n        ",
++  "describe": {
++    "columns": [],
++    "parameters": {
++      "Left": [
++        "Text",
++        "Int4"
++      ]
++    },
++    "nullable": []
++  },
++  "hash": "0436fca41a189e8f62b484b5ffd1f09c532257a0c5b983a02ceb52008d9d56af"
++}
+diff --git a/.sqlx/query-4177a8d0a80d56823f508d5069ecd6561c7baf90aee05cc28223ba60f6c06b05.json b/.sqlx/query-4177a8d0a80d56823f508d5069ecd6561c7baf90aee05cc28223ba60f6c06b05.json
+new file mode 100644
+index 0000000..43ffccd
+--- /dev/null
++++ b/.sqlx/query-4177a8d0a80d56823f508d5069ecd6561c7baf90aee05cc28223ba60f6c06b05.json
+@@ -0,0 +1,14 @@
++{
++  "db_name": "PostgreSQL",
++  "query": "\n        UPDATE registration_tickets\n        SET invite_attempts = invite_attempts - 1\n        WHERE token_hash = $1 AND invite_attempts > 0\n        ",
++  "describe": {
++    "columns": [],
++    "parameters": {
++      "Left": [
++        "Text"
++      ]
++    },
++    "nullable": []
++  },
++  "hash": "4177a8d0a80d56823f508d5069ecd6561c7baf90aee05cc28223ba60f6c06b05"
++}
+diff --git a/.sqlx/query-c7c908d5f89fdcf82433fb34fc06faa3894930ddfea27240f090eeea9c0f8ab8.json b/.sqlx/query-c7c908d5f89fdcf82433fb34fc06faa3894930ddfea27240f090eeea9c0f8ab8.json
+deleted file mode 100644
+index b98ade3..0000000
+--- a/.sqlx/query-c7c908d5f89fdcf82433fb34fc06faa3894930ddfea27240f090eeea9c0f8ab8.json
++++ /dev/null
+@@ -1,14 +0,0 @@
+-{
+-  "db_name": "PostgreSQL",
+-  "query": "UPDATE registration_tickets SET invite_attempts = invite_attempts + 1 WHERE token_hash = $1",
+-  "describe": {
+-    "columns": [],
+-    "parameters": {
+-      "Left": [
+-        "Text"
+-      ]
+-    },
+-    "nullable": []
+-  },
+-  "hash": "c7c908d5f89fdcf82433fb34fc06faa3894930ddfea27240f090eeea9c0f8ab8"
+-}
+diff --git a/.sqlx/query-d2db050239d8783a805387b2785337c968c7b40f7b4980805c75fbf093cc9b17.json b/.sqlx/query-cdbb31d2b0034dc61114a7f1b22030165ad5dd0a915e191ee2f8fac8a1886f06.json
+similarity index 71%
+rename from .sqlx/query-d2db050239d8783a805387b2785337c968c7b40f7b4980805c75fbf093cc9b17.json
+rename to .sqlx/query-cdbb31d2b0034dc61114a7f1b22030165ad5dd0a915e191ee2f8fac8a1886f06.json
+index b7c2db1..efb6745 100644
+--- a/.sqlx/query-d2db050239d8783a805387b2785337c968c7b40f7b4980805c75fbf093cc9b17.json
++++ b/.sqlx/query-cdbb31d2b0034dc61114a7f1b22030165ad5dd0a915e191ee2f8fac8a1886f06.json
+@@ -1,6 +1,6 @@
+ {
+   "db_name": "PostgreSQL",
+-  "query": "SELECT id, status AS \"status: String\" FROM invite_codes WHERE code = $1 FOR UPDATE",
++  "query": "SELECT id, status AS \"status: InviteCodeStatus\" FROM invite_codes WHERE code = $1 FOR UPDATE",
+   "describe": {
+     "columns": [
+       {
+@@ -10,7 +10,7 @@
+       },
+       {
+         "ordinal": 1,
+-        "name": "status: String",
++        "name": "status: InviteCodeStatus",
+         "type_info": {
+           "Custom": {
+             "name": "invite_code_status",
+@@ -35,5 +35,5 @@
+       false
+     ]
+   },
+-  "hash": "d2db050239d8783a805387b2785337c968c7b40f7b4980805c75fbf093cc9b17"
++  "hash": "cdbb31d2b0034dc61114a7f1b22030165ad5dd0a915e191ee2f8fac8a1886f06"
+ }
+diff --git a/.sqlx/query-e82b23d3c5fe848aa596c7bbc48b6e6543c185f3b9f7b8538a6c930af497d5a4.json b/.sqlx/query-e82b23d3c5fe848aa596c7bbc48b6e6543c185f3b9f7b8538a6c930af497d5a4.json
+deleted file mode 100644
+index 5327136..0000000
+--- a/.sqlx/query-e82b23d3c5fe848aa596c7bbc48b6e6543c185f3b9f7b8538a6c930af497d5a4.json
++++ /dev/null
+@@ -1,23 +0,0 @@
+-{
+-  "db_name": "PostgreSQL",
+-  "query": "\n        SELECT phone FROM registration_tickets\n        WHERE token_hash = $1 AND expires_at > now() AND invite_attempts < $2\n        ",
+-  "describe": {
+-    "columns": [
+-      {
+-        "ordinal": 0,
+-        "name": "phone",
+-        "type_info": "Text"
+-      }
+-    ],
+-    "parameters": {
+-      "Left": [
+-        "Text",
+-        "Int4"
+-      ]
+-    },
+-    "nullable": [
+-      false
+-    ]
+-  },
+-  "hash": "e82b23d3c5fe848aa596c7bbc48b6e6543c185f3b9f7b8538a6c930af497d5a4"
+-}
+diff --git a/.sqlx/query-2b61545115ad8012eeed46094f762dcc449670406e10384cf9af2403e215ce28.json b/.sqlx/query-e8dabc1a7645ea2d13d70a073541d4b475e933c994ea974c43c9c13cebb426de.json
+similarity index 59%
+rename from .sqlx/query-2b61545115ad8012eeed46094f762dcc449670406e10384cf9af2403e215ce28.json
+rename to .sqlx/query-e8dabc1a7645ea2d13d70a073541d4b475e933c994ea974c43c9c13cebb426de.json
+index 727619b..79540ff 100644
+--- a/.sqlx/query-2b61545115ad8012eeed46094f762dcc449670406e10384cf9af2403e215ce28.json
++++ b/.sqlx/query-e8dabc1a7645ea2d13d70a073541d4b475e933c994ea974c43c9c13cebb426de.json
+@@ -1,6 +1,6 @@
+ {
+   "db_name": "PostgreSQL",
+-  "query": "\n        DELETE FROM registration_tickets\n        WHERE token_hash = $1 AND expires_at > now() AND invite_attempts < $2\n        RETURNING phone\n        ",
++  "query": "\n        DELETE FROM registration_tickets\n        WHERE token_hash = $1 AND expires_at > now()\n        RETURNING phone\n        ",
+   "describe": {
+     "columns": [
+       {
+@@ -11,13 +11,12 @@
+     ],
+     "parameters": {
+       "Left": [
+-        "Text",
+-        "Int4"
++        "Text"
+       ]
+     },
+     "nullable": [
+       false
+     ]
+   },
+-  "hash": "2b61545115ad8012eeed46094f762dcc449670406e10384cf9af2403e215ce28"
++  "hash": "e8dabc1a7645ea2d13d70a073541d4b475e933c994ea974c43c9c13cebb426de"
+ }
+diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
+index 9c1322f..8ad13ac 100644
+--- a/end2end/tests/fixtures/mail_club_page.ts
++++ b/end2end/tests/fixtures/mail_club_page.ts
+@@ -381,6 +381,40 @@ export class MailClubPage {
+     return response.headers()["set-cookie"] ?? "";
+   }
+ 
++  /**
++   * Attack probe (Story 1.1 security AC): fire `count` simultaneous wrong-code
++   * submissions at validate_invite_code using the browser's registration ticket.
++   * Reaches the invite step, spends one guess through the UI to learn the
++   * endpoint URL, then bursts. Returns how many burst responses were answered
++   * as "invalid code" (i.e. the code-existence oracle actually ran).
++   */
++  async burstInviteCodeGuesses(
++    request: APIRequestContext,
++    phone: string,
++    count: number,
++  ): Promise<number> {
++    await this.reachInviteCodeStep(phone);
++    const requestPromise = this.page.waitForRequest((req) =>
++      req.url().includes("validate_invite_code"),
++    );
++    await this.submitInviteCode("burst-probe-first");
++    const endpoint = (await requestPromise).url();
++    const ticket = (await this.page.context().cookies()).find(
++      (c) => c.name === "registration_ticket",
++    );
++    expect(ticket).toBeTruthy();
++    const responses = await Promise.all(
++      Array.from({ length: count }, (_, i) =>
++        request.post(endpoint, {
++          form: { code: `burst-probe-${i}` },
++          headers: { Cookie: `registration_ticket=${ticket?.value}` },
++        }),
++      ),
++    );
++    const bodies = await Promise.all(responses.map((r) => r.text()));
++    return bodies.filter((b) => b.includes("Недійсний код")).length;
++  }
++
+   /**
+    * Revoke an unused invite code from the admin page.
+    *
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index f53804b..15fc6c6 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -38,6 +38,7 @@ const EXTRA_PHONES = {
+   REVOKED_CODE_TEST: "+380670000007",
+   FORGED_COOKIE_TEST: "+380670000008",
+   THROTTLE_TEST: "+380670000009",
++  THROTTLE_BURST_TEST: "+380670000010",
+ };
+ 
+ const NAMES = {
+@@ -217,6 +218,23 @@ test.describe.serial("The Mail Club", () => {
+       await expect(page.getByTestId("legal-name-input")).not.toBeVisible();
+     });
+ 
++    // Story 1.1 security AC: the cap holds under concurrency (no check-then-increment race)
++    test("1.1 — concurrent invite code guesses cannot exceed the attempt cap", async ({ page, request }) => {
++      const app = new MailClubPage(page);
++      const MAX_INVITE_ATTEMPTS = 5;
++      const answeredAsInvalid = await app.burstInviteCodeGuesses(
++        request,
++        EXTRA_PHONES.THROTTLE_BURST_TEST,
++        12,
++      );
++      // One guess was spent through the UI; at most the remaining attempts may reach the oracle.
++      expect(answeredAsInvalid).toBeLessThanOrEqual(MAX_INVITE_ATTEMPTS - 1);
++      // The ticket is exhausted: a valid unused code is refused.
++      await app.submitInviteCode(CODES.FORGE);
++      await expect(page.getByTestId("invite-code-error")).toContainText("Почни спочатку");
++      await expect(page.getByTestId("legal-name-input")).not.toBeVisible();
++    });
++
+     test("setup — revoke registration-security invite code", async ({ page }) => {
+       const app = new MailClubPage(page);
+       await app.login(ADMIN_PHONE);
+diff --git a/src/auth.rs b/src/auth.rs
+index 6edcd1d..afd9832 100644
+--- a/src/auth.rs
++++ b/src/auth.rs
+@@ -289,34 +289,71 @@ pub async fn create_registration_ticket(pool: &PgPool, phone: &str) -> Result<St
+     Ok(raw_token)
+ }
+ 
+-/// Resolve a live ticket to its OTP-verified phone without consuming it.
++/// Claim one invite-code attempt on a live ticket, atomically.
++///
++/// WHY a claim and not a check: the single `UPDATE` takes the row lock, so
++/// concurrent submissions on one ticket serialise and the cap cannot be
++/// overrun by a burst (a separate read-then-increment would let every request
++/// in the burst pass the read first). The attempt is spent BEFORE the
++/// code-existence lookup; callers hand it back with [`refund_invite_attempt`]
++/// when the submission turns out not to be a wrong guess.
+ ///
+ /// # Errors
+ ///
+ /// Returns `Err(AppError::Unauthorized)` if the ticket is unknown, expired,
+-/// or exhausted; `Err(AppError::Database(_))` on DB failure.
+-pub async fn registration_ticket_phone(pool: &PgPool, raw_token: &str) -> Result<String, AppError> {
++/// or has no attempts left; `Err(AppError::Database(_))` on DB failure.
++pub async fn claim_invite_attempt(pool: &PgPool, raw_token: &str) -> Result<(), AppError> {
+     let token_hash = sha256_hex(raw_token);
+-    sqlx::query_scalar!(
++    let claimed = sqlx::query!(
+         r#"
+-        SELECT phone FROM registration_tickets
++        UPDATE registration_tickets
++        SET invite_attempts = invite_attempts + 1
+         WHERE token_hash = $1 AND expires_at > now() AND invite_attempts < $2
+         "#,
+         token_hash,
+         MAX_INVITE_ATTEMPTS,
+     )
+-    .fetch_optional(pool)
++    .execute(pool)
+     .await?
+-    .ok_or(AppError::Unauthorized)
++    .rows_affected();
++    if claimed == 1 {
++        Ok(())
++    } else {
++        Err(AppError::Unauthorized)
++    }
++}
++
++/// Hand back an attempt taken by [`claim_invite_attempt`] for a submission that
++/// was not an invalid, used or revoked code (valid code, empty code, or an
++/// infrastructure failure), so only genuine wrong guesses count against the cap.
++///
++/// # Errors
++///
++/// Returns `Err` on database failure.
++pub async fn refund_invite_attempt(pool: &PgPool, raw_token: &str) -> Result<(), AppError> {
++    let token_hash = sha256_hex(raw_token);
++    sqlx::query!(
++        r#"
++        UPDATE registration_tickets
++        SET invite_attempts = invite_attempts - 1
++        WHERE token_hash = $1 AND invite_attempts > 0
++        "#,
++        token_hash,
++    )
++    .execute(pool)
++    .await?;
++    Ok(())
+ }
+ 
+ /// Consume a live ticket inside the caller's transaction, returning its phone.
+-/// Rolling back the transaction restores the ticket.
++/// Rolling back the transaction restores the ticket. The attempt cap is NOT
++/// re-checked here: callers claim an attempt first ([`claim_invite_attempt`]),
++/// which is the single place the cap is enforced.
+ ///
+ /// # Errors
+ ///
+-/// Returns `Err(AppError::Unauthorized)` if the ticket is unknown, expired,
+-/// or exhausted; `Err(AppError::Database(_))` on DB failure.
++/// Returns `Err(AppError::Unauthorized)` if the ticket is unknown or expired;
++/// `Err(AppError::Database(_))` on DB failure.
+ pub async fn consume_registration_ticket(
+     conn: &mut sqlx::PgConnection,
+     raw_token: &str,
+@@ -325,33 +362,16 @@ pub async fn consume_registration_ticket(
+     sqlx::query_scalar!(
+         r#"
+         DELETE FROM registration_tickets
+-        WHERE token_hash = $1 AND expires_at > now() AND invite_attempts < $2
++        WHERE token_hash = $1 AND expires_at > now()
+         RETURNING phone
+         "#,
+         token_hash,
+-        MAX_INVITE_ATTEMPTS,
+     )
+     .fetch_optional(&mut *conn)
+     .await?
+     .ok_or(AppError::Unauthorized)
+ }
+ 
+-/// Count one invalid invite-code submission against the ticket.
+-///
+-/// # Errors
+-///
+-/// Returns `Err` on database failure.
+-pub async fn record_failed_invite_attempt(pool: &PgPool, raw_token: &str) -> Result<(), AppError> {
+-    let token_hash = sha256_hex(raw_token);
+-    sqlx::query!(
+-        "UPDATE registration_tickets SET invite_attempts = invite_attempts + 1 WHERE token_hash = $1",
+-        token_hash,
+-    )
+-    .execute(pool)
+-    .await?;
+-    Ok(())
+-}
+-
+ /// Validate a session from the raw cookie token value.
+ ///
+ /// # Errors
+diff --git a/src/pages/login.rs b/src/pages/login.rs
+index 05e249a..8ee3721 100644
+--- a/src/pages/login.rs
++++ b/src/pages/login.rs
+@@ -323,38 +323,128 @@ pub async fn validate_invite_code(code: String) -> Result<String, ServerFnError>
+     let not_verified = || ServerFnError::new(td_string!(Locale::uk, auth_phone_not_verified));
+     let ticket =
+         crate::auth::extract_cookie(&parts, REGISTRATION_COOKIE).ok_or_else(not_verified)?;
+-    crate::auth::registration_ticket_phone(&pool, &ticket)
++    // WHY claim-then-refund: the attempt is spent atomically BEFORE the code
++    // lookup so a burst of parallel submissions cannot all slip past a read of
++    // the counter. Only a genuine wrong guess keeps its attempt; a valid code,
++    // an empty code or a failed lookup gets it back (so a code accepted on the
++    // 5th try still registers).
++    crate::auth::claim_invite_attempt(&pool, &ticket)
+         .await
+-        .map_err(|_| not_verified())?;
++        .map_err(|e| match e {
++            crate::error::AppError::Unauthorized => not_verified(),
++            other => other.into_server_fn_error(),
++        })?;
+ 
+     let code = code.trim().to_owned();
+     if code.is_empty() {
++        refund_invite_attempt_logged(&pool, &ticket).await;
+         return Err(ServerFnError::new(td_string!(
+             Locale::uk,
+             auth_invite_code_required
+         )));
+     }
+ 
+-    let status: Option<InviteCodeStatus> = sqlx::query_scalar!(
++    let status = sqlx::query_scalar!(
+         r#"SELECT status AS "status: InviteCodeStatus" FROM invite_codes WHERE code = $1"#,
+         code,
+     )
+     .fetch_optional(&pool)
+-    .await
+-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
+-
++    .await;
+     let rejection = match status {
+-        Some(InviteCodeStatus::Unused) => return Ok(code),
+-        None => td_string!(Locale::uk, auth_invite_code_invalid),
+-        Some(InviteCodeStatus::Used) => td_string!(Locale::uk, auth_invite_code_used),
+-        Some(InviteCodeStatus::Revoked) => td_string!(Locale::uk, auth_invite_code_revoked),
++        Err(e) => {
++            refund_invite_attempt_logged(&pool, &ticket).await;
++            return Err(ServerFnError::new(format!("database error: {e}")));
++        }
++        Ok(Some(InviteCodeStatus::Unused)) => {
++            refund_invite_attempt_logged(&pool, &ticket).await;
++            return Ok(code);
++        }
++        Ok(None) => td_string!(Locale::uk, auth_invite_code_invalid),
++        Ok(Some(InviteCodeStatus::Used)) => td_string!(Locale::uk, auth_invite_code_used),
++        Ok(Some(InviteCodeStatus::Revoked)) => td_string!(Locale::uk, auth_invite_code_revoked),
+     };
+-    crate::auth::record_failed_invite_attempt(&pool, &ticket)
+-        .await
+-        .map_err(crate::error::AppError::into_server_fn_error)?;
+     Err(ServerFnError::new(rejection))
+ }
+ 
++/// Give back an attempt claimed for a submission that was not a wrong guess.
++/// A failed refund only costs the user one attempt, so it is logged, not surfaced.
++#[cfg(feature = "ssr")]
++async fn refund_invite_attempt_logged(pool: &sqlx::PgPool, ticket: &str) {
++    if let Err(e) = crate::auth::refund_invite_attempt(pool, ticket).await {
++        tracing::warn!(error = %e, "failed to refund invite attempt");
++    }
++}
++
++/// Why a redemption transaction did not produce a user.
++#[cfg(feature = "ssr")]
++enum RedemptionFailure {
++    /// The ticket no longer resolves (expired, or consumed by a concurrent request).
++    TicketGone,
++    /// The code is unknown, used or revoked: a genuine wrong guess.
++    WrongCode,
++    /// Database failure: not the user's guess, so the attempt is refunded.
++    Internal,
++}
++
++/// Redeem `code` for the phone proven by `ticket`, creating the user.
++///
++/// One transaction: consume the ticket (phone comes ONLY from it), lock the
++/// code, insert the user, mark the code used. Any early return drops the
++/// transaction, which rolls the ticket back.
++#[cfg(feature = "ssr")]
++async fn redeem_invite_code(
++    pool: &sqlx::PgPool,
++    ticket: &str,
++    code: &str,
++    name: &str,
++) -> Result<uuid::Uuid, RedemptionFailure> {
++    use crate::types::InviteCodeStatus;
++
++    let mut tx = pool
++        .begin()
++        .await
++        .map_err(|_| RedemptionFailure::Internal)?;
++
++    let phone = crate::auth::consume_registration_ticket(&mut tx, ticket)
++        .await
++        .map_err(|e| match e {
++            crate::error::AppError::Unauthorized => RedemptionFailure::TicketGone,
++            _ => RedemptionFailure::Internal,
++        })?;
++
++    let code_row = sqlx::query!(
++        r#"SELECT id, status AS "status: InviteCodeStatus" FROM invite_codes WHERE code = $1 FOR UPDATE"#,
++        code,
++    )
++    .fetch_optional(&mut *tx)
++    .await
++    .map_err(|_| RedemptionFailure::Internal)?;
++    let code_row = code_row
++        .filter(|row| row.status == InviteCodeStatus::Unused)
++        .ok_or(RedemptionFailure::WrongCode)?;
++
++    let user_id = sqlx::query_scalar!(
++        r#"INSERT INTO users (phone, name) VALUES ($1, $2) RETURNING id"#,
++        phone,
++        name,
++    )
++    .fetch_one(&mut *tx)
++    .await
++    .map_err(|_| RedemptionFailure::Internal)?;
++
++    sqlx::query!(
++        r#"UPDATE invite_codes SET status = 'used', redeemer_id = $1, redeemed_at = now() WHERE id = $2"#,
++        user_id,
++        code_row.id,
++    )
++    .execute(&mut *tx)
++    .await
++    .map_err(|_| RedemptionFailure::Internal)?;
++
++    tx.commit().await.map_err(|_| RedemptionFailure::Internal)?;
++    Ok(user_id)
++}
++
+ /// Complete self-registration using an invite code.
+ ///
+ /// Atomically:
+@@ -395,60 +485,28 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
+         return Ok(());
+     }
+ 
+-    let Ok(mut tx) = pool.begin().await else {
+-        leptos_axum::redirect("/login?pending=1");
+-        return Ok(());
+-    };
+-
+-    // The phone comes ONLY from the server-side ticket. Consumed in this tx;
+-    // any early return drops the tx, rolling the ticket back.
+-    let Ok(phone) = auth::consume_registration_ticket(&mut tx, &ticket).await else {
++    // Claim the attempt first (atomic cap, see `validate_invite_code`); it stays
++    // spent only if the code turns out to be a wrong guess.
++    if auth::claim_invite_attempt(&pool, &ticket).await.is_err() {
+         leptos_axum::redirect("/login");
+         return Ok(());
+-    };
++    }
+ 
+-    let code_row = sqlx::query!(
+-        r#"SELECT id, status AS "status: String" FROM invite_codes WHERE code = $1 FOR UPDATE"#,
+-        code,
+-    )
+-    .fetch_optional(&mut *tx)
+-    .await;
+-    let Ok(Some(code_row)) = code_row.map(|row| row.filter(|r| r.status == "unused")) else {
+-        drop(tx);
+-        if let Err(e) = auth::record_failed_invite_attempt(&pool, &ticket).await {
+-            tracing::warn!(error = %e, "failed to record invite attempt");
++    let user_id = match redeem_invite_code(&pool, &ticket, &code, &name).await {
++        Ok(user_id) => user_id,
++        Err(RedemptionFailure::TicketGone) => {
++            leptos_axum::redirect("/login");
++            return Ok(());
++        }
++        Err(RedemptionFailure::WrongCode) => {
++            leptos_axum::redirect("/login?pending=1");
++            return Ok(());
++        }
++        Err(RedemptionFailure::Internal) => {
++            refund_invite_attempt_logged(&pool, &ticket).await;
++            leptos_axum::redirect("/login?pending=1");
++            return Ok(());
+         }
+-        leptos_axum::redirect("/login?pending=1");
+-        return Ok(());
+-    };
+-
+-    let Ok(user_id) = sqlx::query_scalar!(
+-        r#"INSERT INTO users (phone, name) VALUES ($1, $2) RETURNING id"#,
+-        phone,
+-        name,
+-    )
+-    .fetch_one(&mut *tx)
+-    .await
+-    else {
+-        leptos_axum::redirect("/login?pending=1");
+-        return Ok(());
+-    };
+-
+-    let Ok(_) = sqlx::query!(
+-        r#"UPDATE invite_codes SET status = 'used', redeemer_id = $1, redeemed_at = now() WHERE id = $2"#,
+-        user_id,
+-        code_row.id,
+-    )
+-    .execute(&mut *tx)
+-    .await
+-    else {
+-        leptos_axum::redirect("/login?pending=1");
+-        return Ok(());
+-    };
+-
+-    let Ok(()) = tx.commit().await else {
+-        leptos_axum::redirect("/login?pending=1");
+-        return Ok(());
+     };
+ 
+     let Ok(raw_token) = auth::create_session(&pool, user_id).await else {
 -- 
 2.43.0
 
