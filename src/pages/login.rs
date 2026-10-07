@@ -715,8 +715,6 @@ fn LoginStepRouter(
     #[cfg(not(feature = "ssr"))]
     const OTP_RESEND_COOLDOWN_SECS: u32 = 60;
 
-    let i18n = use_i18n();
-
     // ── Resend cooldown (Fault-03) ────────────────────────────────────────────
     // `resend_cooldown` is unconditional: initial value (0u32) is identical on SSR
     // and client — no hydration mismatch. Interval handle, timer lifecycle, and
@@ -861,8 +859,6 @@ fn NameStep(
     entered_code: ReadSignal<Option<String>>,
     set_entered_code: WriteSignal<Option<String>>,
 ) -> impl IntoView {
-    let i18n = use_i18n();
-
     view! {
         // ── Step 4: Name collection ────────────────────────────────────────────
         // Shown when pending_registration is true AND a code has been entered.
