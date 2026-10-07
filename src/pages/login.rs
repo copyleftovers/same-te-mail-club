@@ -323,36 +323,126 @@ pub async fn validate_invite_code(code: String) -> Result<String, ServerFnError>
     let not_verified = || ServerFnError::new(td_string!(Locale::uk, auth_phone_not_verified));
     let ticket =
         crate::auth::extract_cookie(&parts, REGISTRATION_COOKIE).ok_or_else(not_verified)?;
-    crate::auth::registration_ticket_phone(&pool, &ticket)
+    // WHY claim-then-refund: the attempt is spent atomically BEFORE the code
+    // lookup so a burst of parallel submissions cannot all slip past a read of
+    // the counter. Only a genuine wrong guess keeps its attempt; a valid code,
+    // an empty code or a failed lookup gets it back (so a code accepted on the
+    // 5th try still registers).
+    crate::auth::claim_invite_attempt(&pool, &ticket)
         .await
-        .map_err(|_| not_verified())?;
+        .map_err(|e| match e {
+            crate::error::AppError::Unauthorized => not_verified(),
+            other => other.into_server_fn_error(),
+        })?;
 
     let code = code.trim().to_owned();
     if code.is_empty() {
+        refund_invite_attempt_logged(&pool, &ticket).await;
         return Err(ServerFnError::new(td_string!(
             Locale::uk,
             auth_invite_code_required
         )));
     }
 
-    let status: Option<InviteCodeStatus> = sqlx::query_scalar!(
+    let status = sqlx::query_scalar!(
         r#"SELECT status AS "status: InviteCodeStatus" FROM invite_codes WHERE code = $1"#,
         code,
     )
     .fetch_optional(&pool)
-    .await
-    .map_err(|e| ServerFnError::new(format!("database error: {e}")))?;
-
+    .await;
     let rejection = match status {
-        Some(InviteCodeStatus::Unused) => return Ok(code),
-        None => td_string!(Locale::uk, auth_invite_code_invalid),
-        Some(InviteCodeStatus::Used) => td_string!(Locale::uk, auth_invite_code_used),
-        Some(InviteCodeStatus::Revoked) => td_string!(Locale::uk, auth_invite_code_revoked),
+        Err(e) => {
+            refund_invite_attempt_logged(&pool, &ticket).await;
+            return Err(ServerFnError::new(format!("database error: {e}")));
+        }
+        Ok(Some(InviteCodeStatus::Unused)) => {
+            refund_invite_attempt_logged(&pool, &ticket).await;
+            return Ok(code);
+        }
+        Ok(None) => td_string!(Locale::uk, auth_invite_code_invalid),
+        Ok(Some(InviteCodeStatus::Used)) => td_string!(Locale::uk, auth_invite_code_used),
+        Ok(Some(InviteCodeStatus::Revoked)) => td_string!(Locale::uk, auth_invite_code_revoked),
     };
-    crate::auth::record_failed_invite_attempt(&pool, &ticket)
-        .await
-        .map_err(crate::error::AppError::into_server_fn_error)?;
     Err(ServerFnError::new(rejection))
+}
+
+/// Give back an attempt claimed for a submission that was not a wrong guess.
+/// A failed refund only costs the user one attempt, so it is logged, not surfaced.
+#[cfg(feature = "ssr")]
+async fn refund_invite_attempt_logged(pool: &sqlx::PgPool, ticket: &str) {
+    if let Err(e) = crate::auth::refund_invite_attempt(pool, ticket).await {
+        tracing::warn!(error = %e, "failed to refund invite attempt");
+    }
+}
+
+/// Why a redemption transaction did not produce a user.
+#[cfg(feature = "ssr")]
+enum RedemptionFailure {
+    /// The ticket no longer resolves (expired, or consumed by a concurrent request).
+    TicketGone,
+    /// The code is unknown, used or revoked: a genuine wrong guess.
+    WrongCode,
+    /// Database failure: not the user's guess, so the attempt is refunded.
+    Internal,
+}
+
+/// Redeem `code` for the phone proven by `ticket`, creating the user.
+///
+/// One transaction: consume the ticket (phone comes ONLY from it), lock the
+/// code, insert the user, mark the code used. Any early return drops the
+/// transaction, which rolls the ticket back.
+#[cfg(feature = "ssr")]
+async fn redeem_invite_code(
+    pool: &sqlx::PgPool,
+    ticket: &str,
+    code: &str,
+    name: &str,
+) -> Result<uuid::Uuid, RedemptionFailure> {
+    use crate::types::InviteCodeStatus;
+
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|_| RedemptionFailure::Internal)?;
+
+    let phone = crate::auth::consume_registration_ticket(&mut tx, ticket)
+        .await
+        .map_err(|e| match e {
+            crate::error::AppError::Unauthorized => RedemptionFailure::TicketGone,
+            _ => RedemptionFailure::Internal,
+        })?;
+
+    let code_row = sqlx::query!(
+        r#"SELECT id, status AS "status: InviteCodeStatus" FROM invite_codes WHERE code = $1 FOR UPDATE"#,
+        code,
+    )
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| RedemptionFailure::Internal)?;
+    let code_row = code_row
+        .filter(|row| row.status == InviteCodeStatus::Unused)
+        .ok_or(RedemptionFailure::WrongCode)?;
+
+    let user_id = sqlx::query_scalar!(
+        r#"INSERT INTO users (phone, name) VALUES ($1, $2) RETURNING id"#,
+        phone,
+        name,
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| RedemptionFailure::Internal)?;
+
+    sqlx::query!(
+        r#"UPDATE invite_codes SET status = 'used', redeemer_id = $1, redeemed_at = now() WHERE id = $2"#,
+        user_id,
+        code_row.id,
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| RedemptionFailure::Internal)?;
+
+    tx.commit().await.map_err(|_| RedemptionFailure::Internal)?;
+    Ok(user_id)
 }
 
 /// Complete self-registration using an invite code.
@@ -395,60 +485,28 @@ pub async fn register_with_code(code: String, name: String) -> Result<(), Server
         return Ok(());
     }
 
-    let Ok(mut tx) = pool.begin().await else {
-        leptos_axum::redirect("/login?pending=1");
-        return Ok(());
-    };
-
-    // The phone comes ONLY from the server-side ticket. Consumed in this tx;
-    // any early return drops the tx, rolling the ticket back.
-    let Ok(phone) = auth::consume_registration_ticket(&mut tx, &ticket).await else {
+    // Claim the attempt first (atomic cap, see `validate_invite_code`); it stays
+    // spent only if the code turns out to be a wrong guess.
+    if auth::claim_invite_attempt(&pool, &ticket).await.is_err() {
         leptos_axum::redirect("/login");
         return Ok(());
-    };
+    }
 
-    let code_row = sqlx::query!(
-        r#"SELECT id, status AS "status: String" FROM invite_codes WHERE code = $1 FOR UPDATE"#,
-        code,
-    )
-    .fetch_optional(&mut *tx)
-    .await;
-    let Ok(Some(code_row)) = code_row.map(|row| row.filter(|r| r.status == "unused")) else {
-        drop(tx);
-        if let Err(e) = auth::record_failed_invite_attempt(&pool, &ticket).await {
-            tracing::warn!(error = %e, "failed to record invite attempt");
+    let user_id = match redeem_invite_code(&pool, &ticket, &code, &name).await {
+        Ok(user_id) => user_id,
+        Err(RedemptionFailure::TicketGone) => {
+            leptos_axum::redirect("/login");
+            return Ok(());
         }
-        leptos_axum::redirect("/login?pending=1");
-        return Ok(());
-    };
-
-    let Ok(user_id) = sqlx::query_scalar!(
-        r#"INSERT INTO users (phone, name) VALUES ($1, $2) RETURNING id"#,
-        phone,
-        name,
-    )
-    .fetch_one(&mut *tx)
-    .await
-    else {
-        leptos_axum::redirect("/login?pending=1");
-        return Ok(());
-    };
-
-    let Ok(_) = sqlx::query!(
-        r#"UPDATE invite_codes SET status = 'used', redeemer_id = $1, redeemed_at = now() WHERE id = $2"#,
-        user_id,
-        code_row.id,
-    )
-    .execute(&mut *tx)
-    .await
-    else {
-        leptos_axum::redirect("/login?pending=1");
-        return Ok(());
-    };
-
-    let Ok(()) = tx.commit().await else {
-        leptos_axum::redirect("/login?pending=1");
-        return Ok(());
+        Err(RedemptionFailure::WrongCode) => {
+            leptos_axum::redirect("/login?pending=1");
+            return Ok(());
+        }
+        Err(RedemptionFailure::Internal) => {
+            refund_invite_attempt_logged(&pool, &ticket).await;
+            leptos_axum::redirect("/login?pending=1");
+            return Ok(());
+        }
     };
 
     let Ok(raw_token) = auth::create_session(&pool, user_id).await else {

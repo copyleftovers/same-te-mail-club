@@ -382,6 +382,40 @@ export class MailClubPage {
   }
 
   /**
+   * Attack probe (Story 1.1 security AC): fire `count` simultaneous wrong-code
+   * submissions at validate_invite_code using the browser's registration ticket.
+   * Reaches the invite step, spends one guess through the UI to learn the
+   * endpoint URL, then bursts. Returns how many burst responses were answered
+   * as "invalid code" (i.e. the code-existence oracle actually ran).
+   */
+  async burstInviteCodeGuesses(
+    request: APIRequestContext,
+    phone: string,
+    count: number,
+  ): Promise<number> {
+    await this.reachInviteCodeStep(phone);
+    const requestPromise = this.page.waitForRequest((req) =>
+      req.url().includes("validate_invite_code"),
+    );
+    await this.submitInviteCode("burst-probe-first");
+    const endpoint = (await requestPromise).url();
+    const ticket = (await this.page.context().cookies()).find(
+      (c) => c.name === "registration_ticket",
+    );
+    expect(ticket).toBeTruthy();
+    const responses = await Promise.all(
+      Array.from({ length: count }, (_, i) =>
+        request.post(endpoint, {
+          form: { code: `burst-probe-${i}` },
+          headers: { Cookie: `registration_ticket=${ticket?.value}` },
+        }),
+      ),
+    );
+    const bodies = await Promise.all(responses.map((r) => r.text()));
+    return bodies.filter((b) => b.includes("Недійсний код")).length;
+  }
+
+  /**
    * Revoke an unused invite code from the admin page.
    *
    * Navigates to /admin, finds the invite-code-row containing the code string,

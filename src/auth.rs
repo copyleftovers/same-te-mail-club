@@ -289,34 +289,71 @@ pub async fn create_registration_ticket(pool: &PgPool, phone: &str) -> Result<St
     Ok(raw_token)
 }
 
-/// Resolve a live ticket to its OTP-verified phone without consuming it.
+/// Claim one invite-code attempt on a live ticket, atomically.
+///
+/// WHY a claim and not a check: the single `UPDATE` takes the row lock, so
+/// concurrent submissions on one ticket serialise and the cap cannot be
+/// overrun by a burst (a separate read-then-increment would let every request
+/// in the burst pass the read first). The attempt is spent BEFORE the
+/// code-existence lookup; callers hand it back with [`refund_invite_attempt`]
+/// when the submission turns out not to be a wrong guess.
 ///
 /// # Errors
 ///
 /// Returns `Err(AppError::Unauthorized)` if the ticket is unknown, expired,
-/// or exhausted; `Err(AppError::Database(_))` on DB failure.
-pub async fn registration_ticket_phone(pool: &PgPool, raw_token: &str) -> Result<String, AppError> {
+/// or has no attempts left; `Err(AppError::Database(_))` on DB failure.
+pub async fn claim_invite_attempt(pool: &PgPool, raw_token: &str) -> Result<(), AppError> {
     let token_hash = sha256_hex(raw_token);
-    sqlx::query_scalar!(
+    let claimed = sqlx::query!(
         r#"
-        SELECT phone FROM registration_tickets
+        UPDATE registration_tickets
+        SET invite_attempts = invite_attempts + 1
         WHERE token_hash = $1 AND expires_at > now() AND invite_attempts < $2
         "#,
         token_hash,
         MAX_INVITE_ATTEMPTS,
     )
-    .fetch_optional(pool)
+    .execute(pool)
     .await?
-    .ok_or(AppError::Unauthorized)
+    .rows_affected();
+    if claimed == 1 {
+        Ok(())
+    } else {
+        Err(AppError::Unauthorized)
+    }
 }
 
-/// Consume a live ticket inside the caller's transaction, returning its phone.
-/// Rolling back the transaction restores the ticket.
+/// Hand back an attempt taken by [`claim_invite_attempt`] for a submission that
+/// was not an invalid, used or revoked code (valid code, empty code, or an
+/// infrastructure failure), so only genuine wrong guesses count against the cap.
 ///
 /// # Errors
 ///
-/// Returns `Err(AppError::Unauthorized)` if the ticket is unknown, expired,
-/// or exhausted; `Err(AppError::Database(_))` on DB failure.
+/// Returns `Err` on database failure.
+pub async fn refund_invite_attempt(pool: &PgPool, raw_token: &str) -> Result<(), AppError> {
+    let token_hash = sha256_hex(raw_token);
+    sqlx::query!(
+        r#"
+        UPDATE registration_tickets
+        SET invite_attempts = invite_attempts - 1
+        WHERE token_hash = $1 AND invite_attempts > 0
+        "#,
+        token_hash,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Consume a live ticket inside the caller's transaction, returning its phone.
+/// Rolling back the transaction restores the ticket. The attempt cap is NOT
+/// re-checked here: callers claim an attempt first ([`claim_invite_attempt`]),
+/// which is the single place the cap is enforced.
+///
+/// # Errors
+///
+/// Returns `Err(AppError::Unauthorized)` if the ticket is unknown or expired;
+/// `Err(AppError::Database(_))` on DB failure.
 pub async fn consume_registration_ticket(
     conn: &mut sqlx::PgConnection,
     raw_token: &str,
@@ -325,31 +362,14 @@ pub async fn consume_registration_ticket(
     sqlx::query_scalar!(
         r#"
         DELETE FROM registration_tickets
-        WHERE token_hash = $1 AND expires_at > now() AND invite_attempts < $2
+        WHERE token_hash = $1 AND expires_at > now()
         RETURNING phone
         "#,
         token_hash,
-        MAX_INVITE_ATTEMPTS,
     )
     .fetch_optional(&mut *conn)
     .await?
     .ok_or(AppError::Unauthorized)
-}
-
-/// Count one invalid invite-code submission against the ticket.
-///
-/// # Errors
-///
-/// Returns `Err` on database failure.
-pub async fn record_failed_invite_attempt(pool: &PgPool, raw_token: &str) -> Result<(), AppError> {
-    let token_hash = sha256_hex(raw_token);
-    sqlx::query!(
-        "UPDATE registration_tickets SET invite_attempts = invite_attempts + 1 WHERE token_hash = $1",
-        token_hash,
-    )
-    .execute(pool)
-    .await?;
-    Ok(())
 }
 
 /// Validate a session from the raw cookie token value.

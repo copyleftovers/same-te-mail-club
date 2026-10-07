@@ -38,6 +38,7 @@ const EXTRA_PHONES = {
   REVOKED_CODE_TEST: "+380670000007",
   FORGED_COOKIE_TEST: "+380670000008",
   THROTTLE_TEST: "+380670000009",
+  THROTTLE_BURST_TEST: "+380670000010",
 };
 
 const NAMES = {
@@ -212,6 +213,23 @@ test.describe.serial("The Mail Club", () => {
         await expect(page.getByTestId("invite-code-error")).not.toBeEmpty();
       }
       // A valid unused code is now refused: the ticket is exhausted.
+      await app.submitInviteCode(CODES.FORGE);
+      await expect(page.getByTestId("invite-code-error")).toContainText("Почни спочатку");
+      await expect(page.getByTestId("legal-name-input")).not.toBeVisible();
+    });
+
+    // Story 1.1 security AC: the cap holds under concurrency (no check-then-increment race)
+    test("1.1 — concurrent invite code guesses cannot exceed the attempt cap", async ({ page, request }) => {
+      const app = new MailClubPage(page);
+      const MAX_INVITE_ATTEMPTS = 5;
+      const answeredAsInvalid = await app.burstInviteCodeGuesses(
+        request,
+        EXTRA_PHONES.THROTTLE_BURST_TEST,
+        12,
+      );
+      // One guess was spent through the UI; at most the remaining attempts may reach the oracle.
+      expect(answeredAsInvalid).toBeLessThanOrEqual(MAX_INVITE_ATTEMPTS - 1);
+      // The ticket is exhausted: a valid unused code is refused.
       await app.submitInviteCode(CODES.FORGE);
       await expect(page.getByTestId("invite-code-error")).toContainText("Почни спочатку");
       await expect(page.getByTestId("legal-name-input")).not.toBeVisible();

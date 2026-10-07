@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE registration_tickets\n        SET invite_attempts = invite_attempts + 1\n        WHERE token_hash = $1 AND expires_at > now() AND invite_attempts < $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0436fca41a189e8f62b484b5ffd1f09c532257a0c5b983a02ceb52008d9d56af"
+}
