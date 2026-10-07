@@ -31,6 +31,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 04:20 UTC: T1 spec PASS. The reviewer re-ran RED/GREEN and 1x E2E 116/2/0. Quality review dispatched: aaced95f49cc2fd50 (quality-T1.md). New problems: PRB-101 (unscoped `inactive-status` wait in the POM: the flake's root cause) and PRB-102 (rustc 1.99 drift, wasm clippy red). PRB-101 goes to F-COV, PRB-102 to ENV. PLAN-blockers stress-script wording changed burst -> round to match the script.
 - 2026-10-07 04:25 UTC: order changed. ENV now takes the next free slot, ahead of U2, because PRB-102 keeps wasm clippy red on every lane. ENV's resume message must point to the PLAN-blockers ENV addendum; F-COV's resume message must point to its addendum (PRB-101).
 - 2026-10-07 04:45 UTC: U1 quality: With fixes. Important: the invite-attempt throttle is not atomic (concurrent submits bypass the 5-attempt cap); plus 4 minors. Everything went back to the U1 implementer (aa77876d6f145827e); next is a quality re-review by a28e91d30492f1a82.
+- 2026-10-07 04:40 UTC: T1 quality Yes (4 minors). Merged; gates fmt, ssr clippy, ssr tests 92/0. Pushed. Minors 1 (stress script counts any panic; grep the disposed panic) and 3 (no CI guard for panic=unwind) go to the T1 implementer when a slot frees. Minor 2: narrowed deferred item added to reference/deferred_items.md. ENV resumed with the PRB-102 addendum.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
