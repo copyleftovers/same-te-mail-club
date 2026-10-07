@@ -1,7 +1,7 @@
 From f01a419c167a882a1b33b0b294f2ea40c55693ac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:29 +0000
-Subject: [PATCH 1/5] ci: codegen builds in Check job and assert Playwright ran
+Subject: [PATCH 1/6] ci: codegen builds in Check job and assert Playwright ran
  in every E2E path
 
 ---
@@ -137,7 +137,7 @@ index 3b9c5a4..fa4ad99 100755
 From 144de77d08a25f06183c47e6c2e159df5b65cbcc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 6 Oct 2026 10:51:24 +0000
-Subject: [PATCH 2/5] refactor(views): extract login steps and invite-code card
+Subject: [PATCH 2/6] refactor(views): extract login steps and invite-code card
  to cut view type depth
 
 ---
@@ -684,7 +684,7 @@ index a0abf76..b37f74b 100644
 From 67b139f2a2637dca285b4c670b539620130916c8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 6 Oct 2026 17:57:28 +0000
-Subject: [PATCH 3/5] refactor(login): type-erase step forms at component
+Subject: [PATCH 3/6] refactor(login): type-erase step forms at component
  boundaries
 
 ---
@@ -724,7 +724,7 @@ index b37f74b..70b721e 100644
 From 4d000e7c27d57c9dc254040dfa00056893f8dc6a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 6 Oct 2026 18:42:12 +0000
-Subject: [PATCH 4/5] refactor(views): erase row/card/recipient view types so
+Subject: [PATCH 4/6] refactor(views): erase row/card/recipient view types so
  builds pass at limit 96
 
 ---
@@ -1268,7 +1268,7 @@ index d326751..4406c86 100644
 From 3d8f4685564b02b770c15fd4d863e51c0026acbd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 6 Oct 2026 23:02:44 +0000
-Subject: [PATCH 5/5] refactor(views): add InviteCodeStep/NameStep, erase
+Subject: [PATCH 5/6] refactor(views): add InviteCodeStep/NameStep, erase
  LoginPage, inline invite sub-cells, fix comments
 
 ---
@@ -1590,6 +1590,42 @@ index 70b721e..f32311d 100644
  #[component]
  fn PhoneStep(
      otp_step: Memo<bool>,
+-- 
+2.43.0
+
+
+From d09cbe7ac3b455fc43cea25fa8817af937bf2d96 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 03:58:32 +0000
+Subject: [PATCH 6/6] fix(login): drop unused i18n bindings in router and
+ NameStep
+
+---
+ src/pages/login.rs | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/src/pages/login.rs b/src/pages/login.rs
+index f32311d..fd0fd1e 100644
+--- a/src/pages/login.rs
++++ b/src/pages/login.rs
+@@ -715,8 +715,6 @@ fn LoginStepRouter(
+     #[cfg(not(feature = "ssr"))]
+     const OTP_RESEND_COOLDOWN_SECS: u32 = 60;
+ 
+-    let i18n = use_i18n();
+-
+     // ── Resend cooldown (Fault-03) ────────────────────────────────────────────
+     // `resend_cooldown` is unconditional: initial value (0u32) is identical on SSR
+     // and client — no hydration mismatch. Interval handle, timer lifecycle, and
+@@ -861,8 +859,6 @@ fn NameStep(
+     entered_code: ReadSignal<Option<String>>,
+     set_entered_code: WriteSignal<Option<String>>,
+ ) -> impl IntoView {
+-    let i18n = use_i18n();
+-
+     view! {
+         // ── Step 4: Name collection ────────────────────────────────────────────
+         // Shown when pending_registration is true AND a code has been entered.
 -- 
 2.43.0
 
