@@ -443,6 +443,14 @@
 
 ---
 
+### PRB-101 — `deactivateParticipant` waits on a page-wide testid (intermittent E2E failure)
+- **Severity:** MAJOR
+- **Statement:** `deactivateParticipant` (`end2end/tests/fixtures/mail_club_page.ts:415`) waits on the page-wide `inactive-status` testid, not the clicked row's. `mail_club.spec.ts:881` has the same unscoped check. In full mode an earlier test (`mail_club.spec.ts:880`) has already deactivated one participant, so `inactive-status` already exists when the visual-audit deactivation clicks. The wait either passes on the old element and so never waits, or matches 2 elements and fails strict mode.
+- **Evidence:** T1 implementer E2E run 2 of 4: `visual-audit.spec.ts:800` strict-mode violation, `inactive-status` matched 2 rows. Root cause by the T1 spec reviewer (2026-10-07, `orchestration/reviews/spec-worktree-agent-a4d2369a7e8477b86-2340.md`).
+- **Reproduction:** run `isolated-capture.sh <s> full` repeatedly; it fails intermittently, about 1 in 4.
+- **Impact:** Flaky suite and a vacuous wait that certifies nothing; it blocks the 3-consecutive-green rule.
+- **Verification:** empirical (T1 run) + static (T1 spec review).
+
 ## Ops/Deploy
 
 ### PRB-070 — No first-admin bootstrap in production
@@ -606,6 +614,14 @@
 - **Verification:** empirical (c, l).
 
 ---
+
+### PRB-102 — Unpinned rustc drifted to 1.99; wasm clippy gate red repo-wide
+- **Severity:** MAJOR
+- **Statement:** The container toolchain moved 1.97 → 1.99.0 mid-campaign. Under 1.99, `cargo clippy --target wasm32-unknown-unknown --features hydrate -- -D warnings` fails with 31–32 errors on untouched code. 29–30 come from the new pedantic `unused_async_trait_impl` lint on every `#[server]` expansion; 2 are `.ok().is_some_and` in `src/pages/login.rs` (~588/608). CI still runs 1.97.x, so local and CI gates disagree.
+- **Evidence:** reported independently by the U4, T0, U1 and T1 implementers and by the U1 and T1 spec reviewers (2026-10-06/07).
+- **Reproduction:** `rustc --version` → 1.99.0; run the command above.
+- **Impact:** A standard gate is red on every branch; every lane must carve it out. This is a concrete consequence of PRB-090 (no `rust-toolchain` pin).
+- **Verification:** empirical.
 
 ## Process
 
