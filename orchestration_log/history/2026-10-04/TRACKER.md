@@ -50,6 +50,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 ~18:30 UTC: the A1 spec reviewer, U2 spec reviewer and P-COPY implementer were killed by a session limit (reset 19:50); the worker restarted. 20:50: disk at 2.6G free; freed main target/ and tmp build dirs (now 8.8G). Loops restarted; all three resumed.
 - 2026-10-07 21:30 UTC: P-COPY DONE @bbb9a13 + base merge 31b9460 (10 uk.json values; gates green; 1x E2E 121/2/0). The implementer ran `pkill -f cargo`, which may have killed other lanes' builds; the reviewers were told. Spec review dispatched: aeae408cb21d97114 (spec-P-COPY.md). Running: A1 spec, U2 spec, P-COPY spec.
 - 2026-10-07 21:45 UTC: P-COPY spec PASS. Proven dependency: the 3 SMS bodies now end in ':' and expect the link that P-S adds, so P-COPY must NOT merge before P-S (merge together, or P-S first). Quality review dispatched: a78dfbe4a3dc32d73. Also: the dead regex alternatives at mail_club.spec.ts:660 go to F-COV.
+- 2026-10-07 22:00 UTC: P-COPY quality Yes, gated: merge only together with or after P-S (SMS link; after both, `grep -c "let message = with_site_link" src/admin/sms.rs` = 4) AND P-H2 (home_reported_label points to the 'arrived after all' button). The narrowing of mail_club.spec.ts:660 goes to P-H1. Copy nits (duplicate 'створи щось своє', «призначення» at uk.json:135, the ~100 UAH price going stale) go to FOLLOWUP-1. P-S resumed (ac57401dbc39b3668); P-H2 is next.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
@@ -63,7 +64,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 | U3 first-admin bootstrap | blockers | TBD | INTEGRATED | worktree-agent-a1fe18df1d59b4c14 @ 067b9bd | PASS | Yes | merged 2026-10-06 |
 | U4 swap position exchange | blockers | TBD | INTEGRATED; minors fixed @781241f, quality Yes, merged 2026-10-06 | worktree-agent-a46c4c68440f8d984 @ 066ebf2 | PASS | Yes (4 minors) | 823905e |
 | A1 attr:aria-busy leak | blockers | TBD | implementing | worktree-agent-aa08619b87efefc0d | - | - | - |
-| P-COPY copy fixes | product | TBD | implementing | worktree-agent-ad7158d9abfc86219 | - | - | - |
+| P-COPY copy fixes | product | TBD | REVIEWED (spec PASS, quality Yes); merge ONLY with or after P-S and P-H2 | worktree-agent-ad7158d9abfc86219 | - | - | - |
 | P-S SMS site link | product | TBD | implementing | worktree-agent-ac57401dbc39b3668 | - | - | - |
 | P-V real E2E assertions | product | TBD | implementing | worktree-agent-ab7ca384dc0b558ce | - | - | - |
 | P-H1 participation home states | product | TBD | implementing | worktree-agent-a17d3d793043b76c0 | - | - | - |
