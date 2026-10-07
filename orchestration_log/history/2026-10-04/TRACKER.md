@@ -43,6 +43,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 12:30 UTC: U1 quality Yes; merged b93bbf5. Gates: .sqlx regenerated (unchanged), fmt, ssr clippy, ssr tests 97/0. T0 quality Yes (4 minors); merged 7ebeb03 with no conflicts. Gates on the integrated branch, no shim: fmt, ssr clippy, tests, release SSR bin + wasm-release lib, 0 depth overflows. Both pushed; worktrees of T0, T1 and U1 removed.
 - 2026-10-07 ~13:00 UTC: ENV killed by a session limit (reset 14:40). 14:50: ENV, U2 and A1 resumed, each told to merge the integrated branch first.
 - Follow-up minors to bundle into one small fix unit (FOLLOWUP-1): T1 stress script greps any panic (should match the disposed panic) and has no CI guard for panic=unwind; U1 swallows the Internal DB error without logging, the burst-probe count has no lower bound, and MAX_INVITE_ATTEMPTS is duplicated in the spec; T0 is missing WHY comments on the inline into_any cells and has odd step ordering in login.rs.
+- 2026-10-07 15:45 UTC: ENV quality fixes DONE @96fbdec + base merge ded4c39. Clean-shell E2E WITHOUT the recursion shim: 121/2/0; both clippies green on the pin and on 1.99. Quality re-review sent to adbd58c3ed66841ad. Running: U2 impl, A1 impl, ENV quality r2.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
