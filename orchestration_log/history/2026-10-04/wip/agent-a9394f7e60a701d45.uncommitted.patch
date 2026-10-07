@@ -35,6 +35,61 @@ index 8858e0f..b7d16f9 100644
            }
          ]
        }
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 4a42cb2..3539b70 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -27,7 +27,7 @@ jobs:
+             ~/.cargo/registry
+             ~/.cargo/git
+             target
+-          key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.lock') }}
++          key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}
+           restore-keys: |
+             ${{ runner.os }}-cargo-check-
+ 
+@@ -44,7 +44,9 @@ jobs:
+         uses: cargo-bins/cargo-binstall@v1.18.1
+ 
+       - name: Supply-chain audit
+-        run: cargo binstall --no-confirm --locked cargo-audit@0.22.2 && cargo audit
++        run: |
++          source <(grep '^CARGO_AUDIT_VERSION=' scripts/bootstrap-toolchain.sh)
++          cargo binstall --no-confirm --locked "cargo-audit@${CARGO_AUDIT_VERSION}" && cargo audit
+ 
+       - name: cargo test
+         run: cargo test
+@@ -88,7 +90,7 @@ jobs:
+             ~/.cargo/registry
+             ~/.cargo/git
+             target
+-          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('**/Cargo.lock') }}
++          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}
+           restore-keys: |
+             ${{ runner.os }}-cargo-e2e-
+ 
+diff --git a/README.md b/README.md
+index 06be690..8e0c601 100644
+--- a/README.md
++++ b/README.md
+@@ -14,7 +14,7 @@ The app handles logistics only: sign-ups, assignments, SMS reminders, delivery c
+ 
+ ## Prerequisites
+ 
+-- Rust stable (1.85+)
++- Rust via rustup (version pinned in `rust-toolchain.toml`)
+ - Toolchain pins (cargo-leptos, sqlx-cli, just, wasm-opt, cargo-audit, tailwindcss, Playwright browser): `just bootstrap` (or `bash scripts/bootstrap-toolchain.sh` before `just` exists). Claude Code cloud sessions run it automatically (`.claude/hooks/session-start.sh`).
+ - Docker (for local Postgres)
+ - Node.js (for Playwright E2E tests)
+@@ -111,7 +111,7 @@ Choices made during project setup, with rationale. Authoritative source: `spec/t
+ |----------|--------|-----|
+ | Template | `leptos-rs/start-axum` | Official Leptos 0.8 SSR template. Single crate, `cdylib+rlib` |
+ | Edition | 2024 | New project, no legacy. Leptos 0.8 is compatible (editions are per-crate) |
+-| Toolchain | Stable (1.85+) | Leptos 0.8 works on stable. No nightly risk for marginal ergonomics |
++| Toolchain | Stable, pinned in `rust-toolchain.toml` | Leptos 0.8 works on stable. No nightly risk for marginal ergonomics |
+ | Crate layout | Single crate | App scope fits one `Cargo.toml`. Workspace variant available if it outgrows this |
+ | Package name | `samete` | Matches database name and tracing filter |
+ 
 diff --git a/scripts/bootstrap-toolchain.sh b/scripts/bootstrap-toolchain.sh
 index 816014c..57e2030 100755
 --- a/scripts/bootstrap-toolchain.sh
@@ -176,3 +231,19 @@ index 816014c..57e2030 100755
  fi
  
  log "done — export PATH=\"$PWD/.tools/bin:\$PATH\" PLAYWRIGHT_BROWSERS_PATH=\"$pw_dir\""
+diff --git a/src/lib.rs b/src/lib.rs
+index 7d72a4b..66a40d4 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -3,8 +3,9 @@
+ // WHY: on the hydrate target clippy 1.99 reports this lint at the `#[server]` attribute itself
+ // (all 30 spans, "originates in the attribute macro `server`"): the macro expands each server fn
+ // to an `async` trait impl whose client stub has no `.await`. The code is generated, not ours.
+-// `unknown_lints` covers the pinned toolchain, whose clippy predates the lint.
+-#![allow(unknown_lints, clippy::unused_async_trait_impl)]
++// `unknown_lints` covers the pinned toolchain, whose clippy predates the lint; scoped to hydrate
++// so a misspelled lint name elsewhere (and under SSR clippy) is still reported.
++#![cfg_attr(feature = "hydrate", allow(unknown_lints, clippy::unused_async_trait_impl))]
+ 
+ pub mod app;
+ pub mod components;
