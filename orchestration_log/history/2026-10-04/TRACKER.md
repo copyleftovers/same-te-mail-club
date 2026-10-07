@@ -40,6 +40,9 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 11:50 UTC: ENV spec PASS @3adddfc (macOS pins verified, portable sha256). Quality review dispatched: adbd58c3ed66841ad (quality-ENV.md). Running: ENV quality, T0 spec r2, U1 quality r2.
 - 2026-10-07 12:00 UTC: T0 spec round 2 PASS @d09cbe7, minors M1-M5 non-blocking; the reviewer reproduced the limit-96 check and sabotage (a), and confirmed home.rs was forced. Quality review dispatched: a4da7633e863cdd01 (quality-T0.md). Running: T0 quality, ENV quality, U1 quality r2.
 - 2026-10-07 12:10 UTC: ENV quality: With fixes. Three to fix: the crate-wide unknown_lints allow (scope it to hydrate); a bootstrap that can hang when pg_isready/psql are missing; the hook writes no env on network failure and has no timeout. Plus 7 minors. All went back to the ENV implementer; next is a quality re-review by adbd58c3ed66841ad.
+- 2026-10-07 12:30 UTC: U1 quality Yes; merged b93bbf5. Gates: .sqlx regenerated (unchanged), fmt, ssr clippy, ssr tests 97/0. T0 quality Yes (4 minors); merged 7ebeb03 with no conflicts. Gates on the integrated branch, no shim: fmt, ssr clippy, tests, release SSR bin + wasm-release lib, 0 depth overflows. Both pushed; worktrees of T0, T1 and U1 removed.
+- 2026-10-07 ~13:00 UTC: ENV killed by a session limit (reset 14:40). 14:50: ENV, U2 and A1 resumed, each told to merge the integrated branch first.
+- Follow-up minors to bundle into one small fix unit (FOLLOWUP-1): T1 stress script greps any panic (should match the disposed panic) and has no CI guard for panic=unwind; U1 swallows the Internal DB error without logging, the burst-probe count has no lower bound, and MAX_INVITE_ATTEMPTS is duplicated in the spec; T0 is missing WHY comments on the inline into_any cells and has odd step ordering in login.rs.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
