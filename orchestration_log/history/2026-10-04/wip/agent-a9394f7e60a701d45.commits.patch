@@ -1,7 +1,7 @@
 From 799e2477d6b63a3ac110654539d3299a5ce3daac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 09:02:52 +0000
-Subject: [PATCH] build(env): pin toolchain and add idempotent bootstrap +
+Subject: [PATCH 1/4] build(env): pin toolchain and add idempotent bootstrap +
  cloud SessionStart hook
 
 ---
@@ -295,6 +295,177 @@ index 3b9c5a4..5a202fa 100755
  
  # --- arguments -----------------------------------------------------------
  
+-- 
+2.43.0
+
+
+From a5fed3143c0befece97bd308c95a637122d95139 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 04:20:46 +0000
+Subject: [PATCH 2/4] build(env): pin rust toolchain 1.97.1 via
+ rust-toolchain.toml, CI reads it
+
+---
+ .github/workflows/ci.yml | 13 ++++---------
+ rust-toolchain.toml      |  4 ++++
+ 2 files changed, 8 insertions(+), 9 deletions(-)
+ create mode 100644 rust-toolchain.toml
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 8ecd6a6..4a42cb2 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -17,11 +17,8 @@ jobs:
+     steps:
+       - uses: actions/checkout@v4
+ 
+-      - name: Install Rust stable
+-        uses: dtolnay/rust-toolchain@stable
+-        with:
+-          targets: wasm32-unknown-unknown
+-          components: rustfmt, clippy
++      - name: Install pinned Rust toolchain (rust-toolchain.toml)
++        run: rustup toolchain install
+ 
+       - name: Cache cargo registry and target
+         uses: actions/cache@v4
+@@ -81,10 +78,8 @@ jobs:
+     steps:
+       - uses: actions/checkout@v4
+ 
+-      - name: Install Rust stable
+-        uses: dtolnay/rust-toolchain@stable
+-        with:
+-          targets: wasm32-unknown-unknown
++      - name: Install pinned Rust toolchain (rust-toolchain.toml)
++        run: rustup toolchain install
+ 
+       - name: Cache cargo registry and target
+         uses: actions/cache@v4
+diff --git a/rust-toolchain.toml b/rust-toolchain.toml
+new file mode 100644
+index 0000000..b41b6a9
+--- /dev/null
++++ b/rust-toolchain.toml
+@@ -0,0 +1,4 @@
++[toolchain]
++channel = "1.97.1"
++components = ["clippy", "rustfmt"]
++targets = ["wasm32-unknown-unknown"]
+-- 
+2.43.0
+
+
+From c82b4eb15130fb1159796606302c67b47d9b8aa1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 04:37:37 +0000
+Subject: [PATCH 3/4] fix(clippy): is_ok_and in login.rs; allow macro-generated
+ unused_async_trait_impl on hydrate
+
+---
+ src/lib.rs         | 5 +++++
+ src/pages/login.rs | 6 ++----
+ 2 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 4f95058..7d72a4b 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,5 +1,10 @@
+ // Leptos components return views used in macros, not directly by callers
+ #![allow(clippy::must_use_candidate)]
++// WHY: on the hydrate target clippy 1.99 reports this lint at the `#[server]` attribute itself
++// (all 30 spans, "originates in the attribute macro `server`"): the macro expands each server fn
++// to an `async` trait impl whose client stub has no `.await`. The code is generated, not ours.
++// `unknown_lints` covers the pinned toolchain, whose clippy predates the lint.
++#![allow(unknown_lints, clippy::unused_async_trait_impl)]
+ 
+ pub mod app;
+ pub mod components;
+diff --git a/src/pages/login.rs b/src/pages/login.rs
+index a0abf76..3e107db 100644
+--- a/src/pages/login.rs
++++ b/src/pages/login.rs
+@@ -612,8 +612,7 @@ pub fn LoginPage() -> impl IntoView {
+             leptos::prelude::window()
+                 .location()
+                 .search()
+-                .ok()
+-                .is_some_and(|s| s.contains("pending=1"))
++                .is_ok_and(|s| s.contains("pending=1"))
+         }
+     };
+     let (is_pending_signal, _) = signal(is_pending);
+@@ -632,8 +631,7 @@ pub fn LoginPage() -> impl IntoView {
+             leptos::prelude::window()
+                 .location()
+                 .search()
+-                .ok()
+-                .is_some_and(|s| s.contains("otp_error=1"))
++                .is_ok_and(|s| s.contains("otp_error=1"))
+         }
+     };
+ 
+-- 
+2.43.0
+
+
+From 3adddfc862a75862fce878a05821935a60f48b72 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 10:36:49 +0000
+Subject: [PATCH 4/4] fix(env): restore macOS tailwind pins and portable sha256
+ check
+
+---
+ scripts/bootstrap-toolchain.sh | 21 +++++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/scripts/bootstrap-toolchain.sh b/scripts/bootstrap-toolchain.sh
+index ab567a0..816014c 100755
+--- a/scripts/bootstrap-toolchain.sh
++++ b/scripts/bootstrap-toolchain.sh
+@@ -13,9 +13,20 @@ WASM_OPT_VERSION="0.116.1"
+ CARGO_AUDIT_VERSION="0.22.2"
+ TAILWIND_VERSION="v4.2.1"
+ TAILWIND_SHA256_LINUX_X64="39e8d4e24b3c83b0a6e69e100a972fbc75d5fef8dce47b3ddac3cf92dea81fe3"
++TAILWIND_SHA256_MACOS_ARM64="e510af7928750c9ee8d5ff2e5e98088bd5b99a8a8e2c554668621c7e151fa91f"
++TAILWIND_SHA256_MACOS_X64="019e5cfa441992ede2772c6faaeb8d7fb1726aab50b1138c0aa38e88f4b7bd44"
+ 
+ log() { echo "[bootstrap] $*"; }
+ 
++# macOS ships shasum, not sha256sum.
++sha256_matches() { # args: EXPECTED_SHA FILE
++    if command -v sha256sum >/dev/null; then
++        echo "$1  $2" | sha256sum -c --status 2>/dev/null
++    else
++        echo "$1  $2" | shasum -a 256 -c --status 2>/dev/null
++    fi
++}
++
+ # --- Rust targets ---
+ rustup target list --installed | grep -qx wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
+ 
+@@ -44,14 +55,16 @@ fi
+ # --- tailwind: pinned binary on a repo-controlled PATH entry ---
+ mkdir -p .tools/bin
+ case "$(uname -s)-$(uname -m)" in
+-    Linux-x86_64) tw_asset=tailwindcss-linux-x64; tw_sha="$TAILWIND_SHA256_LINUX_X64" ;;
+-    *) echo "[bootstrap] FATAL: no pinned tailwind sha256 for $(uname -s)-$(uname -m)"; exit 1 ;;
++    Linux-x86_64)  tw_asset=tailwindcss-linux-x64;   tw_sha="$TAILWIND_SHA256_LINUX_X64" ;;
++    Darwin-arm64)  tw_asset=tailwindcss-macos-arm64; tw_sha="$TAILWIND_SHA256_MACOS_ARM64" ;;
++    Darwin-x86_64) tw_asset=tailwindcss-macos-x64;   tw_sha="$TAILWIND_SHA256_MACOS_X64" ;;
++    *) echo "[bootstrap] FATAL: no pinned tailwind for $(uname -s)-$(uname -m)"; exit 1 ;;
+ esac
+-if ! echo "$tw_sha  .tools/bin/tailwindcss" | sha256sum -c --status 2>/dev/null; then
++if ! sha256_matches "$tw_sha" .tools/bin/tailwindcss; then
+     log "installing tailwindcss $TAILWIND_VERSION ($tw_asset)"
+     curl -fsSL -o .tools/bin/tailwindcss \
+         "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${tw_asset}"
+-    echo "$tw_sha  .tools/bin/tailwindcss" | sha256sum -c --status \
++    sha256_matches "$tw_sha" .tools/bin/tailwindcss \
+         || { echo "[bootstrap] FATAL: tailwindcss sha256 mismatch"; exit 1; }
+     chmod +x .tools/bin/tailwindcss
+ else
 -- 
 2.43.0
 

@@ -40,6 +40,14 @@ jobs:
       - name: cargo clippy (hydrate / WASM)
         run: cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings
 
+      # clippy/test never run codegen, so layout-depth overflows in Leptos views
+      # only surface in a real build.
+      - name: cargo build (SSR bin — codegen)
+        run: cargo build --no-default-features --features ssr --bin samete
+
+      - name: cargo build (hydrate lib, wasm — codegen)
+        run: cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate
+
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@v1.18.1
 

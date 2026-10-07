@@ -28,22 +28,29 @@ _kill-stale:
     -lsof -i :3000 -t | xargs kill 2>/dev/null || true
 
 # Run E2E tests against the release binary (471KB brotli WASM — CI-stable)
+# All end-to-end recipes assert Playwright actually ran: cargo leptos end-to-end exits 0 on build failure.
 e2e: e2e-release
 
 # Run E2E tests in dev mode — only for debugging; 14MB WASM may intermittently fail
 e2e-dev: _kill-stale db-reset db-seed
+    mkdir -p target && touch target/e2e-start.marker
     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
+    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
 
 # Run a single test by grep pattern against the release binary — includes DB reset and rebuild.
 # Only useful for tests that don't depend on prior DB state (e.g. block 1 tests).
 # For dependent tests: run `just e2e` first, then target with `just e2e-single`.
 e2e-single pattern: _kill-stale db-reset db-seed
+    mkdir -p target && touch target/e2e-start.marker
     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release -- --grep "{{pattern}}"
+    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
 
 # Re-run E2E tests without resetting the DB — use when DB is already in correct state.
 # Rebuilds the release binary. Kills any stale server on :3000 first.
 e2e-rerun: _kill-stale
+    mkdir -p target && touch target/e2e-start.marker
     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
+    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
 
 # Build release with pre-compressed static assets
 build:
@@ -56,7 +63,9 @@ serve: build
 
 # Run E2E tests against release build
 e2e-release: _kill-stale db-reset db-seed
+    mkdir -p target && touch target/e2e-start.marker
     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
+    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
 
 # Pre-compress static assets (quality: --best for release, -q 5 for dev)
 _precompress quality="--best":
