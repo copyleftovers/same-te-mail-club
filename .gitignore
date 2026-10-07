@@ -1,4 +1,7 @@
-.claude
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+.tools/
 .idea
 /target
 .bacon-locations
