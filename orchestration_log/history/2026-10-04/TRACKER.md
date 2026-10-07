@@ -46,6 +46,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 15:45 UTC: ENV quality fixes DONE @96fbdec + base merge ded4c39. Clean-shell E2E WITHOUT the recursion shim: 121/2/0; both clippies green on the pin and on 1.99. Quality re-review sent to adbd58c3ed66841ad. Running: U2 impl, A1 impl, ENV quality r2.
 - 2026-10-07 16:15 UTC: ENV quality Yes. Merged 215f8b1 and pushed before its gates finished (the gate run was killed); gates re-running on the integrated branch. A1 DONE_WITH_CONCERNS @b8b8a34 (13 aria-busy tokens, new E2E test, 1x E2E 122/2/0, RED proof missing). A1 spec review dispatched: a4202533451a66739 (spec-A1.md). P-COPY resumed into ENV's slot. Running: U2 impl, P-COPY impl, A1 spec.
 - 2026-10-07 16:40 UTC: ENV post-merge gates GREEN on the integrated branch with the pinned rustc 1.97.1: fmt, ssr clippy, wasm hydrate clippy, ssr tests 97/0. PRB-102 resolved. ENV worktree removed. ENV leftover minors go to FOLLOWUP-1: CI cargo-binstall action v1.18.1 vs script pin 1.25.1; trap set mid-script.
+- 2026-10-07 17:20 UTC: U2 DONE_WITH_CONCERNS @bb69736 (SmsMode, boot refusals, config-centralised test mode; E2E run 1 had 2 failures, a hydration stall; run 2 green 121/2/0). Spec review dispatched: a955d1ac5f06c0385 (spec-U2.md), told to root-cause the run-1 failure. Running: P-COPY impl, A1 spec, U2 spec.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
