@@ -51,6 +51,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 21:30 UTC: P-COPY DONE @bbb9a13 + base merge 31b9460 (10 uk.json values; gates green; 1x E2E 121/2/0). The implementer ran `pkill -f cargo`, which may have killed other lanes' builds; the reviewers were told. Spec review dispatched: aeae408cb21d97114 (spec-P-COPY.md). Running: A1 spec, U2 spec, P-COPY spec.
 - 2026-10-07 21:45 UTC: P-COPY spec PASS. Proven dependency: the 3 SMS bodies now end in ':' and expect the link that P-S adds, so P-COPY must NOT merge before P-S (merge together, or P-S first). Quality review dispatched: a78dfbe4a3dc32d73. Also: the dead regex alternatives at mail_club.spec.ts:660 go to F-COV.
 - 2026-10-07 22:00 UTC: P-COPY quality Yes, gated: merge only together with or after P-S (SMS link; after both, `grep -c "let message = with_site_link" src/admin/sms.rs` = 4) AND P-H2 (home_reported_label points to the 'arrived after all' button). The narrowing of mail_club.spec.ts:660 goes to P-H1. Copy nits (duplicate 'створи щось своє', «призначення» at uk.json:135, the ~100 UAH price going stale) go to FOLLOWUP-1. P-S resumed (ac57401dbc39b3668); P-H2 is next.
+- 2026-10-07 22:15 UTC: A1 spec PASS. RED proof: attr:aria-busy count went 1 -> 0 in both the bin and the wasm. E2E 122/2/0. Quality review dispatched: acb920a346411db51. Running: P-S impl, U2 spec, A1 quality.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
