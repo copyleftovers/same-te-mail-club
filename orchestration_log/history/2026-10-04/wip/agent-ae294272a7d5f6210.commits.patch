@@ -1,7 +1,7 @@
 From e89d3ca5935645ff50acd8e503da01e420e2e0d1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 4 Oct 2026 21:14:23 +0000
-Subject: [PATCH 1/3] feat(admin): bootstrap first admin from env at startup
+Subject: [PATCH 1/4] feat(admin): bootstrap first admin from env at startup
 
 ---
  .env.example                                  |  4 +
@@ -255,7 +255,7 @@ index 875a481..920592e 100644
 From 5772ea3b15063cd091950915926e2b402dd7a665 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:45:24 +0000
-Subject: [PATCH 2/3] feat(config): confine test mode to dry-run SMS on
+Subject: [PATCH 2/4] feat(config): confine test mode to dry-run SMS on
  loopback
 
 ---
@@ -788,7 +788,7 @@ index dbf6bc9..cdcda1a 100644
 From 99a143343b2b4877e9a497fe24e8e413014e37c0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 7 Oct 2026 15:03:19 +0000
-Subject: [PATCH 3/3] fix(config): drop duplicate admin bootstrap parser after
+Subject: [PATCH 3/4] fix(config): drop duplicate admin bootstrap parser after
  merge
 
 ---
@@ -873,6 +873,41 @@ index af074bb..ce904c5 100644
 -            Err(ConfigError::InvalidAdminPhone(_))
 -        ));
 -    }
+-}
+-- 
+2.43.0
+
+
+From bb69736fe3fda3111eae0738f5e776777719d436 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 15:15:38 +0000
+Subject: [PATCH 4/4] chore(sqlx): drop stale admin bootstrap query cache entry
+
+---
+ ...b8e135dcbf35efe4e97d128f7291691365a06e5bd.json | 15 ---------------
+ 1 file changed, 15 deletions(-)
+ delete mode 100644 .sqlx/query-3eb31df4d75c28dabe841a8b8e135dcbf35efe4e97d128f7291691365a06e5bd.json
+
+diff --git a/.sqlx/query-3eb31df4d75c28dabe841a8b8e135dcbf35efe4e97d128f7291691365a06e5bd.json b/.sqlx/query-3eb31df4d75c28dabe841a8b8e135dcbf35efe4e97d128f7291691365a06e5bd.json
+deleted file mode 100644
+index 1c59895..0000000
+--- a/.sqlx/query-3eb31df4d75c28dabe841a8b8e135dcbf35efe4e97d128f7291691365a06e5bd.json
++++ /dev/null
+@@ -1,15 +0,0 @@
+-{
+-  "db_name": "PostgreSQL",
+-  "query": "\n        INSERT INTO users (phone, name, role, onboarded)\n        VALUES ($1, $2, 'admin', true)\n        ON CONFLICT (phone) DO UPDATE SET role = 'admin'\n        ",
+-  "describe": {
+-    "columns": [],
+-    "parameters": {
+-      "Left": [
+-        "Text",
+-        "Text"
+-      ]
+-    },
+-    "nullable": []
+-  },
+-  "hash": "3eb31df4d75c28dabe841a8b8e135dcbf35efe4e97d128f7291691365a06e5bd"
 -}
 -- 
 2.43.0
