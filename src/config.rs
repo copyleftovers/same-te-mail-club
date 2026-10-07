@@ -164,14 +164,14 @@ mod tests {
 
     #[test]
     fn neither_var_means_no_bootstrap() {
-        assert_eq!(admin_bootstrap_from_vars(None, None).ok(), Some(None));
+        assert_eq!(admin_bootstrap_from_vars(None, None).unwrap(), None);
     }
 
     #[test]
     fn blank_vars_count_as_unset() {
         assert_eq!(
-            admin_bootstrap_from_vars(Some("  ".into()), Some(String::new())).ok(),
-            Some(None)
+            admin_bootstrap_from_vars(Some("  ".into()), Some(String::new())).unwrap(),
+            None
         );
     }
 
@@ -179,11 +179,11 @@ mod tests {
     fn both_vars_normalize_phone_and_trim_name() {
         assert_eq!(
             admin_bootstrap_from_vars(Some("067 123 45 67".into()), Some("  Організатор ".into()))
-                .ok(),
-            Some(Some(AdminBootstrap {
+                .unwrap(),
+            Some(AdminBootstrap {
                 phone: "+380671234567".into(),
                 name: "Організатор".into()
-            }))
+            })
         );
     }
 

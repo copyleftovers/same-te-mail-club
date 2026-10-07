@@ -118,9 +118,9 @@ pub async fn create_otp(pool: &PgPool, phone: &str, test_mode: bool) -> Result<S
 /// - Max 1 OTP per 60 seconds per phone
 /// - Max 5 OTPs per hour per phone
 ///
-/// # Errors
-///
 /// Skipped entirely when `test_mode` is true.
+///
+/// # Errors
 ///
 /// Returns `Err(AppError::RateLimited)` if either limit is exceeded.
 /// Returns `Err(AppError::Database(_))` on DB failure.

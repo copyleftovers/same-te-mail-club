@@ -152,6 +152,10 @@ async fn resolve_enrollment_state(
 }
 
 /// Test mode (deadline gates bypassed) from the server `Config` context.
+///
+/// WARNING: call before the first `.await` of a server function — after an
+/// await the reactive owner is not reliably current and the context lookup
+/// intermittently fails during SSR.
 #[cfg(feature = "ssr")]
 fn test_mode() -> Result<bool, ServerFnError> {
     leptos::context::use_context::<crate::config::Config>()
@@ -166,6 +170,7 @@ async fn resolve_preparation_state(
     user_id: uuid::Uuid,
     season: &SeasonInfoRow,
     confirm_str: String,
+    test_mode: bool,
 ) -> Result<HomeState, ServerFnError> {
     let confirmed = sqlx::query_scalar!(
         r#"
@@ -185,7 +190,6 @@ async fn resolve_preparation_state(
     if confirmed {
         Ok(HomeState::Confirmed)
     } else {
-        let test_mode = test_mode()?;
         let deadline_passed = is_past_deadline(season.confirm_deadline, test_mode);
         Ok(HomeState::Preparing {
             confirm_deadline: confirm_str,
@@ -290,6 +294,7 @@ fn enrollment_new_address_is_complete(city: &str, number: i32) -> bool {
 pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
     use crate::{auth, date_format::format_date_uk, types::Phase};
 
+    let test_mode = test_mode()?;
     let (pool, user) = auth::require_auth().await?;
 
     let season = sqlx::query_as!(
@@ -340,7 +345,9 @@ pub async fn get_home_state() -> Result<HomeState, ServerFnError> {
         Phase::Enrollment => {
             resolve_enrollment_state(&pool, user.id, &season, signup_str, confirm_str).await
         }
-        Phase::Preparation => resolve_preparation_state(&pool, user.id, &season, confirm_str).await,
+        Phase::Preparation => {
+            resolve_preparation_state(&pool, user.id, &season, confirm_str, test_mode).await
+        }
         Phase::Assignment => Ok(HomeState::Assigning),
         Phase::Delivery => resolve_delivery_state(&pool, user.id, season.id).await,
         // Cancelled is excluded by the SQL WHERE predicate; only Complete reaches here
@@ -386,6 +393,7 @@ pub async fn enroll_in_season(
         ))
     }
 
+    let test_mode = test_mode()?;
     let (pool, user) = auth::require_auth().await?;
 
     let season = sqlx::query_as!(
@@ -403,7 +411,6 @@ pub async fn enroll_in_season(
     .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_enrollment_not_open)))?;
 
     // Deadline check — bypassed in test mode
-    let test_mode = test_mode()?;
     if is_past_deadline(season.signup_deadline, test_mode) {
         return Err(ServerFnError::new(td_string!(
             Locale::uk,
@@ -509,6 +516,7 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
         i18n::i18n::{Locale, td_string},
     };
 
+    let test_mode = test_mode()?;
     let (pool, user) = auth::require_auth().await?;
 
     let season = sqlx::query_as!(
@@ -526,7 +534,6 @@ pub async fn confirm_ready() -> Result<(), ServerFnError> {
     .ok_or_else(|| ServerFnError::new(td_string!(Locale::uk, home_error_confirmation_not_open)))?;
 
     // Deadline check — bypassed in test mode
-    let test_mode = test_mode()?;
     if is_past_deadline(season.confirm_deadline, test_mode) {
         return Err(ServerFnError::new(td_string!(
             Locale::uk,
