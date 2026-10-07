@@ -1,7 +1,7 @@
 From 799e2477d6b63a3ac110654539d3299a5ce3daac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 09:02:52 +0000
-Subject: [PATCH] build(env): pin toolchain and add idempotent bootstrap +
+Subject: [PATCH 1/2] build(env): pin toolchain and add idempotent bootstrap +
  cloud SessionStart hook
 
 ---
@@ -295,6 +295,63 @@ index 3b9c5a4..5a202fa 100755
  
  # --- arguments -----------------------------------------------------------
  
+-- 
+2.43.0
+
+
+From a5fed3143c0befece97bd308c95a637122d95139 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 04:20:46 +0000
+Subject: [PATCH 2/2] build(env): pin rust toolchain 1.97.1 via
+ rust-toolchain.toml, CI reads it
+
+---
+ .github/workflows/ci.yml | 13 ++++---------
+ rust-toolchain.toml      |  4 ++++
+ 2 files changed, 8 insertions(+), 9 deletions(-)
+ create mode 100644 rust-toolchain.toml
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 8ecd6a6..4a42cb2 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -17,11 +17,8 @@ jobs:
+     steps:
+       - uses: actions/checkout@v4
+ 
+-      - name: Install Rust stable
+-        uses: dtolnay/rust-toolchain@stable
+-        with:
+-          targets: wasm32-unknown-unknown
+-          components: rustfmt, clippy
++      - name: Install pinned Rust toolchain (rust-toolchain.toml)
++        run: rustup toolchain install
+ 
+       - name: Cache cargo registry and target
+         uses: actions/cache@v4
+@@ -81,10 +78,8 @@ jobs:
+     steps:
+       - uses: actions/checkout@v4
+ 
+-      - name: Install Rust stable
+-        uses: dtolnay/rust-toolchain@stable
+-        with:
+-          targets: wasm32-unknown-unknown
++      - name: Install pinned Rust toolchain (rust-toolchain.toml)
++        run: rustup toolchain install
+ 
+       - name: Cache cargo registry and target
+         uses: actions/cache@v4
+diff --git a/rust-toolchain.toml b/rust-toolchain.toml
+new file mode 100644
+index 0000000..b41b6a9
+--- /dev/null
++++ b/rust-toolchain.toml
+@@ -0,0 +1,4 @@
++[toolchain]
++channel = "1.97.1"
++components = ["clippy", "rustfmt"]
++targets = ["wasm32-unknown-unknown"]
 -- 
 2.43.0
 
