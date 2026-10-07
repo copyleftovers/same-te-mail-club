@@ -14,7 +14,7 @@ The app handles logistics only: sign-ups, assignments, SMS reminders, delivery c
 
 ## Prerequisites
 
-- Rust stable (1.85+)
+- Rust via rustup (version pinned in `rust-toolchain.toml`)
 - Toolchain pins (cargo-leptos, sqlx-cli, just, wasm-opt, cargo-audit, tailwindcss, Playwright browser): `just bootstrap` (or `bash scripts/bootstrap-toolchain.sh` before `just` exists). Claude Code cloud sessions run it automatically (`.claude/hooks/session-start.sh`).
 - Docker (for local Postgres)
 - Node.js (for Playwright E2E tests)
@@ -111,7 +111,7 @@ Choices made during project setup, with rationale. Authoritative source: `spec/t
 |----------|--------|-----|
 | Template | `leptos-rs/start-axum` | Official Leptos 0.8 SSR template. Single crate, `cdylib+rlib` |
 | Edition | 2024 | New project, no legacy. Leptos 0.8 is compatible (editions are per-crate) |
-| Toolchain | Stable (1.85+) | Leptos 0.8 works on stable. No nightly risk for marginal ergonomics |
+| Toolchain | Stable, pinned in `rust-toolchain.toml` | Leptos 0.8 works on stable. No nightly risk for marginal ergonomics |
 | Crate layout | Single crate | App scope fits one `Cargo.toml`. Workspace variant available if it outgrows this |
 | Package name | `samete` | Matches database name and tracing filter |
 

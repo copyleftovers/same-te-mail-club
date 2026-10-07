@@ -3,8 +3,12 @@
 // WHY: on the hydrate target clippy 1.99 reports this lint at the `#[server]` attribute itself
 // (all 30 spans, "originates in the attribute macro `server`"): the macro expands each server fn
 // to an `async` trait impl whose client stub has no `.await`. The code is generated, not ours.
-// `unknown_lints` covers the pinned toolchain, whose clippy predates the lint.
-#![allow(unknown_lints, clippy::unused_async_trait_impl)]
+// `unknown_lints` covers the pinned toolchain, whose clippy predates the lint; scoped to hydrate
+// so a misspelled lint name elsewhere (and under SSR clippy) is still reported.
+#![cfg_attr(
+    feature = "hydrate",
+    allow(unknown_lints, clippy::unused_async_trait_impl)
+)]
 
 pub mod app;
 pub mod components;
