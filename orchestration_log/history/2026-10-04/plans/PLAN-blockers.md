@@ -1351,6 +1351,8 @@ JSON body `"sender": config.turbosms_sender` → `"sender": sender`. `post_to_tu
 `auth::check_otp_rate_limit(&pool, &normalized)` → `auth::check_otp_rate_limit(&pool, &normalized, config.test_mode())`; `auth::create_otp(&pool, &normalized)` → `auth::create_otp(&pool, &normalized, config.test_mode())`. Comment "(test mode returns "000000")" stays.
 
 ### U2.5 `src/pages/home.rs`
+
+**CORRECTION (2026-10-07, U2 spec review):** read the test-mode flag via `use_context::<Config>()` ONLY at the top of each server fn (`enroll_in_season`, `confirm_ready`, `get_home_state`), BEFORE the first `.await`, and pass `test_mode: bool` down (e.g. into `resolve_preparation_state`). A helper that calls `use_context` after an `.await` loses the reactive owner on SSR intermittently: the home state becomes Err("no config in context") and the island never hydrates. Any prescription below that conflicts with this is superseded.
 Add (next to the other `#[cfg(feature = "ssr")]` helpers, before `resolve_preparation_state`):
 ```rust
 /// Test mode (deadline gates bypassed) from the server `Config` context.
