@@ -47,6 +47,11 @@ Overlaps: U1∩U2 = `auth.rs`, `login.rs`. U2∩U3 = `config.rs`, `main.rs`, `RE
 
 Shared files are not a reason to sequence. Every lane has its own worktree, and conflicts are resolved at integration: union edits, regenerate `.sqlx/`, re-run that unit's gates. Further overlaps: ENV∩T0 = `justfile`, `scripts/isolated-capture.sh`, `.github/workflows/ci.yml` (different lines). T0∩U1 = `src/pages/login.rs` (T0 moves the step blocks into components; U1 edits server fns and adds one testid inside `NameCollectionForm`). T0∩U4/A1 = `src/admin/page.rs` (T0: `InviteCodesSection` `<li>`; U4: `render_cycle_ring`; A1: 13 attribute tokens, one of them inside the `<li>` that T0 moves).
 
+**ENV addendum (2026-10-07, PRB-102).** Pin the Rust toolchain in a committed `rust-toolchain.toml` (channel = the exact version CI's `dtolnay/rust-toolchain` resolves to; add `wasm32-unknown-unknown` and the clippy/rustfmt components). CI must read the same file. Separately, make `cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings` green on the pinned toolchain AND on current stable 1.99.0:
+- fix the 2 `.ok().is_some_and` sites in `src/pages/login.rs`;
+- for the `unused_async_trait_impl` hits on `#[server]` expansions, use a crate-level `#![allow]` with a WHY comment only if the lint fires inside macro-generated code the crate cannot change; prove that with the lint's span output in the report.
+Gate: both clippy targets exit 0 on the pin, and the report pastes the output.
+
 **Lanes (binding: `recon/2026-10-04/fix/prompts/_parallelism.md`).** ENV, T0, T1, U1, U2, U3, U4 and A1 are concurrent lanes. Each starts from the working branch `claude/loving-johnson-7l8hn5`, and each is integrated and reviewed on its own when it finishes. Proven symbol dependencies:
 
 | Dependent | Symbol | Introduced by / file | Base for the dependent lane |

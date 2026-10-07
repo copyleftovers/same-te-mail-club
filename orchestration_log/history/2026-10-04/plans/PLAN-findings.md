@@ -1581,6 +1581,8 @@ Commit: `test(seed): name conflict targets in cohort seed`
 
 # F-COV — Coverage for behaviour a-scope found untested
 
+**F-COV addendum (2026-10-07, PRB-101).** Scope the deactivation wait to the clicked row: `deactivateParticipant` (`end2end/tests/fixtures/mail_club_page.ts:415`) and the check at `mail_club.spec.ts:881` must locate `inactive-status` inside that participant's row (row testid + name filter), never page-wide. Gate: `isolated-capture.sh <s> full` green 3 consecutive times. Also grep the POM for every other page-wide status testid used as a completion wait after a per-row action, and scope each one.
+
 ## What You Must Do (spec + POM only; every testid exists at base)
 POM additions (each a two-liner on the named testid):
 - `expectInviteDistributor(code, name)` — `invite-code-row` filtered by `invite-code-cell` hasText `code` → `invite-code-distributor-cell` toContainText `name`.
