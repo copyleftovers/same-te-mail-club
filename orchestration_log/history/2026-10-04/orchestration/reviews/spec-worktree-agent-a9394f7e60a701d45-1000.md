@@ -1,12 +1,12 @@
 # Spec Review: worktree-agent-a9394f7e60a701d45
 
-Verdict: FAIL
+Verdict: PASS
 Worktree: /home/user/same-te-mail-club/.claude/worktrees/agent-a9394f7e60a701d45
 Branch: worktree-agent-a9394f7e60a701d45
-HEAD SHA: c82b4eb15130fb1159796606302c67b47d9b8aa1
-Reviewed at: 2026-10-07T10:33:12Z
+HEAD SHA: 3adddfc862a75862fce878a05821935a60f48b72
+Reviewed at: 2026-10-07T10:37:23Z (re-review; round 1 at 10:33:12Z on c82b4eb)
 Unit: ENV (PLAN-blockers.md § ENV, lines 139-379) + "ENV addendum (2026-10-07, PRB-102)" (line 50)
-Diff: `git diff ae111c8..c82b4eb` (ENV commits 799e247, a5fed31, c82b4eb; 1ce283e = base merge only)
+Diff: `git diff ae111c8..3adddfc` (ENV commits 799e247, a5fed31, c82b4eb, 3adddfc; 1ce283e = base merge only)
 Files reviewed:
 - scripts/bootstrap-toolchain.sh
 - .claude/settings.json
@@ -23,6 +23,27 @@ Files reviewed:
 - src/pages/login.rs
 
 ## Findings
+
+## Re-review (round 2, 3adddfc)
+
+PASS -- Spec compliant. Verified all ENV.1-ENV.9 requirements plus the PRB-102 addendum in code and by gates.
+
+What 3adddfc changed, checked with `git diff c82b4eb..3adddfc`. Only scripts/bootstrap-toolchain.sh changed (+17/-4):
+- `TAILWIND_SHA256_MACOS_ARM64`/`_X64` were added at :16-17. Both are byte-identical to the hashes I computed independently in round 1.
+- The `Darwin-arm64` and `Darwin-x86_64` case arms were restored at :59-60, matching the ENV.1 template.
+- A `sha256_matches` helper was added at :22-28. It uses `sha256sum` when present, else `shasum -a 256`, and both the existence check and the post-download verify call it.
+
+Helper evidence (I sourced the function and ran it):
+- sha256sum branch: correct hash returns 0, wrong hash returns 1.
+- shasum branch (PATH with no `sha256sum`, confirmed `no-sha256sum`): correct hash returns 0, wrong hash returns 1.
+
+Static gate re-run: `no-placeholders`; both package files pin `"1.58.2"`; `tracked-ok` ×2; `still-ignored`; `json-ok`; `yaml-ok`; `syntax-ok`; the script is still mode 755.
+
+Idempotence re-run: run1=0 and run2=0. Run 2 printed `present` for all 7 tools (cargo-leptos 0.3.7, sqlx-cli 0.8.6, just 1.58.0, cargo-audit 0.22.2, wasm-opt 0.116.1, tailwindcss v4.2.1, playwright 1208), with `installing_count=0`. The worktree is clean.
+
+The Linux path did not change in behavior (same asset and sha, verified via the helper). No Rust, CI or other file changed, so the round-1 clippy, test, build and clean-shell results below still hold for 3adddfc. The round-1 Missing finding is RESOLVED. No new Missing, Partial, Extra or Misinterpreted findings.
+
+## Round 1 record (c82b4eb, FAIL, superseded by round 2)
 
 FAIL -- Issues found:
 

@@ -37,6 +37,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 10:20 UTC: T0 round-2 DONE @d09cbe7: all 5 spec items fixed and the evidence pasted (limit 96 ok, HTML identical, sabotage a/b/c red, 3x E2E 116/2/0). It touched home.rs, outside the plan's write-set, citing the limit-96 trace as the reason. Spec review round 2 (with shell) dispatched: a2403a6d25eb9ef07 (spec-T0-r2.md).
 - 2026-10-07 10:55 UTC: ENV spec FAIL on one item only: the macOS tailwind sha256 pins are missing and the checksum command is not portable. Everything else passes, incl. the clean-shell gate 116/2/0 on 1.97.1 and the lint allow proven to cover only macro code. Sent back to the ENV implementer. Next: spec re-review by ac1b973e5c3b40e78.
 - 2026-10-07 11:30 UTC: U1 quality fixes DONE @f89d773 (atomic claim before lookup + refund; new concurrent-cap E2E test red→green; 3x E2E 121/2/0). Quality re-review sent to a28e91d30492f1a82. Running: ENV impl (macOS pins), T0 spec r2, U1 quality r2.
+- 2026-10-07 11:50 UTC: ENV spec PASS @3adddfc (macOS pins verified, portable sha256). Quality review dispatched: adbd58c3ed66841ad (quality-ENV.md). Running: ENV quality, T0 spec r2, U1 quality r2.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
