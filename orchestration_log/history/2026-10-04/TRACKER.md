@@ -33,6 +33,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 04:45 UTC: U1 quality: With fixes. Important: the invite-attempt throttle is not atomic (concurrent submits bypass the 5-attempt cap); plus 4 minors. Everything went back to the U1 implementer (aa77876d6f145827e); next is a quality re-review by a28e91d30492f1a82.
 - 2026-10-07 04:40 UTC: T1 quality Yes (4 minors). Merged; gates fmt, ssr clippy, ssr tests 92/0. Pushed. Minors 1 (stress script counts any panic; grep the disposed panic) and 3 (no CI guard for panic=unwind) go to the T1 implementer when a slot frees. Minor 2: narrowed deferred item added to reference/deferred_items.md. ENV resumed with the PRB-102 addendum.
 - 2026-10-07 ~05:00 UTC: T0, U1 and ENV were killed by a session limit (reset 08:50); the worker restarted. 09:50: Postgres and the loops restarted; idle target/ dirs freed (5.4G -> 12G); all three resumed. T0 @d09cbe7 (release builds green, 3x E2E pending). ENV @c82b4eb (is_ok_and fix + macro-lint allow; gates pending). U1 had 97 uncommitted files (.sqlx churn), told to regenerate properly and commit first.
+- 2026-10-07 10:10 UTC: ENV DONE_WITH_CONCERNS @c82b4eb (toolchain pinned to 1.97.1 via rust-toolchain.toml; wasm clippy green on 1.97.1 and 1.99; SessionStart hook + bootstrap; macOS tailwind pins missing). Spec review dispatched: ac1b973e5c3b40e78 (spec-ENV.md). Running: T0 impl, U1 impl, ENV spec reviewer.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
