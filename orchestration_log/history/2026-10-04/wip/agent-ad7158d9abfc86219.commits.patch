@@ -1,0 +1,86 @@
+From bbb9a13a93572280450532ad3cee0c88f459528b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 20:44:37 +0000
+Subject: [PATCH] fix(i18n): correct participant and organizer copy
+
+---
+ locales/uk.json | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/locales/uk.json b/locales/uk.json
+index 048601d..a78ce13 100644
+--- a/locales/uk.json
++++ b/locales/uk.json
+@@ -8,8 +8,8 @@
+   "onboarding_error_city_required": "Місто не може бути порожнім.",
+   "onboarding_error_np_number_invalid": "Номер відділення має бути цілим числом більше нуля.",
+   "home_enroll_open_heading": "Реєстрація відкрита",
+-  "home_enroll_invitation": "Тебе запрошено до нового сезону клубу. Долучайся — знайдемо тобі пару для листування.",
+-  "home_enroll_expectation": "Ти надішлеш один лист і отримаєш один — від когось із клубу. Кому саме, дізнаєшся після реєстрації.",
++  "home_enroll_invitation": "Новий сезон клубу відкрито. Долучайся: створи щось своє — і хтось із клубу отримає це поштою.",
++  "home_enroll_expectation": "Ти надішлеш один лист і отримаєш один — від когось із клубу. Кому надсилати, дізнаєшся після розподілу, коли твій лист уже буде готовий.",
+   "home_enroll_deadline": "Встигни до {{ deadline }} — після цього реєстрація на сезон закриється.",
+   "home_theme_label": "Тема: ",
+   "home_guideline": "Створи щось від себе — лист, малюнок, колаж. Головне, щоб вмістилося в конверт. Ти не знаєш, хто це отримає — тому просто будь собою.",
+@@ -26,7 +26,7 @@
+   "home_waiting_assignment": "Зачекай — скоро дізнаєшся, кому надсилати.",
+   "home_assigning_heading": "Розподіл",
+   "home_assigning_in_progress_label": "В процесі",
+-  "home_assigning_desc": "За кілька хвилин дізнаєшся, кому надіслати свій лист.",
++  "home_assigning_desc": "Організатор формує пари. Щойно все буде готово, надішлемо SMS — і тут з'явиться адреса твого отримувача.",
+   "home_assigned_heading": "Твій отримувач",
+   "home_phone_label": "Телефон",
+   "home_branch_label": "Відділення Нової Пошти",
+@@ -38,7 +38,7 @@
+   "home_thanks_heading": "Дякуємо",
+   "home_received_confirmed_body": "Раді, що лист дійшов.",
+   "home_not_received_heading": "Записано",
+-  "home_reported_label": "Повідомлено організатору",
++  "home_reported_label": "Організатор уже знає і зв'яжеться з тобою, якщо знадобиться пересилання. Якщо лист усе ж прийде — познач це нижче.",
+   "home_complete_heading": "Сезон завершено",
+   "home_thanks_participation": "Дякуємо, що був(ла) з нами. До наступного разу.",
+   "home_season_cancelled_title": "Сезон скасовано",
+@@ -73,7 +73,7 @@
+   "season_confirmed_label": "Підтверджено",
+   "season_launch_button": "Запустити",
+   "season_advance_button": "Далі",
+-  "season_advance_blocked_hint": "Спочатку опублікуй призначення на сторінці Розподілу.",
++  "season_advance_blocked_hint": "Спочатку згенеруй розподіл у розділі «Розподіл» нижче.",
+   "season_cancel_button": "Скасувати",
+   "season_cancel_confirm_prompt": "Ви впевнені? Це вплине на всіх зареєстрованих учасників.",
+   "season_cancel_confirm_yes": "Так, скасувати",
+@@ -95,10 +95,10 @@
+   "assignments_error_swap_breaks_cycle": "Обмін порушує цілісність циклу.",
+   "assignments_error_sender_a_not_found": "Призначення для відправника А не знайдено.",
+   "assignments_error_sender_b_not_found": "Призначення для відправника Б не знайдено.",
+-  "sms_season_open_body": "Новий сезон поштового клубу відкрито! Заходь в додаток і реєструйся.",
+-  "sms_assignment_body": "Твоє призначення готове! Зайди в додаток — дізнайся, кому надсилати.",
++  "sms_season_open_body": "Новий сезон «Саме Те» відкрито! Реєструйся тут:",
++  "sms_assignment_body": "Твій отримувач уже відомий — дивись, кому надсилати:",
+   "sms_confirm_nudge_body_prefix": "Нагадуємо: підтверди готовність листа до ",
+-  "sms_receipt_nudge_body": "Отримав/ла лист? Підтверди в додатку.",
++  "sms_receipt_nudge_body": "Отримав(ла) лист? Підтверди тут:",
+   "sms_sent_label": "Надіслано: ",
+   "sms_failed_label": "Не вдалося: ",
+   "sms_season_open_section_title": "Відкриття сезону",
+@@ -127,7 +127,7 @@
+   "home_error_enrollment_deadline_passed": "Термін реєстрації вже минув.",
+   "home_error_invalid_branch_number": "Номер відділення має бути числом.",
+   "home_error_city_required": "Місто не може бути порожнім.",
+-  "home_error_no_delivery_address": "Спочатку заповни адресу доставки в налаштуваннях акаунту.",
++  "home_error_no_delivery_address": "Спочатку вкажи адресу доставки.",
+   "home_error_confirmation_not_open": "Підтвердження готовності зараз недоступне.",
+   "home_error_confirmation_deadline_passed": "Термін підтвердження вже минув.",
+   "home_error_no_delivery_season": "Немає активного сезону на етапі доставки.",
+@@ -144,7 +144,7 @@
+   "home_enrollment_not_open_body": "Наступний сезон уже в підготовці. Реєстрація відкриється незабаром — ми надішлемо SMS, щойно все буде готово.",
+   "home_preparing_body": "Створи свій лист і підтверди готовність до дедлайну.",
+   "home_receipt_note_label": "Є що повідомити організатору? (необов'язково)",
+-  "home_send_instructions": "Відправ лист на Нову Пошту за цією адресою.",
++  "home_send_instructions": "Відправ лист протягом 2 днів Новою Поштою (тариф «Документи», близько 100 грн — сплачуєш ти) на це відділення.",
+   "onboarding_save_button": "Зберегти",
+   "nav_logout": "Вийти",
+   "admin_nav_dashboard": "Панель",
+-- 
+2.43.0
+

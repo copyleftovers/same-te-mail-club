@@ -642,12 +642,10 @@ test.describe.serial("Visual Audit", () => {
     await captureSection(page, "admin-assignment-cycle", "cycle-visualization");
   });
 
-  // ── Note: admin swap form error (A40) is unreachable via UI ──────────────────
-  // Submitting the same participant for both swap slots is a silent no-op:
-  // swap_assignment (assignments.rs:330) updates two rows whose sender_id is the
-  // same UUID, so UPDATE 1 and UPDATE 2 cancel each other out. The resulting
-  // topology is still a valid ring — validate_swap_topology returns Ok, the server
-  // function returns Ok(()), and no error reaches action-error. No capture for A40.
+  // ── Note: admin swap form error (A40) not captured ──────────────────────────
+  // Choosing the same participant in both slots is now rejected server-side
+  // (assignments_error_swap_same_participant → action-error). The state is
+  // reachable but not yet part of the capture set.
 
   // ── Phase: advance to delivery ────────────────────────────────────────────────
 

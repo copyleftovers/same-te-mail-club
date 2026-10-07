@@ -1,0 +1,148 @@
+From 55510c68b7f218cc0ff17e8b9ea8183ed0103079 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 20:44:39 +0000
+Subject: [PATCH] test(e2e): assert actual effects for login, deadline, cancel
+ and deactivation
+
+---
+ end2end/tests/fixtures/capture-constants.ts | 15 +++++++++++++
+ end2end/tests/fixtures/mail_club_page.ts    | 22 ++++++++++++++++++
+ end2end/tests/mail_club.spec.ts             | 25 ++++++++++-----------
+ 3 files changed, 49 insertions(+), 13 deletions(-)
+
+diff --git a/end2end/tests/fixtures/capture-constants.ts b/end2end/tests/fixtures/capture-constants.ts
+index fb06276..944108c 100644
+--- a/end2end/tests/fixtures/capture-constants.ts
++++ b/end2end/tests/fixtures/capture-constants.ts
+@@ -53,3 +53,18 @@ export function futureDeadline(daysFromNow: number): string {
+   const d = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000);
+   return d.toISOString().slice(0, 16);
+ }
++
++const UK_MONTHS_GENITIVE = [
++  "січня", "лютого", "березня", "квітня", "травня", "червня",
++  "липня", "серпня", "вересня", "жовтня", "листопада", "грудня",
++];
++
++/**
++ * Mirror of src/date_format.rs::format_date_uk for a futureDeadline() value
++ * ("YYYY-MM-DDTHH:MM", UTC — create_season stores it as UTC verbatim).
++ */
++export function formatDateUk(isoMinute: string): string {
++  const [date, time] = isoMinute.split("T");
++  const [year, month, day] = date.split("-").map(Number);
++  return `${day} ${UK_MONTHS_GENITIVE[month - 1]} ${year}, ${time}`;
++}
+diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
+index 10c26f9..2457f69 100644
+--- a/end2end/tests/fixtures/mail_club_page.ts
++++ b/end2end/tests/fixtures/mail_club_page.ts
+@@ -70,6 +70,20 @@ export class MailClubPage {
+     await this.clickAndWaitForResponse(verifyBtn, "verify_otp_code");
+   }
+ 
++  async expectPhoneStep() {
++    await expect(this.page.getByTestId("phone-input")).toBeVisible();
++  }
++
++  async expectNoInviteCodeStep() {
++    await expect(this.page.getByTestId("invite-code-step")).not.toBeVisible();
++  }
++
++  /** No session: the authenticated home redirects to /login. */
++  async expectNoSession() {
++    await this.page.goto("/");
++    await expect(this.page).toHaveURL(/\/login/);
++  }
++
+   async login(phone: string) {
+     await this.attemptLogin(phone);
+     // After OTP verify, the server issues a native 302 redirect chain.
+@@ -146,6 +160,14 @@ export class MailClubPage {
+     await expect(this.page.locator("main")).toBeVisible({ timeout: 10_000 });
+   }
+ 
++  async expectSeasonCancelled() {
++    await expect(this.page.getByTestId("season-cancelled")).toBeVisible();
++  }
++
++  async expectSeasonDeadline(text: string) {
++    await expect(this.page.getByTestId("season-deadline")).toContainText(text);
++  }
++
+   async expectHomeContent(text: string | RegExp) {
+     await expect(this.page.locator("main")).toContainText(text);
+   }
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index aa04249..b421ffc 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -1,6 +1,6 @@
+ import { test, expect } from "./fixtures/cached-context";
+ import { MailClubPage } from "./fixtures/mail_club_page";
+-import { ADMIN_PHONE, futureDeadline } from "./fixtures/capture-constants";
++import { ADMIN_PHONE, futureDeadline, formatDateUk } from "./fixtures/capture-constants";
+ 
+ /**
+  * The Mail Club — E2E Test Suite
+@@ -181,13 +181,10 @@ test.describe.serial("The Mail Club", () => {
+     });
+ 
+     // Story 1.2 AC: unregistered phone cannot sign in
+-    test("1.2 — unregistered phone is rejected", async ({ page }) => {
++    test("1.1 — unregistered phone is routed to the invite-code step", async ({ page }) => {
+       const app = new MailClubPage(page);
+-      await app.attemptLogin("+380679999999");
+-      // The app must NOT reveal whether the phone is registered.
+-      // Either the OTP step does not appear, or verification silently fails.
+-      // Assert: user is still on login page after attempting the full flow.
+-      await expect(page).toHaveURL(/\/login/);
++      await app.reachInviteCodeStep("+380679999999");
++      await app.expectNoSession();
+     });
+ 
+     // Story 1.3: First-time user redirected to onboarding
+@@ -500,11 +497,11 @@ test.describe.serial("The Mail Club", () => {
+     });
+ 
+     // Story 2.2 AC: deadline countdown visible
+-    test("2.2 — ready-confirm deadline visible with countdown", async ({ page }) => {
++    test("2.2 — confirm deadline shown is the season's confirm deadline", async ({ page }) => {
+       const app = new MailClubPage(page);
+       await app.login(PHONES.A);
+       await app.goHome();
+-      await expect(page.getByTestId("season-deadline")).toBeVisible();
++      await app.expectSeasonDeadline(formatDateUk(CONFIRM_DEADLINE));
+     });
+ 
+     // Story 2.2: Confirm ready
+@@ -830,11 +827,11 @@ test.describe.serial("The Mail Club", () => {
+     });
+ 
+     // Architecture Home Screen: no active season
+-    test("home screen — no active season after cancel", async ({ page }) => {
++    test("4.3 — participant sees the distinct cancelled-season state", async ({ page }) => {
+       const app = new MailClubPage(page);
+       await app.login(PHONES.A);
+       await app.goHome();
+-      await app.expectHomeContent(/no season|немає сезону|SMS/i);
++      await app.expectSeasonCancelled();
+     });
+   });
+ 
+@@ -885,8 +882,10 @@ test.describe.serial("Account Management", () => {
+   test("6.1 — deactivated participant cannot sign in", async ({ page }) => {
+     const app = new MailClubPage(page);
+     await app.attemptLogin(DEACTIVATE_PHONE);
+-    // Should remain on login — auth rejected
+-    await expect(page).toHaveURL(/\/login/);
++    // Distinct from an unknown phone: no invite-code step is offered.
++    await app.expectPhoneStep();
++    await app.expectNoInviteCodeStep();
++    await app.expectNoSession();
+   });
+ });
+ 
+-- 
+2.43.0
+

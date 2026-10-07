@@ -1,0 +1,99 @@
+diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
+index 9c1322f..8ad13ac 100644
+--- a/end2end/tests/fixtures/mail_club_page.ts
++++ b/end2end/tests/fixtures/mail_club_page.ts
+@@ -381,6 +381,40 @@ export class MailClubPage {
+     return response.headers()["set-cookie"] ?? "";
+   }
+ 
++  /**
++   * Attack probe (Story 1.1 security AC): fire `count` simultaneous wrong-code
++   * submissions at validate_invite_code using the browser's registration ticket.
++   * Reaches the invite step, spends one guess through the UI to learn the
++   * endpoint URL, then bursts. Returns how many burst responses were answered
++   * as "invalid code" (i.e. the code-existence oracle actually ran).
++   */
++  async burstInviteCodeGuesses(
++    request: APIRequestContext,
++    phone: string,
++    count: number,
++  ): Promise<number> {
++    await this.reachInviteCodeStep(phone);
++    const requestPromise = this.page.waitForRequest((req) =>
++      req.url().includes("validate_invite_code"),
++    );
++    await this.submitInviteCode("burst-probe-first");
++    const endpoint = (await requestPromise).url();
++    const ticket = (await this.page.context().cookies()).find(
++      (c) => c.name === "registration_ticket",
++    );
++    expect(ticket).toBeTruthy();
++    const responses = await Promise.all(
++      Array.from({ length: count }, (_, i) =>
++        request.post(endpoint, {
++          form: { code: `burst-probe-${i}` },
++          headers: { Cookie: `registration_ticket=${ticket?.value}` },
++        }),
++      ),
++    );
++    const bodies = await Promise.all(responses.map((r) => r.text()));
++    return bodies.filter((b) => b.includes("Недійсний код")).length;
++  }
++
+   /**
+    * Revoke an unused invite code from the admin page.
+    *
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index f53804b..15fc6c6 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -38,6 +38,7 @@ const EXTRA_PHONES = {
+   REVOKED_CODE_TEST: "+380670000007",
+   FORGED_COOKIE_TEST: "+380670000008",
+   THROTTLE_TEST: "+380670000009",
++  THROTTLE_BURST_TEST: "+380670000010",
+ };
+ 
+ const NAMES = {
+@@ -217,6 +218,23 @@ test.describe.serial("The Mail Club", () => {
+       await expect(page.getByTestId("legal-name-input")).not.toBeVisible();
+     });
+ 
++    // Story 1.1 security AC: the cap holds under concurrency (no check-then-increment race)
++    test("1.1 — concurrent invite code guesses cannot exceed the attempt cap", async ({ page, request }) => {
++      const app = new MailClubPage(page);
++      const MAX_INVITE_ATTEMPTS = 5;
++      const answeredAsInvalid = await app.burstInviteCodeGuesses(
++        request,
++        EXTRA_PHONES.THROTTLE_BURST_TEST,
++        12,
++      );
++      // One guess was spent through the UI; at most the remaining attempts may reach the oracle.
++      expect(answeredAsInvalid).toBeLessThanOrEqual(MAX_INVITE_ATTEMPTS - 1);
++      // The ticket is exhausted: a valid unused code is refused.
++      await app.submitInviteCode(CODES.FORGE);
++      await expect(page.getByTestId("invite-code-error")).toContainText("Почни спочатку");
++      await expect(page.getByTestId("legal-name-input")).not.toBeVisible();
++    });
++
+     test("setup — revoke registration-security invite code", async ({ page }) => {
+       const app = new MailClubPage(page);
+       await app.login(ADMIN_PHONE);
+diff --git a/src/lib.rs b/src/lib.rs
+index 4f95058..0df3c07 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,3 +1,4 @@
++#![recursion_limit = "256"]
+ // Leptos components return views used in macros, not directly by callers
+ #![allow(clippy::must_use_candidate)]
+ 
+diff --git a/src/main.rs b/src/main.rs
+index 875a481..bb14dcd 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,3 +1,4 @@
++#![recursion_limit = "256"]
+ #[cfg(feature = "ssr")]
+ #[tokio::main]
+ async fn main() {

@@ -1,0 +1,1631 @@
+From f01a419c167a882a1b33b0b294f2ea40c55693ac Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 20:44:29 +0000
+Subject: [PATCH 1/6] ci: codegen builds in Check job and assert Playwright ran
+ in every E2E path
+
+---
+ .github/workflows/ci.yml         |  8 ++++++++
+ justfile                         |  9 +++++++++
+ scripts/assert-playwright-ran.sh | 32 ++++++++++++++++++++++++++++++++
+ scripts/isolated-capture.sh      |  5 +++++
+ 4 files changed, 54 insertions(+)
+ create mode 100755 scripts/assert-playwright-ran.sh
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index f947060..169e1de 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -43,6 +43,14 @@ jobs:
+       - name: cargo clippy (hydrate / WASM)
+         run: cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings
+ 
++      # clippy/test never run codegen, so recursion/layout overflows in Leptos views
++      # only surface in a real build (see src/main.rs recursion_limit WHY).
++      - name: cargo build (SSR bin — codegen)
++        run: cargo build --no-default-features --features ssr --bin samete
++
++      - name: cargo build (hydrate lib, wasm — codegen)
++        run: cargo build --lib --target wasm32-unknown-unknown --no-default-features --features hydrate
++
+       - name: Install cargo-binstall
+         uses: cargo-bins/cargo-binstall@v1.18.1
+ 
+diff --git a/justfile b/justfile
+index c627308..7e83657 100644
+--- a/justfile
++++ b/justfile
+@@ -21,22 +21,29 @@ _kill-stale:
+     -lsof -i :3000 -t | xargs kill 2>/dev/null || true
+ 
+ # Run E2E tests against the release binary (471KB brotli WASM — CI-stable)
++# All end-to-end recipes assert Playwright actually ran: cargo leptos end-to-end exits 0 on build failure.
+ e2e: e2e-release
+ 
+ # Run E2E tests in dev mode — only for debugging; 14MB WASM may intermittently fail
+ e2e-dev: _kill-stale db-reset db-seed
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Run a single test by grep pattern against the release binary — includes DB reset and rebuild.
+ # Only useful for tests that don't depend on prior DB state (e.g. block 1 tests).
+ # For dependent tests: run `just e2e` first, then target with `just e2e-single`.
+ e2e-single pattern: _kill-stale db-reset db-seed
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release -- --grep "{{pattern}}"
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Re-run E2E tests without resetting the DB — use when DB is already in correct state.
+ # Rebuilds the release binary. Kills any stale server on :3000 first.
+ e2e-rerun: _kill-stale
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Build release with pre-compressed static assets
+ build:
+@@ -49,7 +56,9 @@ serve: build
+ 
+ # Run E2E tests against release build
+ e2e-release: _kill-stale db-reset db-seed
++    mkdir -p target && touch target/e2e-start.marker
+     SAMETE_TEST_MODE=true SAMETE_SMS_DRY_RUN=true cargo leptos end-to-end --release
++    bash scripts/assert-playwright-ran.sh target/e2e-start.marker
+ 
+ # Pre-compress static assets (quality: --best for release, -q 5 for dev)
+ _precompress quality="--best":
+diff --git a/scripts/assert-playwright-ran.sh b/scripts/assert-playwright-ran.sh
+new file mode 100755
+index 0000000..751fa1f
+--- /dev/null
++++ b/scripts/assert-playwright-ran.sh
+@@ -0,0 +1,32 @@
++#!/usr/bin/env bash
++# Fail unless Playwright actually ran during this E2E invocation.
++#
++# WHY: `cargo leptos end-to-end` exits 0 when the cargo build fails and then never
++# starts Playwright — CI was false-green from 2026-07-10 to 2026-07-25 with zero
++# tests executed. Playwright's JSON reporter (end2end/playwright.config.ts) writes
++# end2end/results.json on every run; a fresh file with >0 executed tests is the proof.
++#
++# Usage (from repo root): scripts/assert-playwright-ran.sh <start-marker>
++#   <start-marker> — a file touched BEFORE the E2E command started.
++set -euo pipefail
++
++marker="${1:?usage: scripts/assert-playwright-ran.sh <start-marker>}"
++results="end2end/results.json"
++
++[ -f "$results" ] \
++    || { echo "FATAL: $results missing — Playwright never ran (build failure?)"; exit 1; }
++[ "$results" -nt "$marker" ] \
++    || { echo "FATAL: $results predates this run — Playwright never ran (build failure?)"; exit 1; }
++
++node -e '
++const s = require(process.argv[1]).stats;
++console.log(`playwright ran: expected=${s.expected} unexpected=${s.unexpected} flaky=${s.flaky} skipped=${s.skipped}`);
++if (s.expected + s.unexpected + s.flaky === 0) {
++    console.error("FATAL: Playwright executed 0 tests");
++    process.exit(1);
++}
++if (s.unexpected > 0) {
++    console.error("FATAL: Playwright reported failures");
++    process.exit(1);
++}
++' "$PWD/$results"
+diff --git a/scripts/isolated-capture.sh b/scripts/isolated-capture.sh
+index 3b9c5a4..fa4ad99 100755
+--- a/scripts/isolated-capture.sh
++++ b/scripts/isolated-capture.sh
+@@ -68,7 +68,12 @@ psql "$SIBLING_DBURL" -f seed/test_admin.sql
+ 
+ # --- build release binary + pre-compress static assets ------------------
+ 
++# Remove the artifacts first so a failed build cannot leave a stale binary/WASM to be
++# served: cargo leptos has been observed to exit 0 on cargo build failure.
++rm -f target/release/samete target/site/pkg/samete.wasm
+ cargo leptos build --release
++[ -x target/release/samete ] && [ -f target/site/pkg/samete.wasm ] \
++    || { echo "[isolated-capture] FATAL: release build produced no binary/WASM — build failed"; exit 1; }
+ 
+ for asset in target/site/pkg/*.wasm target/site/pkg/*.js target/site/pkg/*.css; do
+     [ -f "$asset" ] || continue
+-- 
+2.43.0
+
+
+From 144de77d08a25f06183c47e6c2e159df5b65cbcc Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 6 Oct 2026 10:51:24 +0000
+Subject: [PATCH 2/6] refactor(views): extract login steps and invite-code card
+ to cut view type depth
+
+---
+ src/admin/page.rs  | 343 ++++++++++++++++++++++++---------------------
+ src/pages/login.rs | 130 ++++++++++++-----
+ 2 files changed, 279 insertions(+), 194 deletions(-)
+
+diff --git a/src/admin/page.rs b/src/admin/page.rs
+index 2630041..cd5c0ca 100644
+--- a/src/admin/page.rs
++++ b/src/admin/page.rs
+@@ -1870,165 +1870,17 @@ fn InviteCodesSection(
+                                                         .collect::<Vec<_>>()
+                                                 }
+                                                 key=|c| c.id
+-                                                let:code
+-                                            >
+-                                                <li class="invite-code-card" data-testid="invite-code-row">
+-                                                    // Code — primary identifier
+-                                                    <span
+-                                                        class="invite-code-card-code"
+-                                                        data-testid="invite-code-cell"
+-                                                    >
+-                                                        {code.code.clone()}
+-                                                    </span>
+-                                                    // Distributor — canonical label/value pair (RV-05):
+-                                                    // routed through .info-list so this meta block
+-                                                    // renders with the same overline-label + value
+-                                                    // treatment as every other label/value pair in the
+-                                                    // app, instead of a bare, unlabeled line.
+-                                                    <dl
+-                                                        class="info-list invite-code-card-meta"
+-                                                        data-testid="invite-code-distributor-cell"
+-                                                    >
+-                                                        <div class="info-item">
+-                                                            <dt class="info-label">
+-                                                                {t!(
+-                                                                    i18n,
+-                                                                    admin_invite_codes_distributor_label
+-                                                                )}
+-                                                            </dt>
+-                                                            <dd class="info-value">
+-                                                                {code.distributor_name.clone()}
+-                                                            </dd>
+-                                                        </div>
+-                                                    </dl>
+-                                                    // Status badge
+-                                                    <span data-testid="invite-code-status-cell">
+-                                                        {match code.status {
+-                                                            InviteCodeStatus::Unused => {
+-                                                                view! {
+-                                                                    <span
+-                                                                        class="badge"
+-                                                                        data-testid="invite-code-status-badge"
+-                                                                        data-status="unused"
+-                                                                    >
+-                                                                        {t!(
+-                                                                            i18n,
+-                                                                            admin_invite_codes_status_unused
+-                                                                        )}
+-                                                                    </span>
+-                                                                }
+-                                                                .into_any()
+-                                                            }
+-                                                            InviteCodeStatus::Used => {
+-                                                                view! {
+-                                                                    <span
+-                                                                        class="badge"
+-                                                                        data-testid="invite-code-status-badge"
+-                                                                        data-status="used"
+-                                                                    >
+-                                                                        {t!(
+-                                                                            i18n,
+-                                                                            admin_invite_codes_status_used
+-                                                                        )}
+-                                                                    </span>
+-                                                                }
+-                                                                .into_any()
+-                                                            }
+-                                                            InviteCodeStatus::Revoked => {
+-                                                                view! {
+-                                                                    <span
+-                                                                        class="badge"
+-                                                                        data-testid="invite-code-status-badge"
+-                                                                        data-status="revoked"
+-                                                                    >
+-                                                                        {t!(
+-                                                                            i18n,
+-                                                                            admin_invite_codes_status_revoked
+-                                                                        )}
+-                                                                    </span>
+-                                                                }
+-                                                                .into_any()
+-                                                            }
+-                                                        }}
+-                                                    </span>
+-                                                    // Redeemer + timestamp (only when used).
+-                                                    // Routed through the canonical .info-list
+-                                                    // label:value treatment (R2-03) — the same
+-                                                    // shape as the distributor meta above, so
+-                                                    // the two label:value pairs on the card
+-                                                    // read as one idiom instead of two. Name
+-                                                    // and date stay on separate lines within
+-                                                    // the value cell so a long double-barrel
+-                                                    // name wraps within its own row instead of
+-                                                    // pushing the date to a second line and
+-                                                    // jaggedly varying card height (OV L11).
+-                                                    <dl
+-                                                        class="info-list invite-code-card-redeemer"
+-                                                        data-testid="invite-code-redeemer-cell"
+-                                                    >
+-                                                        {code.redeemer_name.clone().map(|name| {
+-                                                            let redeemed_at = code.redeemed_at.clone();
+-                                                            view! {
+-                                                                <div class="info-item">
+-                                                                    <dt class="info-label">
+-                                                                        {t!(
+-                                                                            i18n,
+-                                                                            admin_invite_codes_redeemer_label
+-                                                                        )}
+-                                                                    </dt>
+-                                                                    <dd class="info-value">
+-                                                                        <span class="invite-code-card-redeemer-name">
+-                                                                            {name}
+-                                                                        </span>
+-                                                                        {redeemed_at.map(|date_str| view! {
+-                                                                            <small class="invite-code-card-redeemer-date">
+-                                                                                {date_str}
+-                                                                            </small>
+-                                                                        })}
+-                                                                    </dd>
+-                                                                </div>
+-                                                            }
+-                                                        })}
+-                                                    </dl>
+-                                                    // Revoke action (only for unused codes)
+-                                                    <span class="invite-code-card-action">
+-                                                        {if code.status == InviteCodeStatus::Unused {
+-                                                            let code_id = code.id.to_string();
+-                                                            view! {
+-                                                                <leptos::form::ActionForm action=revoke_invite_action>
+-                                                                    <input
+-                                                                        type="hidden"
+-                                                                        name="id"
+-                                                                        value=code_id
+-                                                                    />
+-                                                                    // Secondary variant (FU-20): revoke is frequent
+-                                                                    // and low-consequence — demoted off
+-                                                                    // destructive-red so red stays a real danger
+-                                                                    // signal reserved for cancel-confirm. Intent
+-                                                                    // is carried by the label + status badge.
+-                                                                    <button
+-                                                                        class="btn"
+-                                                                        data-variant="secondary"
+-                                                                        data-size="sm"
+-                                                                        type="submit"
+-                                                                        data-testid="invite-code-revoke-button"
+-                                                                        disabled=move || revoke_pending.get() || !hydrated.get()
+-                                                                        attr:aria-busy=move || revoke_pending.get().then_some("true")
+-                                                                    >
+-                                                                        {t!(
+-                                                                            i18n,
+-                                                                            admin_invite_codes_revoke_button
+-                                                                        )}
+-                                                                    </button>
+-                                                                </leptos::form::ActionForm>
+-                                                            }
+-                                                            .into_any()
+-                                                        } else {
+-                                                            ().into_any()
+-                                                        }}
+-                                                    </span>
+-                                                </li>
+-                                            </For>
++                                                children=move |code| {
++                                                    view! {
++                                                        <InviteCodeCard
++                                                            code=code
++                                                            revoke_invite_action=revoke_invite_action
++                                                            revoke_pending=revoke_pending
++                                                            hydrated=hydrated
++                                                        />
++                                                    }
++                                                }
++                                            />
+                                         </ul>
+                                     }
+                                     .into_any()
+@@ -2041,6 +1893,179 @@ fn InviteCodesSection(
+     }
+ }
+ 
++/// One invite code row. Its own component (and `.into_any()`) is a type-erasure
++/// seam: inlined in the `<For>` it nests the list, row and status views into one
++/// type deep enough to overflow rustc's default recursion limit in wasm layout.
++#[component]
++fn InviteCodeCard(
++    code: InviteCodeRow,
++    revoke_invite_action: ServerAction<RevokeInviteCode>,
++    revoke_pending: Memo<bool>,
++    hydrated: ReadSignal<bool>,
++) -> impl IntoView {
++    let i18n = use_i18n();
++
++    view! {
++        <li class="invite-code-card" data-testid="invite-code-row">
++            // Code — primary identifier
++            <span
++                class="invite-code-card-code"
++                data-testid="invite-code-cell"
++            >
++                {code.code.clone()}
++            </span>
++            // Distributor — canonical label/value pair (RV-05):
++            // routed through .info-list so this meta block
++            // renders with the same overline-label + value
++            // treatment as every other label/value pair in the
++            // app, instead of a bare, unlabeled line.
++            <dl
++                class="info-list invite-code-card-meta"
++                data-testid="invite-code-distributor-cell"
++            >
++                <div class="info-item">
++                    <dt class="info-label">
++                        {t!(
++                            i18n,
++                            admin_invite_codes_distributor_label
++                        )}
++                    </dt>
++                    <dd class="info-value">
++                        {code.distributor_name.clone()}
++                    </dd>
++                </div>
++            </dl>
++            // Status badge
++            <span data-testid="invite-code-status-cell">
++                {match code.status {
++                    InviteCodeStatus::Unused => {
++                        view! {
++                            <span
++                                class="badge"
++                                data-testid="invite-code-status-badge"
++                                data-status="unused"
++                            >
++                                {t!(
++                                    i18n,
++                                    admin_invite_codes_status_unused
++                                )}
++                            </span>
++                        }
++                        .into_any()
++                    }
++                    InviteCodeStatus::Used => {
++                        view! {
++                            <span
++                                class="badge"
++                                data-testid="invite-code-status-badge"
++                                data-status="used"
++                            >
++                                {t!(
++                                    i18n,
++                                    admin_invite_codes_status_used
++                                )}
++                            </span>
++                        }
++                        .into_any()
++                    }
++                    InviteCodeStatus::Revoked => {
++                        view! {
++                            <span
++                                class="badge"
++                                data-testid="invite-code-status-badge"
++                                data-status="revoked"
++                            >
++                                {t!(
++                                    i18n,
++                                    admin_invite_codes_status_revoked
++                                )}
++                            </span>
++                        }
++                        .into_any()
++                    }
++                }}
++            </span>
++            // Redeemer + timestamp (only when used).
++            // Routed through the canonical .info-list
++            // label:value treatment (R2-03) — the same
++            // shape as the distributor meta above, so
++            // the two label:value pairs on the card
++            // read as one idiom instead of two. Name
++            // and date stay on separate lines within
++            // the value cell so a long double-barrel
++            // name wraps within its own row instead of
++            // pushing the date to a second line and
++            // jaggedly varying card height (OV L11).
++            <dl
++                class="info-list invite-code-card-redeemer"
++                data-testid="invite-code-redeemer-cell"
++            >
++                {code.redeemer_name.clone().map(|name| {
++                    let redeemed_at = code.redeemed_at.clone();
++                    view! {
++                        <div class="info-item">
++                            <dt class="info-label">
++                                {t!(
++                                    i18n,
++                                    admin_invite_codes_redeemer_label
++                                )}
++                            </dt>
++                            <dd class="info-value">
++                                <span class="invite-code-card-redeemer-name">
++                                    {name}
++                                </span>
++                                {redeemed_at.map(|date_str| view! {
++                                    <small class="invite-code-card-redeemer-date">
++                                        {date_str}
++                                    </small>
++                                })}
++                            </dd>
++                        </div>
++                    }
++                })}
++            </dl>
++            // Revoke action (only for unused codes)
++            <span class="invite-code-card-action">
++                {if code.status == InviteCodeStatus::Unused {
++                    let code_id = code.id.to_string();
++                    view! {
++                        <leptos::form::ActionForm action=revoke_invite_action>
++                            <input
++                                type="hidden"
++                                name="id"
++                                value=code_id
++                            />
++                            // Secondary variant (FU-20): revoke is frequent
++                            // and low-consequence — demoted off
++                            // destructive-red so red stays a real danger
++                            // signal reserved for cancel-confirm. Intent
++                            // is carried by the label + status badge.
++                            <button
++                                class="btn"
++                                data-variant="secondary"
++                                data-size="sm"
++                                type="submit"
++                                data-testid="invite-code-revoke-button"
++                                disabled=move || revoke_pending.get() || !hydrated.get()
++                                attr:aria-busy=move || revoke_pending.get().then_some("true")
++                            >
++                                {t!(
++                                    i18n,
++                                    admin_invite_codes_revoke_button
++                                )}
++                            </button>
++                        </leptos::form::ActionForm>
++                    }
++                    .into_any()
++                } else {
++                    ().into_any()
++                }}
++            </span>
++        </li>
++    }
++    .into_any()
++}
++
+ fn matches_invite_status(status: InviteCodeStatus, query: &str) -> bool {
+     let status_text = match status {
+         InviteCodeStatus::Unused => "unused",
+diff --git a/src/pages/login.rs b/src/pages/login.rs
+index a0abf76..b37f74b 100644
+--- a/src/pages/login.rs
++++ b/src/pages/login.rs
+@@ -715,7 +715,6 @@ fn LoginStepRouter(
+     const OTP_RESEND_COOLDOWN_SECS: u32 = 60;
+ 
+     let i18n = use_i18n();
+-    let request_pending = request_action.pending();
+ 
+     // ── Resend cooldown (Fault-03) ────────────────────────────────────────────
+     // `resend_cooldown` is unconditional: initial value (0u32) is identical on SSR
+@@ -783,6 +782,76 @@ fn LoginStepRouter(
+     #[allow(unused_variables)]
+     let resend = move || {};
+ 
++    view! {
++        <PhoneStep
++            otp_step=otp_step
++            is_pending=is_pending
++            is_otp_error=is_otp_error
++            hydrated=hydrated
++            request_action=request_action
++        />
++        <OtpStep
++            otp_step=otp_step
++            is_pending=is_pending
++            is_otp_error=is_otp_error
++            hydrated=hydrated
++            request_action=request_action
++            submitted_phone=submitted_phone
++            resend_cooldown=resend_cooldown
++            on_resend=resend
++        />
++
++        // ── Step 3: Invite code ───────────────────────────────────────────────
++        // Shown when pending_registration is true AND no code entered yet.
++        <div
++            data-testid="invite-code-step"
++            style:display=move || {
++                if is_pending && entered_code.get().is_none() { "" } else { "none" }
++            }
++        >
++            <h1>
++                {t!(i18n, auth_invite_code_step_heading)}
++            </h1>
++            <InviteCodeForm
++                hydrated=hydrated
++                on_submit=move |code| set_entered_code.set(Some(code))
++            />
++        </div>
++
++        // ── Step 4: Name collection ────────────────────────────────────────────
++        // Shown when pending_registration is true AND a code has been entered.
++        <div
++            data-testid="name-collection-step"
++            style:display=move || {
++                if is_pending && entered_code.get().is_some() { "" } else { "none" }
++            }
++        >
++            <NameCollectionForm
++                hydrated=hydrated
++                register_action=register_action
++                entered_code=entered_code
++                on_back=move || set_entered_code.set(None)
++            />
++        </div>
++    }
++}
++
++/// Step 1: phone entry. Hidden once the OTP step activates, a pending registration
++/// is set, or the server redirected back with an OTP error.
++// WHY `.into_any()`: a login step is its own type-erasure seam. Without it the whole
++// four-step tree is one nested view type and rustc's layout of the `into_any` async
++// blocks exceeds the default recursion limit (see conventions: view-type depth).
++#[component]
++fn PhoneStep(
++    otp_step: Memo<bool>,
++    is_pending: bool,
++    is_otp_error: bool,
++    hydrated: ReadSignal<bool>,
++    request_action: ServerAction<RequestOtp>,
++) -> impl IntoView {
++    let i18n = use_i18n();
++    let request_pending = request_action.pending();
++
+     view! {
+         // ── Step 1: Phone ─────────────────────────────────────────────────────
+         // Hidden once OTP step activates, pending_registration is set, or OTP error redirect.
+@@ -840,7 +909,30 @@ fn LoginStepRouter(
+                 </button>
+             </leptos::form::ActionForm>
+         </div>
++    }
++    .into_any()
++}
++
++/// Step 2: OTP entry, resend, and back-to-phone. Shown when an OTP was requested or
++/// the server redirected back with `?otp_error=1`.
++// WHY `.into_any()`: see `PhoneStep`.
++#[component]
++fn OtpStep<F>(
++    otp_step: Memo<bool>,
++    is_pending: bool,
++    is_otp_error: bool,
++    hydrated: ReadSignal<bool>,
++    request_action: ServerAction<RequestOtp>,
++    submitted_phone: ReadSignal<String>,
++    resend_cooldown: RwSignal<u32>,
++    on_resend: F,
++) -> impl IntoView
++where
++    F: Fn() + 'static,
++{
++    let i18n = use_i18n();
+ 
++    view! {
+         // ── Step 2: OTP ───────────────────────────────────────────────────────
+         // Shown when OTP was requested or the server redirected back with ?otp_error=1.
+         // Uses native form POST so the browser follows the server-issued 302 redirect.
+@@ -897,7 +989,7 @@ fn LoginStepRouter(
+                 // expression is parsed as the closing `>` of the tag, causing the
+                 // remaining attributes to leak as text nodes.
+                 disabled={move || resend_cooldown.get() > 0 || !hydrated.get()}
+-                on:click=move |_| resend()
++                on:click=move |_| on_resend()
+             >
+                 {move || {
+                     let secs = resend_cooldown.get();
+@@ -918,40 +1010,8 @@ fn LoginStepRouter(
+                 {t!(i18n, login_change_phone_button)}
+             </button>
+         </div>
+-
+-        // ── Step 3: Invite code ───────────────────────────────────────────────
+-        // Shown when pending_registration is true AND no code entered yet.
+-        <div
+-            data-testid="invite-code-step"
+-            style:display=move || {
+-                if is_pending && entered_code.get().is_none() { "" } else { "none" }
+-            }
+-        >
+-            <h1>
+-                {t!(i18n, auth_invite_code_step_heading)}
+-            </h1>
+-            <InviteCodeForm
+-                hydrated=hydrated
+-                on_submit=move |code| set_entered_code.set(Some(code))
+-            />
+-        </div>
+-
+-        // ── Step 4: Name collection ────────────────────────────────────────────
+-        // Shown when pending_registration is true AND a code has been entered.
+-        <div
+-            data-testid="name-collection-step"
+-            style:display=move || {
+-                if is_pending && entered_code.get().is_some() { "" } else { "none" }
+-            }
+-        >
+-            <NameCollectionForm
+-                hydrated=hydrated
+-                register_action=register_action
+-                entered_code=entered_code
+-                on_back=move || set_entered_code.set(None)
+-            />
+-        </div>
+     }
++    .into_any()
+ }
+ 
+ /// Invite code entry form (step 3).
+-- 
+2.43.0
+
+
+From 67b139f2a2637dca285b4c670b539620130916c8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 6 Oct 2026 17:57:28 +0000
+Subject: [PATCH 3/6] refactor(login): type-erase step forms at component
+ boundaries
+
+---
+ src/pages/login.rs | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/pages/login.rs b/src/pages/login.rs
+index b37f74b..70b721e 100644
+--- a/src/pages/login.rs
++++ b/src/pages/login.rs
+@@ -834,6 +834,7 @@ fn LoginStepRouter(
+             />
+         </div>
+     }
++    .into_any()
+ }
+ 
+ /// Step 1: phone entry. Hidden once the OTP step activates, a pending registration
+@@ -1089,6 +1090,7 @@ where
+             </button>
+         </leptos::form::ActionForm>
+     }
++    .into_any()
+ }
+ 
+ /// Name collection form (step 4 of the registration flow).
+@@ -1186,4 +1188,5 @@ where
+             {t!(i18n, login_change_phone_button)}
+         </button>
+     }
++    .into_any()
+ }
+-- 
+2.43.0
+
+
+From 4d000e7c27d57c9dc254040dfa00056893f8dc6a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 6 Oct 2026 18:42:12 +0000
+Subject: [PATCH 4/6] refactor(views): erase row/card/recipient view types so
+ builds pass at limit 96
+
+---
+ src/admin/page.rs | 351 ++++++++++++++++++++++++++--------------------
+ src/pages/home.rs |  61 +++++---
+ 2 files changed, 240 insertions(+), 172 deletions(-)
+
+diff --git a/src/admin/page.rs b/src/admin/page.rs
+index cd5c0ca..6b23335 100644
+--- a/src/admin/page.rs
++++ b/src/admin/page.rs
+@@ -1042,6 +1042,7 @@ fn render_sms_report_inline(
+             })
+         }}
+     }
++    .into_any()
+ }
+ 
+ // ── Assignment section rendering ───────────────────────────────────────────────
+@@ -1160,6 +1161,7 @@ fn render_cycle_visualization(
+             {cohorts_view}
+         </div>
+     }
++    .into_any()
+ }
+ 
+ /// Compute circle node positions for SVG ring.
+@@ -1651,6 +1653,7 @@ fn SwapFormSection(
+             </leptos::form::ActionForm>
+         </section>
+     }
++    .into_any()
+ }
+ 
+ // ── Participant section sub-components ────────────────────────────────────────
+@@ -1891,53 +1894,18 @@ fn InviteCodesSection(
+             </div>
+         </section>
+     }
++    .into_any()
+ }
+ 
+-/// One invite code row. Its own component (and `.into_any()`) is a type-erasure
+-/// seam: inlined in the `<For>` it nests the list, row and status views into one
+-/// type deep enough to overflow rustc's default recursion limit in wasm layout.
++/// Status badge cell of an invite code row. Own component (type-erased) so the row
++/// tree is not one nested type deep enough to overflow rustc's recursion limit.
+ #[component]
+-fn InviteCodeCard(
+-    code: InviteCodeRow,
+-    revoke_invite_action: ServerAction<RevokeInviteCode>,
+-    revoke_pending: Memo<bool>,
+-    hydrated: ReadSignal<bool>,
+-) -> impl IntoView {
++fn InviteCodeStatusCell(status: InviteCodeStatus) -> impl IntoView {
+     let i18n = use_i18n();
+ 
+     view! {
+-        <li class="invite-code-card" data-testid="invite-code-row">
+-            // Code — primary identifier
+-            <span
+-                class="invite-code-card-code"
+-                data-testid="invite-code-cell"
+-            >
+-                {code.code.clone()}
+-            </span>
+-            // Distributor — canonical label/value pair (RV-05):
+-            // routed through .info-list so this meta block
+-            // renders with the same overline-label + value
+-            // treatment as every other label/value pair in the
+-            // app, instead of a bare, unlabeled line.
+-            <dl
+-                class="info-list invite-code-card-meta"
+-                data-testid="invite-code-distributor-cell"
+-            >
+-                <div class="info-item">
+-                    <dt class="info-label">
+-                        {t!(
+-                            i18n,
+-                            admin_invite_codes_distributor_label
+-                        )}
+-                    </dt>
+-                    <dd class="info-value">
+-                        {code.distributor_name.clone()}
+-                    </dd>
+-                </div>
+-            </dl>
+-            // Status badge
+-            <span data-testid="invite-code-status-cell">
+-                {match code.status {
++        <span data-testid="invite-code-status-cell">
++            {match status {
+                     InviteCodeStatus::Unused => {
+                         view! {
+                             <span
+@@ -1984,24 +1952,24 @@ fn InviteCodeCard(
+                         .into_any()
+                     }
+                 }}
+-            </span>
+-            // Redeemer + timestamp (only when used).
+-            // Routed through the canonical .info-list
+-            // label:value treatment (R2-03) — the same
+-            // shape as the distributor meta above, so
+-            // the two label:value pairs on the card
+-            // read as one idiom instead of two. Name
+-            // and date stay on separate lines within
+-            // the value cell so a long double-barrel
+-            // name wraps within its own row instead of
+-            // pushing the date to a second line and
+-            // jaggedly varying card height (OV L11).
++        </span>
++    }
++    .into_any()
++}
++
++/// Redeemer name and date of a used invite code. Own component (type-erased) for the
++/// same layout-depth reason as `InviteCodeStatusCell`.
++#[component]
++fn InviteCodeRedeemer(redeemer_name: Option<String>, redeemed_at: Option<String>) -> impl IntoView {
++    let i18n = use_i18n();
++
++    view! {
+             <dl
+                 class="info-list invite-code-card-redeemer"
+                 data-testid="invite-code-redeemer-cell"
+             >
+-                {code.redeemer_name.clone().map(|name| {
+-                    let redeemed_at = code.redeemed_at.clone();
++                {redeemer_name.map(|name| {
++                    let redeemed_at = redeemed_at.clone();
+                     view! {
+                         <div class="info-item">
+                             <dt class="info-label">
+@@ -2024,6 +1992,69 @@ fn InviteCodeCard(
+                     }
+                 })}
+             </dl>
++    }
++    .into_any()
++}
++
++/// One invite code row. Its own component (and `.into_any()`) is a type-erasure
++/// seam: inlined in the `<For>` it nests the list, row and status views into one
++/// type deep enough to overflow rustc's default recursion limit in wasm layout.
++#[component]
++fn InviteCodeCard(
++    code: InviteCodeRow,
++    revoke_invite_action: ServerAction<RevokeInviteCode>,
++    revoke_pending: Memo<bool>,
++    hydrated: ReadSignal<bool>,
++) -> impl IntoView {
++    let i18n = use_i18n();
++
++    view! {
++        <li class="invite-code-card" data-testid="invite-code-row">
++            // Code — primary identifier
++            <span
++                class="invite-code-card-code"
++                data-testid="invite-code-cell"
++            >
++                {code.code.clone()}
++            </span>
++            // Distributor — canonical label/value pair (RV-05):
++            // routed through .info-list so this meta block
++            // renders with the same overline-label + value
++            // treatment as every other label/value pair in the
++            // app, instead of a bare, unlabeled line.
++            <dl
++                class="info-list invite-code-card-meta"
++                data-testid="invite-code-distributor-cell"
++            >
++                <div class="info-item">
++                    <dt class="info-label">
++                        {t!(
++                            i18n,
++                            admin_invite_codes_distributor_label
++                        )}
++                    </dt>
++                    <dd class="info-value">
++                        {code.distributor_name.clone()}
++                    </dd>
++                </div>
++            </dl>
++            // Status badge
++            <InviteCodeStatusCell status=code.status />
++            // Redeemer + timestamp (only when used).
++            // Routed through the canonical .info-list
++            // label:value treatment (R2-03) — the same
++            // shape as the distributor meta above, so
++            // the two label:value pairs on the card
++            // read as one idiom instead of two. Name
++            // and date stay on separate lines within
++            // the value cell so a long double-barrel
++            // name wraps within its own row instead of
++            // pushing the date to a second line and
++            // jaggedly varying card height (OV L11).
++            <InviteCodeRedeemer
++                redeemer_name=code.redeemer_name.clone()
++                redeemed_at=code.redeemed_at.clone()
++            />
+             // Revoke action (only for unused codes)
+             <span class="invite-code-card-action">
+                 {if code.status == InviteCodeStatus::Unused {
+@@ -2089,6 +2120,113 @@ fn invite_code_matches_query(code: &InviteCodeRow, query: &str) -> bool {
+             .is_some_and(|n| n.to_lowercase().contains(query))
+ }
+ 
++/// One participant table row. Own component (type-erased) so the table tree is not one
++/// nested type deep enough to overflow rustc's default recursion limit in wasm layout.
++#[component]
++fn ParticipantRow(
++    participant: ParticipantSummary,
++    deactivate_action: ServerAction<DeactivateParticipant>,
++    hydrated: ReadSignal<bool>,
++) -> impl IntoView {
++    let i18n = use_i18n();
++    let uid_str = participant.id.to_string();
++    let active = matches!(participant.status, crate::types::UserStatus::Active);
++
++    view! {
++        <tr data-testid="participant-row">
++            <td data-testid="participant-name-cell">
++                {participant.name.clone()}
++            </td>
++            <td>{participant.phone.clone()}</td>
++            <td>
++                {move || {
++                    if active {
++                        view! {
++                            <span
++                                class="badge"
++                                data-status="active"
++                            >
++                                {t!(i18n, participants_status_active)}
++                            </span>
++                        }
++                        .into_any()
++                    } else {
++                        view! {
++                            <span
++                                class="badge"
++                                data-status="inactive"
++                            >
++                                {t!(i18n, participants_status_deactivated)}
++                            </span>
++                        }
++                        .into_any()
++                    }
++                }}
++            </td>
++            <td>
++                {
++                    let deactivate_pending = deactivate_action.pending();
++                    if active {
++                        view! {
++                            <leptos::form::ActionForm action=deactivate_action>
++                                <input
++                                    type="hidden"
++                                    name="user_id"
++                                    value=uid_str
++                                />
++                                // Secondary variant (FU-20): same
++                                // rationale as invite-code revoke —
++                                // frequent, low-consequence, kept
++                                // off destructive-red.
++                                <button
++                                    class="btn"
++                                    data-variant="secondary"
++                                    data-size="sm"
++                                    type="submit"
++                                    data-testid="deactivate-button"
++                                    disabled=move || {
++                                        deactivate_pending.get() || !hydrated.get()
++                                    }
++                                    attr:aria-busy=move || deactivate_pending.get().then_some("true")
++                                >
++                                    {move || if deactivate_pending.get() {
++                                        t!(i18n, admin_participant_deactivating_loading).into_any()
++                                    } else {
++                                        t!(
++                                            i18n,
++                                            participants_deactivate_button
++                                        )
++                                        .into_any()
++                                    }}
++                                </button>
++                            </leptos::form::ActionForm>
++                        }
++                        .into_any()
++                    } else {
++                        // Deactivated rows carry no action. The STATUS
++                        // column already shows the inactive badge, so a
++                        // second gray pill here would double-convey and
++                        // read as a disabled-button false affordance
++                        // (S2). A muted em-dash marks the cell as
++                        // intentionally empty. testid preserved for E2E.
++                        view! {
++                            <span
++                                class="inactive-marker"
++                                aria-hidden="true"
++                                data-testid="inactive-status"
++                            >
++                                "—"
++                            </span>
++                        }
++                        .into_any()
++                    }
++                }
++            </td>
++        </tr>
++    }
++    .into_any()
++}
++
+ #[component]
+ fn ParticipantListSection(
+     participants: Resource<Result<Vec<ParticipantSummary>, ServerFnError>>,
+@@ -2132,103 +2270,13 @@ fn ParticipantListSection(
+                                                     <For
+                                                         each=move || list.clone()
+                                                         key=|p| p.id
+-                                                        children=move |p| {
+-                                                            let uid_str = p.id.to_string();
+-                                                            let active = matches!(
+-                                                                p.status,
+-                                                                crate::types::UserStatus::Active
+-                                                            );
++                                                        children=move |participant| {
+                                                             view! {
+-                                                                <tr data-testid="participant-row">
+-                                                                    <td data-testid="participant-name-cell">
+-                                                                        {p.name.clone()}
+-                                                                    </td>
+-                                                                    <td>{p.phone.clone()}</td>
+-                                                                    <td>
+-                                                                        {move || {
+-                                                                            if active {
+-                                                                                view! {
+-                                                                                    <span
+-                                                                                        class="badge"
+-                                                                                        data-status="active"
+-                                                                                    >
+-                                                                                        {t!(i18n, participants_status_active)}
+-                                                                                    </span>
+-                                                                                }
+-                                                                                .into_any()
+-                                                                            } else {
+-                                                                                view! {
+-                                                                                    <span
+-                                                                                        class="badge"
+-                                                                                        data-status="inactive"
+-                                                                                    >
+-                                                                                        {t!(i18n, participants_status_deactivated)}
+-                                                                                    </span>
+-                                                                                }
+-                                                                                .into_any()
+-                                                                            }
+-                                                                        }}
+-                                                                    </td>
+-                                                                    <td>
+-                                                                        {
+-                                                                            let deactivate_pending = deactivate_action.pending();
+-                                                                            if active {
+-                                                                                view! {
+-                                                                                    <leptos::form::ActionForm action=deactivate_action>
+-                                                                                        <input
+-                                                                                            type="hidden"
+-                                                                                            name="user_id"
+-                                                                                            value=uid_str
+-                                                                                        />
+-                                                                                        // Secondary variant (FU-20): same
+-                                                                                        // rationale as invite-code revoke —
+-                                                                                        // frequent, low-consequence, kept
+-                                                                                        // off destructive-red.
+-                                                                                        <button
+-                                                                                            class="btn"
+-                                                                                            data-variant="secondary"
+-                                                                                            data-size="sm"
+-                                                                                            type="submit"
+-                                                                                            data-testid="deactivate-button"
+-                                                                                            disabled=move || {
+-                                                                                                deactivate_pending.get() || !hydrated.get()
+-                                                                                            }
+-                                                                                            attr:aria-busy=move || deactivate_pending.get().then_some("true")
+-                                                                                        >
+-                                                                                            {move || if deactivate_pending.get() {
+-                                                                                                t!(i18n, admin_participant_deactivating_loading).into_any()
+-                                                                                            } else {
+-                                                                                                t!(
+-                                                                                                    i18n,
+-                                                                                                    participants_deactivate_button
+-                                                                                                )
+-                                                                                                .into_any()
+-                                                                                            }}
+-                                                                                        </button>
+-                                                                                    </leptos::form::ActionForm>
+-                                                                                }
+-                                                                                .into_any()
+-                                                                            } else {
+-                                                                                // Deactivated rows carry no action. The STATUS
+-                                                                                // column already shows the inactive badge, so a
+-                                                                                // second gray pill here would double-convey and
+-                                                                                // read as a disabled-button false affordance
+-                                                                                // (S2). A muted em-dash marks the cell as
+-                                                                                // intentionally empty. testid preserved for E2E.
+-                                                                                view! {
+-                                                                                    <span
+-                                                                                        class="inactive-marker"
+-                                                                                        aria-hidden="true"
+-                                                                                        data-testid="inactive-status"
+-                                                                                    >
+-                                                                                        "—"
+-                                                                                    </span>
+-                                                                                }
+-                                                                                .into_any()
+-                                                                            }
+-                                                                        }
+-                                                                    </td>
+-                                                                </tr>
++                                                                <ParticipantRow
++                                                                    participant=participant
++                                                                    deactivate_action=deactivate_action
++                                                                    hydrated=hydrated
++                                                                />
+                                                             }
+                                                         }
+                                                     />
+@@ -2244,6 +2292,7 @@ fn ParticipantListSection(
+             </Suspense>
+         </div>
+     }
++    .into_any()
+ }
+ 
+ #[cfg(test)]
+diff --git a/src/pages/home.rs b/src/pages/home.rs
+index d326751..4406c86 100644
+--- a/src/pages/home.rs
++++ b/src/pages/home.rs
+@@ -1030,55 +1030,74 @@ fn render_receipt_form(
+             </leptos::form::ActionForm>
+         </section>
+     }
++    .into_any()
+ }
+ 
+-fn render_assignment_details(
+-    recipient_name: &str,
+-    recipient_phone: &str,
+-    recipient_city: &str,
+-    recipient_branch_number: i32,
+-    receipt_action: ServerAction<ConfirmReceipt>,
+-    hydrated: ReadSignal<bool>,
+-    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+-) -> AnyView {
+-    let receipt_pending = receipt_action.pending();
+-
+-    let recipient_branch_text = t!(
++/// Recipient name, branch and phone. Its own component (type-erased) so the assignment
++/// view does not nest this tree into one type deep enough to overflow rustc's default
++/// recursion limit during layout.
++#[component]
++fn RecipientCard(name: String, phone: String, city: String, branch_number: i32) -> impl IntoView {
++    let i18n = use_i18n();
++    let tel_href = format!("tel:{phone}");
++    let branch_text = t!(
+         i18n,
+         home_recipient_branch,
+-        branch_number = recipient_branch_number,
+-        city = recipient_city.to_string()
++        branch_number = branch_number,
++        city = city
+     );
+ 
+     view! {
+-        <h1>{t!(i18n, home_assigned_heading)}</h1>
+-        <p>{t!(i18n, home_send_instructions)}</p>
+-
+         <article class="card">
+             <h3 data-testid="recipient-name">
+-                {recipient_name.to_string()}
++                {name}
+             </h3>
+             <dl class="info-list">
+                 <div class="info-item">
+                     <dt class="info-label">{t!(i18n, home_branch_label)}</dt>
+                     <dd class="info-value" data-testid="recipient-branch">
+-                        {recipient_branch_text}
++                        {branch_text}
+                     </dd>
+                 </div>
+                 <div class="info-item">
+                     <dt class="info-label">{t!(i18n, home_phone_label)}</dt>
+                     <dd class="info-value">
+                         <a
+-                            href=format!("tel:{}", recipient_phone.to_string())
++                            href=tel_href
+                             class="info-link"
+                             data-testid="recipient-phone"
+                         >
+-                            {recipient_phone.to_string()}
++                            {phone}
+                         </a>
+                     </dd>
+                 </div>
+             </dl>
+         </article>
++    }
++    .into_any()
++}
++
++fn render_assignment_details(
++    recipient_name: &str,
++    recipient_phone: &str,
++    recipient_city: &str,
++    recipient_branch_number: i32,
++    receipt_action: ServerAction<ConfirmReceipt>,
++    hydrated: ReadSignal<bool>,
++    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
++) -> AnyView {
++    let receipt_pending = receipt_action.pending();
++
++    view! {
++        <h1>{t!(i18n, home_assigned_heading)}</h1>
++        <p>{t!(i18n, home_send_instructions)}</p>
++
++        <RecipientCard
++            name=recipient_name.to_string()
++            phone=recipient_phone.to_string()
++            city=recipient_city.to_string()
++            branch_number=recipient_branch_number
++        />
+ 
+         {render_receipt_form(receipt_action, receipt_pending, hydrated, i18n)}
+     }
+-- 
+2.43.0
+
+
+From 3d8f4685564b02b770c15fd4d863e51c0026acbd Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 6 Oct 2026 23:02:44 +0000
+Subject: [PATCH 5/6] refactor(views): add InviteCodeStep/NameStep, erase
+ LoginPage, inline invite sub-cells, fix comments
+
+---
+ .github/workflows/ci.yml |   4 +-
+ src/admin/page.rs        | 187 +++++++++++++++++----------------------
+ src/pages/login.rs       |  53 ++++++++++-
+ 3 files changed, 135 insertions(+), 109 deletions(-)
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 169e1de..a1fa392 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -43,8 +43,8 @@ jobs:
+       - name: cargo clippy (hydrate / WASM)
+         run: cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings
+ 
+-      # clippy/test never run codegen, so recursion/layout overflows in Leptos views
+-      # only surface in a real build (see src/main.rs recursion_limit WHY).
++      # clippy/test never run codegen, so layout-depth overflows in Leptos views
++      # only surface in a real build.
+       - name: cargo build (SSR bin — codegen)
+         run: cargo build --no-default-features --features ssr --bin samete
+ 
+diff --git a/src/admin/page.rs b/src/admin/page.rs
+index 6b23335..1d24616 100644
+--- a/src/admin/page.rs
++++ b/src/admin/page.rs
+@@ -1897,105 +1897,6 @@ fn InviteCodesSection(
+     .into_any()
+ }
+ 
+-/// Status badge cell of an invite code row. Own component (type-erased) so the row
+-/// tree is not one nested type deep enough to overflow rustc's recursion limit.
+-#[component]
+-fn InviteCodeStatusCell(status: InviteCodeStatus) -> impl IntoView {
+-    let i18n = use_i18n();
+-
+-    view! {
+-        <span data-testid="invite-code-status-cell">
+-            {match status {
+-                    InviteCodeStatus::Unused => {
+-                        view! {
+-                            <span
+-                                class="badge"
+-                                data-testid="invite-code-status-badge"
+-                                data-status="unused"
+-                            >
+-                                {t!(
+-                                    i18n,
+-                                    admin_invite_codes_status_unused
+-                                )}
+-                            </span>
+-                        }
+-                        .into_any()
+-                    }
+-                    InviteCodeStatus::Used => {
+-                        view! {
+-                            <span
+-                                class="badge"
+-                                data-testid="invite-code-status-badge"
+-                                data-status="used"
+-                            >
+-                                {t!(
+-                                    i18n,
+-                                    admin_invite_codes_status_used
+-                                )}
+-                            </span>
+-                        }
+-                        .into_any()
+-                    }
+-                    InviteCodeStatus::Revoked => {
+-                        view! {
+-                            <span
+-                                class="badge"
+-                                data-testid="invite-code-status-badge"
+-                                data-status="revoked"
+-                            >
+-                                {t!(
+-                                    i18n,
+-                                    admin_invite_codes_status_revoked
+-                                )}
+-                            </span>
+-                        }
+-                        .into_any()
+-                    }
+-                }}
+-        </span>
+-    }
+-    .into_any()
+-}
+-
+-/// Redeemer name and date of a used invite code. Own component (type-erased) for the
+-/// same layout-depth reason as `InviteCodeStatusCell`.
+-#[component]
+-fn InviteCodeRedeemer(redeemer_name: Option<String>, redeemed_at: Option<String>) -> impl IntoView {
+-    let i18n = use_i18n();
+-
+-    view! {
+-            <dl
+-                class="info-list invite-code-card-redeemer"
+-                data-testid="invite-code-redeemer-cell"
+-            >
+-                {redeemer_name.map(|name| {
+-                    let redeemed_at = redeemed_at.clone();
+-                    view! {
+-                        <div class="info-item">
+-                            <dt class="info-label">
+-                                {t!(
+-                                    i18n,
+-                                    admin_invite_codes_redeemer_label
+-                                )}
+-                            </dt>
+-                            <dd class="info-value">
+-                                <span class="invite-code-card-redeemer-name">
+-                                    {name}
+-                                </span>
+-                                {redeemed_at.map(|date_str| view! {
+-                                    <small class="invite-code-card-redeemer-date">
+-                                        {date_str}
+-                                    </small>
+-                                })}
+-                            </dd>
+-                        </div>
+-                    }
+-                })}
+-            </dl>
+-    }
+-    .into_any()
+-}
+-
+ /// One invite code row. Its own component (and `.into_any()`) is a type-erasure
+ /// seam: inlined in the `<For>` it nests the list, row and status views into one
+ /// type deep enough to overflow rustc's default recursion limit in wasm layout.
+@@ -2039,7 +1940,58 @@ fn InviteCodeCard(
+                 </div>
+             </dl>
+             // Status badge
+-            <InviteCodeStatusCell status=code.status />
++            {view! {
++            <span data-testid="invite-code-status-cell">
++                {match code.status {
++                        InviteCodeStatus::Unused => {
++                            view! {
++                                <span
++                                    class="badge"
++                                    data-testid="invite-code-status-badge"
++                                    data-status="unused"
++                                >
++                                    {t!(
++                                        i18n,
++                                        admin_invite_codes_status_unused
++                                    )}
++                                </span>
++                            }
++                            .into_any()
++                        }
++                        InviteCodeStatus::Used => {
++                            view! {
++                                <span
++                                    class="badge"
++                                    data-testid="invite-code-status-badge"
++                                    data-status="used"
++                                >
++                                    {t!(
++                                        i18n,
++                                        admin_invite_codes_status_used
++                                    )}
++                                </span>
++                            }
++                            .into_any()
++                        }
++                        InviteCodeStatus::Revoked => {
++                            view! {
++                                <span
++                                    class="badge"
++                                    data-testid="invite-code-status-badge"
++                                    data-status="revoked"
++                                >
++                                    {t!(
++                                        i18n,
++                                        admin_invite_codes_status_revoked
++                                    )}
++                                </span>
++                            }
++                            .into_any()
++                        }
++                    }}
++            </span>
++            }
++            .into_any()}
+             // Redeemer + timestamp (only when used).
+             // Routed through the canonical .info-list
+             // label:value treatment (R2-03) — the same
+@@ -2051,10 +2003,37 @@ fn InviteCodeCard(
+             // name wraps within its own row instead of
+             // pushing the date to a second line and
+             // jaggedly varying card height (OV L11).
+-            <InviteCodeRedeemer
+-                redeemer_name=code.redeemer_name.clone()
+-                redeemed_at=code.redeemed_at.clone()
+-            />
++            {view! {
++                <dl
++                    class="info-list invite-code-card-redeemer"
++                    data-testid="invite-code-redeemer-cell"
++                >
++                    {code.redeemer_name.clone().map(|name| {
++                        let redeemed_at = code.redeemed_at.clone();
++                        view! {
++                            <div class="info-item">
++                                <dt class="info-label">
++                                    {t!(
++                                        i18n,
++                                        admin_invite_codes_redeemer_label
++                                    )}
++                                </dt>
++                                <dd class="info-value">
++                                    <span class="invite-code-card-redeemer-name">
++                                        {name}
++                                    </span>
++                                    {redeemed_at.map(|date_str| view! {
++                                        <small class="invite-code-card-redeemer-date">
++                                            {date_str}
++                                        </small>
++                                    })}
++                                </dd>
++                            </div>
++                        }
++                    })}
++                </dl>
++            }
++            .into_any()}
+             // Revoke action (only for unused codes)
+             <span class="invite-code-card-action">
+                 {if code.status == InviteCodeStatus::Unused {
+diff --git a/src/pages/login.rs b/src/pages/login.rs
+index 70b721e..f32311d 100644
+--- a/src/pages/login.rs
++++ b/src/pages/login.rs
+@@ -676,6 +676,7 @@ pub fn LoginPage() -> impl IntoView {
+             </div>
+         </div>
+     }
++    .into_any()
+ }
+ 
+ // ── Sub-components ────────────────────────────────────────────────────────────
+@@ -801,6 +802,35 @@ fn LoginStepRouter(
+             on_resend=resend
+         />
+ 
++        <InviteCodeStep
++            is_pending=is_pending
++            hydrated=hydrated
++            entered_code=entered_code
++            set_entered_code=set_entered_code
++        />
++        <NameStep
++            is_pending=is_pending
++            hydrated=hydrated
++            register_action=register_action
++            entered_code=entered_code
++            set_entered_code=set_entered_code
++        />
++    }
++    .into_any()
++}
++
++/// Step 3: invite code entry. Shown when a registration is pending and no code has
++/// been entered yet.
++#[component]
++fn InviteCodeStep(
++    is_pending: bool,
++    hydrated: ReadSignal<bool>,
++    entered_code: ReadSignal<Option<String>>,
++    set_entered_code: WriteSignal<Option<String>>,
++) -> impl IntoView {
++    let i18n = use_i18n();
++
++    view! {
+         // ── Step 3: Invite code ───────────────────────────────────────────────
+         // Shown when pending_registration is true AND no code entered yet.
+         <div
+@@ -817,7 +847,23 @@ fn LoginStepRouter(
+                 on_submit=move |code| set_entered_code.set(Some(code))
+             />
+         </div>
++    }
++    .into_any()
++}
++
++/// Step 4: name collection. Shown when a registration is pending and a code has been
++/// entered.
++#[component]
++fn NameStep(
++    is_pending: bool,
++    hydrated: ReadSignal<bool>,
++    register_action: ServerAction<RegisterWithCode>,
++    entered_code: ReadSignal<Option<String>>,
++    set_entered_code: WriteSignal<Option<String>>,
++) -> impl IntoView {
++    let i18n = use_i18n();
+ 
++    view! {
+         // ── Step 4: Name collection ────────────────────────────────────────────
+         // Shown when pending_registration is true AND a code has been entered.
+         <div
+@@ -839,9 +885,10 @@ fn LoginStepRouter(
+ 
+ /// Step 1: phone entry. Hidden once the OTP step activates, a pending registration
+ /// is set, or the server redirected back with an OTP error.
+-// WHY `.into_any()`: a login step is its own type-erasure seam. Without it the whole
+-// four-step tree is one nested view type and rustc's layout of the `into_any` async
+-// blocks exceeds the default recursion limit (see conventions: view-type depth).
++// WHY `.into_any()`: each login step is its own type-erasure seam. Without it the whole
++// four-step tree is one nested view type, and rustc's layout of the `into_any` async
++// blocks exceeds its default recursion limit at codegen ("queries overflow the depth
++// limit!"); `cargo clippy` and `cargo test` never reach that layout.
+ #[component]
+ fn PhoneStep(
+     otp_step: Memo<bool>,
+-- 
+2.43.0
+
+
+From d09cbe7ac3b455fc43cea25fa8817af937bf2d96 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 03:58:32 +0000
+Subject: [PATCH 6/6] fix(login): drop unused i18n bindings in router and
+ NameStep
+
+---
+ src/pages/login.rs | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/src/pages/login.rs b/src/pages/login.rs
+index f32311d..fd0fd1e 100644
+--- a/src/pages/login.rs
++++ b/src/pages/login.rs
+@@ -715,8 +715,6 @@ fn LoginStepRouter(
+     #[cfg(not(feature = "ssr"))]
+     const OTP_RESEND_COOLDOWN_SECS: u32 = 60;
+ 
+-    let i18n = use_i18n();
+-
+     // ── Resend cooldown (Fault-03) ────────────────────────────────────────────
+     // `resend_cooldown` is unconditional: initial value (0u32) is identical on SSR
+     // and client — no hydration mismatch. Interval handle, timer lifecycle, and
+@@ -861,8 +859,6 @@ fn NameStep(
+     entered_code: ReadSignal<Option<String>>,
+     set_entered_code: WriteSignal<Option<String>>,
+ ) -> impl IntoView {
+-    let i18n = use_i18n();
+-
+     view! {
+         // ── Step 4: Name collection ────────────────────────────────────────────
+         // Shown when pending_registration is true AND a code has been entered.
+-- 
+2.43.0
+

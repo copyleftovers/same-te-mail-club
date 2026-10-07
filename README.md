@@ -191,6 +191,8 @@ Server-heavy deps (sqlx, reqwest, phonenumber, rand, blake2, sha2, anyhow, tower
 | `DATABASE_URL` | Yes | Postgres connection string |
 | `TURBOSMS_TOKEN` | Yes | TurboSMS API bearer token |
 | `TURBOSMS_SENDER` | Yes | Registered alpha-name |
+| `SAMETE_ADMIN_PHONE` | No (set both or neither) | Phone of the first organizer. At every boot the app ensures this user exists with role `admin` (creates it, or promotes and reactivates an existing account). Any Ukrainian format; stored as E.164 |
+| `SAMETE_ADMIN_NAME` | No (set both or neither) | Display name used only when the admin user is created |
 | `CSRF_SECRET` | No | Override for CSRF secret (generated at startup if absent) |
 
 ## Deployment
@@ -201,3 +203,7 @@ Multi-stage Docker build with cargo-chef for dependency caching and distroless r
 just build          # local release build
 docker compose up   # local with Postgres
 ```
+
+### First admin
+
+A fresh database has no organizer, and invite codes can only be created by one. Set `SAMETE_ADMIN_PHONE` and `SAMETE_ADMIN_NAME` in the Coolify environment and deploy: on boot the app creates that admin (or promotes and reactivates the existing account with that phone). The operation is idempotent — leaving the variables set is safe. Then sign in at `/login` with that phone (real SMS OTP) and generate invite codes from `/admin`. Never run `seed/test_admin.sql` against production: it installs a fixed, publicly known test phone as admin.

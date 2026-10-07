@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# complete (non-aborted) concurrent requests; report panics
+PORT=$1; LOG=$2; ROUNDS=$3
+for r in $(seq 1 $ROUNDS); do
+  pids=()
+  for p in / /admin /onboarding /login; do for k in 1 2 3 4 5 6; do
+    curl -s -o /dev/null --max-time 30 -b session=stresstoken123 http://127.0.0.1:$PORT$p & pids+=($!)
+    curl -s -o /dev/null --max-time 30 http://127.0.0.1:$PORT$p & pids+=($!)
+  done; done
+  wait "${pids[@]}" 2>/dev/null
+  if grep -q panicked $LOG; then echo "PANIC at round $r"; exit 0; fi
+done
+echo "no panic after $ROUNDS rounds"
