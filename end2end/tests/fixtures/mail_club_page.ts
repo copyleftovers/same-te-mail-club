@@ -246,19 +246,7 @@ export class MailClubPage {
     // Wait for hydration — generate-code-button is the gate.
     await expect(this.page.getByTestId("generate-code-button")).toBeEnabled();
 
-    const select = this.page.getByTestId("distributor-select");
-    if (distributorName) {
-      await select.selectOption({ label: distributorName });
-    } else {
-      // Select the first non-placeholder option (index 1 — index 0 is the empty prompt).
-      const options = await select.locator("option").all();
-      if (options.length > 1) {
-        const val = await options[1].getAttribute("value");
-        if (val) {
-          await select.selectOption(val);
-        }
-      }
-    }
+    await this.selectDistributor(distributorName);
 
     await this.page.getByTestId("generate-code-button").click();
     // Wait for the generated code display to appear.
@@ -350,6 +338,50 @@ export class MailClubPage {
     // until the URL matches. No waitUntil needed — URL change implies the
     // response has arrived.
     await expect(this.page).toHaveURL(/\/onboarding/);
+  }
+
+  /**
+   * Pick the distributor for a new invite code: the named one, else the first
+   * non-placeholder option (index 0 is the empty prompt).
+   */
+  private async selectDistributor(distributorName?: string) {
+    const select = this.page.getByTestId("distributor-select");
+    if (distributorName) {
+      await select.selectOption({ label: distributorName });
+      return;
+    }
+    const options = await select.locator("option").all();
+    if (options.length > 1) {
+      const val = await options[1].getAttribute("value");
+      if (val) {
+        await select.selectOption(val);
+      }
+    }
+  }
+
+  /**
+   * Story 1.5 a11y: while generate_invite_code is in flight the button carries a
+   * bare aria-busy="true" (never a literal "attr:aria-busy"). The server response
+   * is held via page.route until the assertion is done, then released.
+   */
+  async expectGenerateCodeBusyWhilePending() {
+    await this.page.goto("/admin");
+    const button = this.page.getByTestId("generate-code-button");
+    await expect(button).toBeEnabled();
+    await this.selectDistributor();
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await this.page.route("**/*generate_invite_code*", async (route) => {
+      await held;
+      await route.continue();
+    });
+    await button.click();
+    await expect(button).toHaveAttribute("aria-busy", "true");
+    expect(await button.getAttribute("attr:aria-busy")).toBeNull();
+    release();
+    await expect(this.page.getByTestId("generated-code-display")).toBeVisible();
+    await expect(button).not.toHaveAttribute("aria-busy", "true");
+    await this.page.unroute("**/*generate_invite_code*");
   }
 
   /**

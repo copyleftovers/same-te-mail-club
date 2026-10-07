@@ -17,6 +17,8 @@
 # Prerequisites: cargo leptos, sqlx, psql, brotli, gzip, python3, curl, npx.
 # Postgres must be reachable at localhost:5432 with role `samete` as owner.
 set -euo pipefail
+# Repo-pinned tools (tailwindcss) — see scripts/bootstrap-toolchain.sh.
+export PATH="$(cd "$(dirname "$0")/.." && pwd)/.tools/bin:$PATH"
 
 # --- arguments -----------------------------------------------------------
 

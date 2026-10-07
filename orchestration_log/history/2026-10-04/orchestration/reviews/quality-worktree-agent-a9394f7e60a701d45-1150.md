@@ -1,5 +1,45 @@
 # Code Quality Review: worktree-agent-a9394f7e60a701d45
 
+## Re-review (round 2): delta 3adddfc..96fbdec, gates at HEAD ded4c39 (96fbdec plus the integration merge with T0, U1 and T1)
+
+**Ready to merge:** Yes
+**Reasoning:** The fixes for all 3 Important issues and all 7 Minor issues are present in 96fbdec, and I verified each one directly. All gates are green on the pin, and both clippy targets are also green on 1.99.0. Two cosmetic items are left (below). They do not block merge.
+
+### Gates (run by me at ded4c39, env CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=3 SQLX_OFFLINE=true)
+| Gate | Result |
+|---|---|
+| `cargo fmt --check` (1.97.1) | 0 |
+| SSR clippy `-D warnings`, 1.97.1 | 0 |
+| hydrate/wasm clippy `-D warnings`, 1.97.1 | 0 |
+| hydrate/wasm clippy `-D warnings`, `+stable` = rustc 1.99.0 (b940084d7) | 0 |
+| SSR clippy `-D warnings`, `+stable` 1.99.0 | 0 (so the lint never fires under SSR and the hydrate-only scope is enough) |
+| `cargo test` | 0 (79 passed) |
+| `cargo test --features ssr` | 0 (97 passed, 2 ignored) |
+| `bash -n` on both scripts; settings.json is valid JSON; ci.yml is valid YAML | ok |
+| `git status` after the gates | clean |
+
+The `+1.99.0` toolchain on this machine has no clippy component (`'cargo-clippy' is not installed`). That is a local install gap, not a code result, so I used `+stable`, which is the same 1.99.0.
+
+### How each round-1 finding was verified
+- **I1 (unknown_lints scope): RESOLVED.** `src/lib.rs:8-11` is `#![cfg_attr(feature = "hydrate", allow(unknown_lints, clippy::unused_async_trait_impl))]`. Under SSR no `unknown_lints` allow exists, so the round-1 typo probe is reported again. The WHY comment was updated to say why it is scoped this way.
+- **I2 (Postgres hang): RESOLVED.** bootstrap :109-110 FATALs when `pg_isready` or `psql` is missing. I probed it with an empty PATH and the FATAL path is taken. :118-119 bound the wait to `POSTGRES_READY_TIMEOUT_SECONDS=60` and FATAL after that. :125-129 run `su postgres` only when the user is root and the `postgres` OS user exists; otherwise the FATAL prints the exact CREATE ROLE SQL.
+- **I3 (hook degrade): RESOLVED.** `.claude/hooks/session-start.sh:10-14` writes the env block before :15 runs the bootstrap. I probed it with a stub bootstrap that exits 7: the env file still gets PATH, PLAYWRIGHT_BROWSERS_PATH and DATABASE_URL, and the hook exits 1 with `[session-start] bootstrap failed`. settings.json has `"timeout": 900` and `"matcher": "startup|resume"`.
+- **M1 (header claim vs npm ci): RESOLVED.** :88-96 skip `npm ci` when the stamp `node_modules/.bootstrap-lock-sha256` equals the lockfile sha. The stamp is written only after `npm ci` succeeds (under set -e). It lives inside node_modules, so wiping node_modules invalidates it.
+- **M2 (pin duplication): RESOLVED.** `CARGO_BINSTALL_VERSION="1.25.1"` is pinned at :9 and enforced at :34-43 (local `cargo binstall -V` = 1.25.1). The CI audit step sources `CARGO_AUDIT_VERSION` from the script; I probed it and got `audit=0.22.2`.
+- **M3 (substring probe): RESOLVED.** `grep -qwF` at :48 and `grep -qw` at :58. The comment at :57 now states the limit honestly: wasm-opt reports only the major version.
+- **M4 (unverified tailwind on PATH): RESOLVED.** :75-83 download to `tailwindcss.download`, verify it, `chmod +x`, then `mv` into place. An EXIT trap removes the leftover download on failure. `sha256_of`/`sha256_matches` were refactored. Probes: match → 0, wrong sha → 1, missing file → 1, and the `shasum`-only PATH branch → 0.
+- **M5 (cache key): RESOLVED.** Both CI keys now hash `rust-toolchain.toml`.
+- **M6 (README): RESOLVED.** README :17 and :114 refer to `rust-toolchain.toml`.
+- **M7 (matcher): RESOLVED** (see I3).
+
+### Remaining (Minor, non-blocking)
+1. `.github/workflows/ci.yml:44` and :95: the CI `cargo-bins/cargo-binstall@v1.18.1` action version differs from the script's `CARGO_BINSTALL_VERSION=1.25.1`. In the E2E job the bootstrap self-upgrades, so the effect is only one extra install. The Check job runs the audit with 1.18.1. Optionally align the action tag with the pin.
+2. `scripts/bootstrap-toolchain.sh:77`: the `trap … EXIT` is installed in the middle of the script, inside one branch. It is harmless today because there is no other trap and `rm -f` on a missing file is a no-op. Any trap added later would silently replace it.
+
+---
+
+## Round 1 (3adddfc, superseded by round 2 above)
+
 Worktree: /home/user/same-te-mail-club/.claude/worktrees/agent-a9394f7e60a701d45
 Branch: worktree-agent-a9394f7e60a701d45
 Diff range: ae111c8..3adddfc (ENV commits 799e247, a5fed31, c82b4eb, 3adddfc; 1ce283e = base merge)
@@ -95,5 +135,5 @@ None.
    - Fix: consider `"startup|resume"`. The bootstrap is idempotent, so this costs only the check time.
 
 ### Assessment
-**Ready to merge:** With fixes
+**Round-1 verdict (superseded):** With fixes
 **Reasoning:** All gates are green and the structure is sound. Important #1 is a crate-wide weakening of the lint safety net, and the fix is one line. Important #2 and #3 are real hang and degrade failure modes in exactly the hook and bootstrap paths this unit exists to make reliable. Each fix is small and local.

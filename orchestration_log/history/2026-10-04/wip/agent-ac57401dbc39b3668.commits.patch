@@ -1,3 +1,14 @@
+From f8e718a80adb1832001247a7a34b1a97e94b2fbb Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 20:57:36 +0000
+Subject: [PATCH 1/2] feat(sms): append site link to participant SMS
+
+---
+ README.md        |  1 +
+ src/admin/sms.rs | 42 ++++++++++++++++++++----
+ src/config.rs    | 83 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 119 insertions(+), 7 deletions(-)
+
 diff --git a/README.md b/README.md
 index eb9b2c8..d4f5f5e 100644
 --- a/README.md
@@ -230,3 +241,33 @@ index b0292bf..540ac89 100644
 +        ));
 +    }
 +}
+-- 
+2.43.0
+
+
+From 107cc23ea3ca4cd4782e18511e6c4385b3200f59 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 20:58:30 +0000
+Subject: [PATCH 2/2] style(config): fmt
+
+---
+ src/config.rs | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/src/config.rs b/src/config.rs
+index e1a8d68..7c32e2d 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -149,8 +149,7 @@ fn admin_bootstrap_from_vars(
+ #[cfg(test)]
+ mod tests {
+     use super::{
+-        AdminBootstrap, ConfigError, DRY_RUN_SITE_URL, admin_bootstrap_from_vars,
+-        site_url_from_var,
++        AdminBootstrap, ConfigError, DRY_RUN_SITE_URL, admin_bootstrap_from_vars, site_url_from_var,
+     };
+ 
+     #[test]
+-- 
+2.43.0
+
