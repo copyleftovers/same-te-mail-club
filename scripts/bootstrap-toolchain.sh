@@ -13,8 +13,19 @@ WASM_OPT_VERSION="0.116.1"
 CARGO_AUDIT_VERSION="0.22.2"
 TAILWIND_VERSION="v4.2.1"
 TAILWIND_SHA256_LINUX_X64="39e8d4e24b3c83b0a6e69e100a972fbc75d5fef8dce47b3ddac3cf92dea81fe3"
+TAILWIND_SHA256_MACOS_ARM64="e510af7928750c9ee8d5ff2e5e98088bd5b99a8a8e2c554668621c7e151fa91f"
+TAILWIND_SHA256_MACOS_X64="019e5cfa441992ede2772c6faaeb8d7fb1726aab50b1138c0aa38e88f4b7bd44"
 
 log() { echo "[bootstrap] $*"; }
+
+# macOS ships shasum, not sha256sum.
+sha256_matches() { # args: EXPECTED_SHA FILE
+    if command -v sha256sum >/dev/null; then
+        echo "$1  $2" | sha256sum -c --status 2>/dev/null
+    else
+        echo "$1  $2" | shasum -a 256 -c --status 2>/dev/null
+    fi
+}
 
 # --- Rust targets ---
 rustup target list --installed | grep -qx wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
@@ -44,14 +55,16 @@ fi
 # --- tailwind: pinned binary on a repo-controlled PATH entry ---
 mkdir -p .tools/bin
 case "$(uname -s)-$(uname -m)" in
-    Linux-x86_64) tw_asset=tailwindcss-linux-x64; tw_sha="$TAILWIND_SHA256_LINUX_X64" ;;
-    *) echo "[bootstrap] FATAL: no pinned tailwind sha256 for $(uname -s)-$(uname -m)"; exit 1 ;;
+    Linux-x86_64)  tw_asset=tailwindcss-linux-x64;   tw_sha="$TAILWIND_SHA256_LINUX_X64" ;;
+    Darwin-arm64)  tw_asset=tailwindcss-macos-arm64; tw_sha="$TAILWIND_SHA256_MACOS_ARM64" ;;
+    Darwin-x86_64) tw_asset=tailwindcss-macos-x64;   tw_sha="$TAILWIND_SHA256_MACOS_X64" ;;
+    *) echo "[bootstrap] FATAL: no pinned tailwind for $(uname -s)-$(uname -m)"; exit 1 ;;
 esac
-if ! echo "$tw_sha  .tools/bin/tailwindcss" | sha256sum -c --status 2>/dev/null; then
+if ! sha256_matches "$tw_sha" .tools/bin/tailwindcss; then
     log "installing tailwindcss $TAILWIND_VERSION ($tw_asset)"
     curl -fsSL -o .tools/bin/tailwindcss \
         "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${tw_asset}"
-    echo "$tw_sha  .tools/bin/tailwindcss" | sha256sum -c --status \
+    sha256_matches "$tw_sha" .tools/bin/tailwindcss \
         || { echo "[bootstrap] FATAL: tailwindcss sha256 mismatch"; exit 1; }
     chmod +x .tools/bin/tailwindcss
 else
