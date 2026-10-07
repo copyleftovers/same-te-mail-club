@@ -47,6 +47,11 @@ Overlaps: U1∩U2 = `auth.rs`, `login.rs`. U2∩U3 = `config.rs`, `main.rs`, `RE
 
 Shared files are not a reason to sequence. Every lane has its own worktree, and conflicts are resolved at integration: union edits, regenerate `.sqlx/`, re-run that unit's gates. Further overlaps: ENV∩T0 = `justfile`, `scripts/isolated-capture.sh`, `.github/workflows/ci.yml` (different lines). T0∩U1 = `src/pages/login.rs` (T0 moves the step blocks into components; U1 edits server fns and adds one testid inside `NameCollectionForm`). T0∩U4/A1 = `src/admin/page.rs` (T0: `InviteCodesSection` `<li>`; U4: `render_cycle_ring`; A1: 13 attribute tokens, one of them inside the `<li>` that T0 moves).
 
+**ENV addendum (2026-10-07, PRB-102).** Pin the Rust toolchain in a committed `rust-toolchain.toml` (channel = the exact version CI's `dtolnay/rust-toolchain` resolves to; add `wasm32-unknown-unknown` and the clippy/rustfmt components). CI must read the same file. Separately, make `cargo clippy --target wasm32-unknown-unknown --features hydrate --no-default-features -- -D warnings` green on the pinned toolchain AND on current stable 1.99.0:
+- fix the 2 `.ok().is_some_and` sites in `src/pages/login.rs`;
+- for the `unused_async_trait_impl` hits on `#[server]` expansions, use a crate-level `#![allow]` with a WHY comment only if the lint fires inside macro-generated code the crate cannot change; prove that with the lint's span output in the report.
+Gate: both clippy targets exit 0 on the pin, and the report pastes the output.
+
 **Lanes (binding: `recon/2026-10-04/fix/prompts/_parallelism.md`).** ENV, T0, T1, U1, U2, U3, U4 and A1 are concurrent lanes. Each starts from the working branch `claude/loving-johnson-7l8hn5`, and each is integrated and reviewed on its own when it finishes. Proven symbol dependencies:
 
 | Dependent | Symbol | Introduced by / file | Base for the dependent lane |
@@ -627,25 +632,25 @@ No other Cargo.toml change. `Cargo.lock` must not change.
 ### T1.2 `scripts/ssr-stress.sh` (new, `chmod +x`) — the regression probe
 ```bash
 #!/usr/bin/env bash
-# SSR concurrency stress: bursts of client-aborted requests at SSR routes, then a
-# liveness check after every burst.
+# SSR concurrency stress: rounds of client-aborted requests at SSR routes, then a
+# liveness check after every round.
 #
 # WHY: leptos_i18n 0.6.x's server-side isomorphic effect (context.rs:213) can read a
 # disposed signal in a detached tokio task once the request Owner is disposed. With
 # panic = "abort" that kills the server; with unwind the panic stays in the task.
 # This is the fast repro (orchestration_log/recon/2026-10-04/readiness/n-panic.md).
 #
-# Usage: scripts/ssr-stress.sh <port> <server-log-file> [bursts=80]
-# Exit 0 = server alive after all bursts; exit 1 = server died.
+# Usage: scripts/ssr-stress.sh <port> <server-log-file> [rounds=80]
+# Exit 0 = server alive after all rounds; exit 1 = server died.
 set -uo pipefail
 
-port="${1:?usage: scripts/ssr-stress.sh <port> <server-log-file> [bursts]}"
-log="${2:?usage: scripts/ssr-stress.sh <port> <server-log-file> [bursts]}"
-bursts="${3:-80}"
+port="${1:?usage: scripts/ssr-stress.sh <port> <server-log-file> [rounds]}"
+log="${2:?usage: scripts/ssr-stress.sh <port> <server-log-file> [rounds]}"
+rounds="${3:-80}"
 
 panics() { grep -c "panicked" "$log" || true; }
 
-for burst in $(seq 1 "$bursts"); do
+for round in $(seq 1 "$rounds"); do
     pids=()
     for path in / /admin /onboarding /login; do
         for timeout in 0.003 0.006 0.01 0.02 0.04 0.08; do
@@ -655,11 +660,11 @@ for burst in $(seq 1 "$bursts"); do
     done
     wait "${pids[@]}" 2>/dev/null
     if ! curl -sf -o /dev/null --max-time 5 "http://127.0.0.1:${port}/login"; then
-        echo "DEAD at burst ${burst}; panics logged: $(panics)"
+        echo "DEAD at round ${round}; panics logged: $(panics)"
         exit 1
     fi
 done
-echo "ALIVE after ${bursts} bursts; panics logged: $(panics)"
+echo "ALIVE after ${rounds} rounds; panics logged: $(panics)"
 ```
 
 ### T1.3 Build after the change
@@ -702,9 +707,9 @@ bash scripts/ssr-stress.sh 3971 /tmp/t1-server-<N>.log 80; echo "stress=$?"
 kill $SRV 2>/dev/null; wait $SRV 2>/dev/null
 ```
 RED (before; `<BIN>=/tmp/t1-samete-abort`, `<N>=red1..red3`): run up to 3 times and stop at the first `DEAD`.
-**REQUIRED:** at least one run prints `DEAD at burst … panics logged: ≥1` with `stress=1`, and `grep -m1 "already been disposed" /tmp/t1-server-redK.log` matches. If all 3 runs print ALIVE, STOP: report BLOCKED (the probe did not reproduce, so the GREEN gate would prove nothing).
+**REQUIRED:** at least one run prints `DEAD at round … panics logged: ≥1` with `stress=1`, and `grep -m1 "already been disposed" /tmp/t1-server-redK.log` matches. If all 3 runs print ALIVE, STOP: report BLOCKED (the probe did not reproduce, so the GREEN gate would prove nothing).
 GREEN (after; `<BIN>=./target/release/samete`, `<N>=green1..green3`): run all 3.
-**REQUIRED:** all 3 print `ALIVE after 80 bursts` with `stress=0`. The sum of `panics logged` across the 3 runs must be ≥ 1, which proves the trigger fired and was absorbed. If the sum is 0, run 3 more. If the sum is still 0, report BLOCKED.
+**REQUIRED:** all 3 print `ALIVE after 80 rounds` with `stress=0`. The sum of `panics logged` across the 3 runs must be ≥ 1, which proves the trigger fired and was absorbed. If the sum is 0, run 3 more. If the sum is still 0, report BLOCKED.
 
 E2E on the path that crashes most (cargo-leptos end-to-end, own port + own DB; Playwright-ran check per Lanes). Run 3 times:
 ```bash

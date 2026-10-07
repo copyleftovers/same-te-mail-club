@@ -1,3 +1,72 @@
+diff --git a/.sqlx/query-2ab28df9724b74be59bcce47e9459ab618afe90217125262b91c091f4509a861.json b/.sqlx/query-2ab28df9724b74be59bcce47e9459ab618afe90217125262b91c091f4509a861.json
+new file mode 100644
+index 0000000..cba168d
+--- /dev/null
++++ b/.sqlx/query-2ab28df9724b74be59bcce47e9459ab618afe90217125262b91c091f4509a861.json
+@@ -0,0 +1,63 @@
++{
++  "db_name": "PostgreSQL",
++  "query": "\n        SELECT\n            u.id AS user_id,\n            u.name,\n            u.phone,\n            (e.confirmed_ready_at IS NOT NULL) AS \"confirmed!: bool\",\n            a.receipt_status AS \"receipt_status?: ReceiptStatus\",\n            a.receipt_note AS \"receipt_note?\"\n        FROM enrollments e\n        JOIN users u ON u.id = e.user_id\n        LEFT JOIN assignments a ON a.season_id = e.season_id AND a.recipient_id = e.user_id\n        WHERE e.season_id = $1\n        ORDER BY u.name\n        ",
++  "describe": {
++    "columns": [
++      {
++        "ordinal": 0,
++        "name": "user_id",
++        "type_info": "Uuid"
++      },
++      {
++        "ordinal": 1,
++        "name": "name",
++        "type_info": "Text"
++      },
++      {
++        "ordinal": 2,
++        "name": "phone",
++        "type_info": "Text"
++      },
++      {
++        "ordinal": 3,
++        "name": "confirmed!: bool",
++        "type_info": "Bool"
++      },
++      {
++        "ordinal": 4,
++        "name": "receipt_status?: ReceiptStatus",
++        "type_info": {
++          "Custom": {
++            "name": "receipt_status",
++            "kind": {
++              "Enum": [
++                "no_response",
++                "received",
++                "not_received"
++              ]
++            }
++          }
++        }
++      },
++      {
++        "ordinal": 5,
++        "name": "receipt_note?",
++        "type_info": "Text"
++      }
++    ],
++    "parameters": {
++      "Left": [
++        "Uuid"
++      ]
++    },
++    "nullable": [
++      false,
++      false,
++      false,
++      null,
++      false,
++      true
++    ]
++  },
++  "hash": "2ab28df9724b74be59bcce47e9459ab618afe90217125262b91c091f4509a861"
++}
 diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
 index 10c26f9..83cbc9e 100644
 --- a/end2end/tests/fixtures/mail_club_page.ts
@@ -221,10 +290,165 @@ index 2630041..f8e0c2d 100644
              {render_phase_sms(
                  phase,
 diff --git a/src/admin/state.rs b/src/admin/state.rs
-index 9df557f..89d73b1 100644
+index 9df557f..2c45906 100644
 --- a/src/admin/state.rs
 +++ b/src/admin/state.rs
-@@ -194,3 +194,43 @@ pub async fn get_admin_state() -> Result<AdminState, ServerFnError> {
+@@ -2,6 +2,8 @@ use leptos::prelude::*;
+ 
+ #[cfg(feature = "ssr")]
+ use crate::error::db_err;
++#[cfg(any(feature = "ssr", test))]
++use crate::types::ReceiptStatus;
+ 
+ // ── Types ──────────────────────────────────────────────────────────────────────
+ 
+@@ -41,6 +43,74 @@ pub struct AdminSeason {
+     pub unnotified_sender_count: i64,
+     pub unconfirmed_enrolled_count: i64,
+     pub no_response_count: i64,
++    /// Enrolled participants of this season, by name.
++    pub roster: Vec<RosterEntry>,
++}
++
++/// One enrolled participant of the current season, for the organizer.
++#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
++pub struct RosterEntry {
++    pub user_id: uuid::Uuid,
++    pub name: String,
++    pub phone: String,
++    pub status: RosterStatus,
++}
++
++/// Where an enrolled participant stands. Notes exist only once they answered.
++#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
++pub enum RosterStatus {
++    Unconfirmed,
++    Confirmed,
++    AwaitingReceipt,
++    Received { note: Option<String> },
++    NotReceived { note: Option<String> },
++}
++
++impl RosterStatus {
++    /// Stable value for `data-roster-status` (E2E contract).
++    pub fn key(&self) -> &'static str {
++        match self {
++            Self::Unconfirmed => "unconfirmed",
++            Self::Confirmed => "confirmed",
++            Self::AwaitingReceipt => "awaiting_receipt",
++            Self::Received { .. } => "received",
++            Self::NotReceived { .. } => "not_received",
++        }
++    }
++
++    /// `.badge[data-status]` family (design-system §Badges).
++    pub fn badge_status(&self) -> &'static str {
++        match self {
++            Self::Unconfirmed | Self::AwaitingReceipt => "pending",
++            Self::Confirmed => "ready",
++            Self::Received { .. } => "confirmed",
++            Self::NotReceived { .. } => "error",
++        }
++    }
++
++    /// The participant's receipt note, if they left one.
++    pub fn note(&self) -> Option<&str> {
++        match self {
++            Self::Received { note } | Self::NotReceived { note } => note.as_deref(),
++            Self::Unconfirmed | Self::Confirmed | Self::AwaitingReceipt => None,
++        }
++    }
++}
++
++/// Derive roster status: an incoming assignment row (if any) decides; else confirmation.
++#[cfg(any(feature = "ssr", test))]
++fn roster_status(
++    confirmed: bool,
++    receipt: Option<ReceiptStatus>,
++    note: Option<String>,
++) -> RosterStatus {
++    match receipt {
++        Some(ReceiptStatus::NoResponse) => RosterStatus::AwaitingReceipt,
++        Some(ReceiptStatus::Received) => RosterStatus::Received { note },
++        Some(ReceiptStatus::NotReceived) => RosterStatus::NotReceived { note },
++        None if confirmed => RosterStatus::Confirmed,
++        None => RosterStatus::Unconfirmed,
++    }
+ }
+ 
+ // ── SSR-only row types ─────────────────────────────────────────────────────────
+@@ -59,8 +129,56 @@ struct AdminSeasonRow {
+     assignments_released: bool,
+ }
+ 
++#[cfg(feature = "ssr")]
++struct RosterRow {
++    user_id: uuid::Uuid,
++    name: String,
++    phone: String,
++    confirmed: bool,
++    receipt_status: Option<ReceiptStatus>,
++    receipt_note: Option<String>,
++}
++
+ // ── SSR-only helpers ───────────────────────────────────────────────────────────
+ 
++/// Enrolled participants of `season_id` with their own (incoming) receipt row.
++#[cfg(feature = "ssr")]
++async fn query_roster(
++    pool: &sqlx::PgPool,
++    season_id: uuid::Uuid,
++) -> Result<Vec<RosterEntry>, ServerFnError> {
++    let rows = sqlx::query_as!(
++        RosterRow,
++        r#"
++        SELECT
++            u.id AS user_id,
++            u.name,
++            u.phone,
++            (e.confirmed_ready_at IS NOT NULL) AS "confirmed!: bool",
++            a.receipt_status AS "receipt_status?: ReceiptStatus",
++            a.receipt_note AS "receipt_note?"
++        FROM enrollments e
++        JOIN users u ON u.id = e.user_id
++        LEFT JOIN assignments a ON a.season_id = e.season_id AND a.recipient_id = e.user_id
++        WHERE e.season_id = $1
++        ORDER BY u.name
++        "#,
++        season_id,
++    )
++    .fetch_all(pool)
++    .await
++    .map_err(db_err)?;
++    Ok(rows
++        .into_iter()
++        .map(|r| RosterEntry {
++            user_id: r.user_id,
++            name: r.name,
++            phone: r.phone,
++            status: roster_status(r.confirmed, r.receipt_status, r.receipt_note),
++        })
++        .collect())
++}
++
+ /// Query active participant count.
+ #[cfg(feature = "ssr")]
+ async fn query_participant_count(pool: &sqlx::PgPool) -> Result<i64, ServerFnError> {
+@@ -174,6 +292,8 @@ pub async fn get_admin_state() -> Result<AdminState, ServerFnError> {
+         no_response_count,
+     ) = query_sms_counts(&pool, row.id).await?;
+ 
++    let roster = query_roster(&pool, row.id).await?;
++
+     Ok(AdminState {
+         season: Some(AdminSeason {
+             id: row.id,
+@@ -190,7 +310,48 @@ pub async fn get_admin_state() -> Result<AdminState, ServerFnError> {
+             unnotified_sender_count,
+             unconfirmed_enrolled_count,
+             no_response_count,
++            roster,
+         }),
          participant_count,
      })
  }

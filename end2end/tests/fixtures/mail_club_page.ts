@@ -1,4 +1,4 @@
-import { type Page, type Locator, expect } from "@playwright/test";
+import { type APIRequestContext, type Page, type Locator, expect } from "@playwright/test";
 
 /**
  * Page Object Model for The Mail Club.
@@ -282,7 +282,7 @@ export class MailClubPage {
     // goes back to the same URL (/login). waitForLoadState would resolve immediately
     // since the page already reached domcontentloaded on the initial load.
     // Instead, wait for the invite-code-step div to become visible — this only
-    // happens when the reloaded /login SSR sees the pending_phone cookie and
+    // happens when the reloaded /login SSR sees the registration_ticket cookie and
     // renders is_pending=true (step 3).
     await expect(this.page.getByTestId("invite-code-step")).toBeVisible();
 
@@ -298,7 +298,7 @@ export class MailClubPage {
    *
    * Step 1: Enter phone on login page, request OTP.
    * Step 2: Enter OTP (test mode: always "000000"). Native form POST → server
-   *         sets pending_phone cookie and redirects back to /login.
+   *         sets registration_ticket cookie and redirects back to /login.
    * Step 3: Enter invite code. ActionForm calls validate_invite_code.
    * Step 4: Enter name. ActionForm calls register_with_code → redirects to /onboarding.
    *
@@ -382,6 +382,69 @@ export class MailClubPage {
     await expect(this.page.getByTestId("generated-code-display")).toBeVisible();
     await expect(button).not.toHaveAttribute("aria-busy", "true");
     await this.page.unroute("**/*generate_invite_code*");
+  }
+
+  /**
+   * Submit one invite code on the invite-code step (reached via
+   * reachInviteCodeStep). Waits for the server response; caller asserts.
+   */
+  async submitInviteCode(code: string) {
+    await this.page.getByTestId("invite-code-input").fill(code);
+    await this.clickAndWaitForResponse(
+      this.page.getByTestId("submit-invite-code-button"),
+      "validate_invite_code",
+    );
+  }
+
+  /**
+   * Attack probe (Story 1.1 security AC): POST register_with_code from a
+   * cookieless API context with a forged ticket cookie whose value is a phone.
+   * Returns the response's Set-Cookie header ("" if none).
+   */
+  async forgeRegistration(request: APIRequestContext, phone: string, code: string): Promise<string> {
+    await this.page.goto("/login");
+    const action = await this.page.getByTestId("register-form").getAttribute("action");
+    expect(action).toBeTruthy();
+    const response = await request.post(action as string, {
+      form: { code, name: "Підробка" },
+      headers: { Cookie: `registration_ticket=${phone}; pending_phone=${phone}` },
+      maxRedirects: 0,
+    });
+    return response.headers()["set-cookie"] ?? "";
+  }
+
+  /**
+   * Attack probe (Story 1.1 security AC): fire `count` simultaneous wrong-code
+   * submissions at validate_invite_code using the browser's registration ticket.
+   * Reaches the invite step, spends one guess through the UI to learn the
+   * endpoint URL, then bursts. Returns how many burst responses were answered
+   * as "invalid code" (i.e. the code-existence oracle actually ran).
+   */
+  async burstInviteCodeGuesses(
+    request: APIRequestContext,
+    phone: string,
+    count: number,
+  ): Promise<number> {
+    await this.reachInviteCodeStep(phone);
+    const requestPromise = this.page.waitForRequest((req) =>
+      req.url().includes("validate_invite_code"),
+    );
+    await this.submitInviteCode("burst-probe-first");
+    const endpoint = (await requestPromise).url();
+    const ticket = (await this.page.context().cookies()).find(
+      (c) => c.name === "registration_ticket",
+    );
+    expect(ticket).toBeTruthy();
+    const responses = await Promise.all(
+      Array.from({ length: count }, (_, i) =>
+        request.post(endpoint, {
+          form: { code: `burst-probe-${i}` },
+          headers: { Cookie: `registration_ticket=${ticket?.value}` },
+        }),
+      ),
+    );
+    const bodies = await Promise.all(responses.map((r) => r.text()));
+    return bodies.filter((b) => b.includes("Недійсний код")).length;
   }
 
   /**

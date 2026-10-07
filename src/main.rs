@@ -29,6 +29,13 @@ async fn main() {
         .await
         .expect("migrations failed");
 
+    if let Some(admin) = &config.admin_bootstrap {
+        samete::db::ensure_admin(&pool, admin)
+            .await
+            .expect("admin bootstrap failed");
+        tracing::info!("admin bootstrap ensured");
+    }
+
     // 3b. Shared HTTP client for SMS delivery
     let http_client = samete::sms::build_http_client().expect("HTTP client build failed");
 

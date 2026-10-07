@@ -1,4 +1,4 @@
-From 48547efeb6c6b7d17c14fdaa995905e82f1e65d4 Mon Sep 17 00:00:00 2001
+From bbb9a13a93572280450532ad3cee0c88f459528b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:37 +0000
 Subject: [PATCH] fix(i18n): correct participant and organizer copy

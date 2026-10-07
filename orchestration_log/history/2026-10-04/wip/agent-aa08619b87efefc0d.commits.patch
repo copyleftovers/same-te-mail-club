@@ -1,4 +1,4 @@
-From 8eb89072ba6689966ea9c9a5fdbc1b55729a2e94 Mon Sep 17 00:00:00 2001
+From 9a0d8e0cd9d04e5acf23c3bf4a83f99c8a5ab09d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:44:32 +0000
 Subject: [PATCH] test(a11y): expect bare aria-busy on generate-code button
@@ -10,7 +10,7 @@ Subject: [PATCH] test(a11y): expect bare aria-busy on generate-code button
  2 files changed, 51 insertions(+), 13 deletions(-)
 
 diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
-index 10c26f9..d9e9441 100644
+index 58fa73d..cedc19c 100644
 --- a/end2end/tests/fixtures/mail_club_page.ts
 +++ b/end2end/tests/fixtures/mail_club_page.ts
 @@ -246,19 +246,7 @@ export class MailClubPage {
@@ -86,7 +86,7 @@ index 10c26f9..d9e9441 100644
     * Revoke an unused invite code from the admin page.
     *
 diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
-index aa04249..dbb62a1 100644
+index 72259a4..d387349 100644
 --- a/end2end/tests/mail_club.spec.ts
 +++ b/end2end/tests/mail_club.spec.ts
 @@ -122,6 +122,12 @@ test.describe.serial("The Mail Club", () => {

@@ -1,4 +1,4 @@
-From fd94520b161409622e2bbd298fc4c58cc5298933 Mon Sep 17 00:00:00 2001
+From e89d3ca5935645ff50acd8e503da01e420e2e0d1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 4 Oct 2026 21:14:23 +0000
 Subject: [PATCH 1/2] feat(admin): bootstrap first admin from env at startup
@@ -252,7 +252,7 @@ index 875a481..920592e 100644
 2.43.0
 
 
-From 5ec1036942e8ffc7bc1cebc064721e446dcb49df Mon Sep 17 00:00:00 2001
+From 5772ea3b15063cd091950915926e2b402dd7a665 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Mon, 5 Oct 2026 20:45:24 +0000
 Subject: [PATCH 2/2] feat(config): confine test mode to dry-run SMS on

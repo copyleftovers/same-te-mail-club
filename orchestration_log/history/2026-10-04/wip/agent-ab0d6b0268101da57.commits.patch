@@ -1,0 +1,528 @@
+From 1d2eb0e6859f58901c9497f5b8ee25897c9ef31d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 6 Oct 2026 06:11:00 +0000
+Subject: [PATCH] feat(admin): let the organizer announce the season meetup
+
+---
+ ...1e81d440eebc55042951be793ed71e1740a0a.json |  14 +++
+ ...2e9af0da20a5ba4e29d6112eb6c3428fa757.json} |  18 ++-
+ end2end/tests/fixtures/mail_club_page.ts      |  18 +++
+ end2end/tests/mail_club.spec.ts               |  10 ++
+ end2end/tests/visual-audit.spec.ts            |   4 +
+ locales/uk.json                               |  10 +-
+ ...261004000002_add_season_meetup_details.sql |   5 +
+ src/admin/page.rs                             |  72 +++++++++++-
+ src/admin/season.rs                           | 104 ++++++++++++++++++
+ src/admin/state.rs                            |   5 +
+ 10 files changed, 252 insertions(+), 8 deletions(-)
+ create mode 100644 .sqlx/query-43c9f4acaa9086bd91315fc3dc61e81d440eebc55042951be793ed71e1740a0a.json
+ rename .sqlx/{query-9df31a2693d9fa38a65ed260a1d55e6341e9d1cca63ea5f1a59bad368885d109.json => query-8503917094cfac6ea400ff2aac752e9af0da20a5ba4e29d6112eb6c3428fa757.json} (61%)
+ create mode 100644 migrations/20261004000002_add_season_meetup_details.sql
+
+diff --git a/.sqlx/query-43c9f4acaa9086bd91315fc3dc61e81d440eebc55042951be793ed71e1740a0a.json b/.sqlx/query-43c9f4acaa9086bd91315fc3dc61e81d440eebc55042951be793ed71e1740a0a.json
+new file mode 100644
+index 0000000..232e2b6
+--- /dev/null
++++ b/.sqlx/query-43c9f4acaa9086bd91315fc3dc61e81d440eebc55042951be793ed71e1740a0a.json
+@@ -0,0 +1,14 @@
++{
++  "db_name": "PostgreSQL",
++  "query": "\n        UPDATE seasons\n        SET meetup_details = $1\n        WHERE id = (SELECT id FROM seasons ORDER BY created_at DESC LIMIT 1)\n          AND phase <> 'cancelled'\n        ",
++  "describe": {
++    "columns": [],
++    "parameters": {
++      "Left": [
++        "Text"
++      ]
++    },
++    "nullable": []
++  },
++  "hash": "43c9f4acaa9086bd91315fc3dc61e81d440eebc55042951be793ed71e1740a0a"
++}
+diff --git a/.sqlx/query-9df31a2693d9fa38a65ed260a1d55e6341e9d1cca63ea5f1a59bad368885d109.json b/.sqlx/query-8503917094cfac6ea400ff2aac752e9af0da20a5ba4e29d6112eb6c3428fa757.json
+similarity index 61%
+rename from .sqlx/query-9df31a2693d9fa38a65ed260a1d55e6341e9d1cca63ea5f1a59bad368885d109.json
+rename to .sqlx/query-8503917094cfac6ea400ff2aac752e9af0da20a5ba4e29d6112eb6c3428fa757.json
+index cb1312a..c6ff821 100644
+--- a/.sqlx/query-9df31a2693d9fa38a65ed260a1d55e6341e9d1cca63ea5f1a59bad368885d109.json
++++ b/.sqlx/query-8503917094cfac6ea400ff2aac752e9af0da20a5ba4e29d6112eb6c3428fa757.json
+@@ -1,6 +1,6 @@
+ {
+   "db_name": "PostgreSQL",
+-  "query": "\n        SELECT\n            s.id,\n            s.phase                                               AS \"phase: Phase\",\n            s.signup_deadline,\n            s.confirm_deadline,\n            s.theme,\n            (s.launched_at IS NOT NULL)                           AS \"launched!: bool\",\n            COUNT(DISTINCT e.user_id)                             AS \"enrolled_count!: i64\",\n            COUNT(DISTINCT e.user_id) FILTER (\n                WHERE e.confirmed_ready_at IS NOT NULL\n            )                                                     AS \"confirmed_count!: i64\",\n            COUNT(DISTINCT a.id) FILTER (\n                WHERE a.receipt_status = 'not_received'\n            )                                                     AS \"not_received_count!: i64\",\n            (COUNT(DISTINCT a.sender_id) > 0)                     AS \"assignments_released!: bool\"\n        FROM seasons s\n        LEFT JOIN enrollments e ON e.season_id = s.id\n        LEFT JOIN assignments a ON a.season_id = s.id\n        GROUP BY s.id\n        ORDER BY s.created_at DESC\n        LIMIT 1\n        ",
++  "query": "\n        SELECT\n            s.id,\n            s.phase                                               AS \"phase: Phase\",\n            s.signup_deadline,\n            s.confirm_deadline,\n            s.theme,\n            s.meetup_details,\n            (s.launched_at IS NOT NULL)                           AS \"launched!: bool\",\n            COUNT(DISTINCT e.user_id)                             AS \"enrolled_count!: i64\",\n            COUNT(DISTINCT e.user_id) FILTER (\n                WHERE e.confirmed_ready_at IS NOT NULL\n            )                                                     AS \"confirmed_count!: i64\",\n            COUNT(DISTINCT a.id) FILTER (\n                WHERE a.receipt_status = 'not_received'\n            )                                                     AS \"not_received_count!: i64\",\n            (COUNT(DISTINCT a.sender_id) > 0)                     AS \"assignments_released!: bool\"\n        FROM seasons s\n        LEFT JOIN enrollments e ON e.season_id = s.id\n        LEFT JOIN assignments a ON a.season_id = s.id\n        GROUP BY s.id\n        ORDER BY s.created_at DESC\n        LIMIT 1\n        ",
+   "describe": {
+     "columns": [
+       {
+@@ -44,26 +44,31 @@
+       },
+       {
+         "ordinal": 5,
++        "name": "meetup_details",
++        "type_info": "Text"
++      },
++      {
++        "ordinal": 6,
+         "name": "launched!: bool",
+         "type_info": "Bool"
+       },
+       {
+-        "ordinal": 6,
++        "ordinal": 7,
+         "name": "enrolled_count!: i64",
+         "type_info": "Int8"
+       },
+       {
+-        "ordinal": 7,
++        "ordinal": 8,
+         "name": "confirmed_count!: i64",
+         "type_info": "Int8"
+       },
+       {
+-        "ordinal": 8,
++        "ordinal": 9,
+         "name": "not_received_count!: i64",
+         "type_info": "Int8"
+       },
+       {
+-        "ordinal": 9,
++        "ordinal": 10,
+         "name": "assignments_released!: bool",
+         "type_info": "Bool"
+       }
+@@ -77,6 +82,7 @@
+       false,
+       false,
+       true,
++      true,
+       null,
+       null,
+       null,
+@@ -84,5 +90,5 @@
+       null
+     ]
+   },
+-  "hash": "9df31a2693d9fa38a65ed260a1d55e6341e9d1cca63ea5f1a59bad368885d109"
++  "hash": "8503917094cfac6ea400ff2aac752e9af0da20a5ba4e29d6112eb6c3428fa757"
+ }
+diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
+index 10c26f9..d8b6ae2 100644
+--- a/end2end/tests/fixtures/mail_club_page.ts
++++ b/end2end/tests/fixtures/mail_club_page.ts
+@@ -448,6 +448,24 @@ export class MailClubPage {
+     await expect(this.page.getByTestId("advance-button")).toBeVisible();
+   }
+ 
++  async setMeetupDetails(text: string) {
++    await this.page.goto("/admin");
++    await expect(this.page.getByTestId("save-meetup-button")).toBeEnabled();
++    await this.page.getByTestId("meetup-details-input").fill(text);
++    await this.clickAndWaitForResponse(
++      this.page.getByTestId("save-meetup-button"),
++      "set_meetup_details",
++    );
++  }
++
++  /** Fresh SSR load proves persistence, not the typed DOM value. */
++  async expectMeetupDetailsSaved(text: string) {
++    await this.page.goto("/admin");
++    await expect(this.page.getByTestId("meetup-details-input")).toHaveValue(
++      text,
++    );
++  }
++
+   async advanceSeason() {
+     await this.page.goto("/admin");
+     // The advance button stays visible for 3 of 4 transitions (Enrollment →
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index aa04249..088eff6 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -57,6 +57,8 @@ const BRANCH_10 = "10";
+ const SIGNUP_DEADLINE = futureDeadline(7);
+ const CONFIRM_DEADLINE = futureDeadline(21);
+ const SEASON_THEME = "Перший сезон";
++const MEETUP_DETAILS =
++  "15 листопада, 18:00 — Арт-простір «Купол», вул. Січових Стрільців, 1";
+ 
+ // Invite codes generated during the test run.
+ // Populated in "1.5 — admin generates invite codes" and consumed by subsequent
+@@ -379,6 +381,14 @@ test.describe.serial("The Mail Club", () => {
+       await app.goHome();
+       await app.expectEnrollAvailable();
+     });
++
++    // Story 2.1 timeline AC (meetup window): organizer announces the meetup.
++    test("2.1 — admin announces the meetup for the season", async ({ page }) => {
++      const app = new MailClubPage(page);
++      await app.login(ADMIN_PHONE);
++      await app.setMeetupDetails(MEETUP_DETAILS);
++      await app.expectMeetupDetailsSaved(MEETUP_DETAILS);
++    });
+   });
+ 
+   // ════════════════════════════════════════════
+diff --git a/end2end/tests/visual-audit.spec.ts b/end2end/tests/visual-audit.spec.ts
+index 6b5f85b..52d6b12 100644
+--- a/end2end/tests/visual-audit.spec.ts
++++ b/end2end/tests/visual-audit.spec.ts
+@@ -70,6 +70,9 @@ const CONFIRM_DEADLINE = futureDeadline(21);
+ // Long theme string — exercises theme display in season summary and admin headings.
+ const SEASON_THEME =
+   "Аудит — Перший сезон: Книги про мандри та подорожі навколо світу";
++// Long meetup announcement — exercises line wrapping in the admin meetup field.
++const AUDIT_MEETUP =
++  "22 листопада, 19:00 — Простір «Довга-довга назва для перевірки переносу рядків», вул. Велика Васильківська, 100, Київ";
+ 
+ // ── Invite codes captured during the run ──────────────────────────────────────
+ 
+@@ -525,6 +528,7 @@ test.describe.serial("Visual Audit", () => {
+     const app = new MailClubPage(page);
+     await app.login(ADMIN_PHONE);
+     await app.launchSeason();
++    await app.setMeetupDetails(AUDIT_MEETUP);
+     await app.goToDashboard();
+     await expect(page.getByTestId("advance-button")).toBeVisible();
+     await captureState(page, "admin-signup-phase", { stateId: "A7", route: "/admin" });
+diff --git a/locales/uk.json b/locales/uk.json
+index 048601d..8841646 100644
+--- a/locales/uk.json
++++ b/locales/uk.json
+@@ -223,5 +223,13 @@
+   "sms_send_receipt_nudge_button": "Нагадати про отримання",
+   "sms_error_no_assignment_delivery_season": "Немає активного сезону на етапі розподілу або доставки.",
+   "sms_error_no_preparation_season": "Немає активного сезону на етапі підготовки.",
+-  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки."
++  "sms_error_no_delivery_season": "Немає активного сезону на етапі доставки.",
++  "admin_meetup_label": "Зустріч учасників",
++  "admin_meetup_placeholder": "Дата, час і місце — напр.: 15 листопада, 18:00, Арт-простір «Купол»",
++  "admin_meetup_hint": "Учасники сезону бачать це на головній сторінці. Порожнє поле прибирає оголошення.",
++  "admin_meetup_save_button": "Зберегти",
++  "admin_meetup_saving_loading": "Зберігаю...",
++  "admin_meetup_saved_toast": "Зустріч збережено!",
++  "season_error_meetup_too_long": "Опис зустрічі задовгий — максимум 300 символів.",
++  "season_error_no_season_for_meetup": "Немає сезону, для якого можна оголосити зустріч."
+ }
+diff --git a/migrations/20261004000002_add_season_meetup_details.sql b/migrations/20261004000002_add_season_meetup_details.sql
+new file mode 100644
+index 0000000..8ca114e
+--- /dev/null
++++ b/migrations/20261004000002_add_season_meetup_details.sql
+@@ -0,0 +1,5 @@
++-- Organizer's free-text meetup announcement (date, time, place).
++-- NULL = not announced yet.
++ALTER TABLE seasons
++    ADD COLUMN meetup_details TEXT
++    CHECK (meetup_details IS NULL OR char_length(meetup_details) BETWEEN 1 AND 300);
+diff --git a/src/admin/page.rs b/src/admin/page.rs
+index 2630041..6fec15e 100644
+--- a/src/admin/page.rs
++++ b/src/admin/page.rs
+@@ -7,7 +7,10 @@ use crate::admin::invite_codes::{
+     list_distributor_options, list_invite_codes,
+ };
+ use crate::admin::participants::{DeactivateParticipant, ParticipantSummary, list_participants};
+-use crate::admin::season::{AdvanceSeason, CancelSeason, CreateSeason, LaunchSeason};
++use crate::admin::season::{
++    AdvanceSeason, CancelSeason, CreateSeason, LaunchSeason, MEETUP_DETAILS_MAX_CHARS,
++    SetMeetupDetails,
++};
+ use crate::admin::sms::{
+     SendAssignmentSms, SendConfirmNudgeSms, SendReceiptNudgeSms, SendSeasonOpenSms, SmsReport,
+ };
+@@ -44,6 +47,7 @@ pub fn AdminPage() -> impl IntoView {
+     let launch_action = ServerAction::<LaunchSeason>::new();
+     let advance_action = ServerAction::<AdvanceSeason>::new();
+     let cancel_action = ServerAction::<CancelSeason>::new();
++    let set_meetup_action = ServerAction::<SetMeetupDetails>::new();
+ 
+     // ── Assignment mutation actions ────────────────────────────────────────────
+     let generate_action = ServerAction::<GenerateAssignments>::new();
+@@ -71,6 +75,7 @@ pub fn AdminPage() -> impl IntoView {
+                 launch_action.version().get(),
+                 advance_action.version().get(),
+                 cancel_action.version().get(),
++                set_meetup_action.version().get(),
+                 generate_action.version().get(),
+                 swap_action.version().get(),
+                 season_open_action.version().get(),
+@@ -136,6 +141,11 @@ pub fn AdminPage() -> impl IntoView {
+             set_toast.set(Some(t_string!(i18n, admin_season_cancelled_toast).into()));
+         }
+     });
++    Effect::new(move |_| {
++        if let Some(Ok(())) = set_meetup_action.value().get() {
++            set_toast.set(Some(t_string!(i18n, admin_meetup_saved_toast).into()));
++        }
++    });
+     Effect::new(move |_| {
+         if let Some(Ok(_)) = generate_action.value().get() {
+             set_toast.set(Some(
+@@ -209,6 +219,7 @@ pub fn AdminPage() -> impl IntoView {
+             .or_else(|| launch_action.value().get().and_then(Result::err))
+             .or_else(|| advance_action.value().get().and_then(Result::err))
+             .or_else(|| cancel_action.value().get().and_then(Result::err))
++            .or_else(|| set_meetup_action.value().get().and_then(Result::err))
+             .or_else(|| generate_action.value().get().and_then(Result::err))
+             .or_else(|| swap_action.value().get().and_then(Result::err))
+             .or_else(|| season_open_action.value().get().and_then(Result::err))
+@@ -253,6 +264,7 @@ pub fn AdminPage() -> impl IntoView {
+                                     confirm_nudge_action,
+                                     assignment_action,
+                                     receipt_nudge_action,
++                                    set_meetup_action,
+                                     hydrated,
+                                     i18n,
+                                 ),
+@@ -314,6 +326,7 @@ fn render_season_section(
+     confirm_nudge_action: ServerAction<SendConfirmNudgeSms>,
+     assignment_action: ServerAction<SendAssignmentSms>,
+     receipt_nudge_action: ServerAction<SendReceiptNudgeSms>,
++    set_meetup_action: ServerAction<SetMeetupDetails>,
+     hydrated: ReadSignal<bool>,
+     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+ ) -> AnyView {
+@@ -330,6 +343,7 @@ fn render_season_section(
+             confirm_nudge_action,
+             assignment_action,
+             receipt_nudge_action,
++            set_meetup_action,
+             hydrated,
+             i18n,
+         ),
+@@ -509,6 +523,54 @@ fn render_create_form(
+     .into_any()
+ }
+ 
++/// Organizer form for the season's meetup announcement (empty = clear).
++fn render_meetup_form(
++    current: Option<String>,
++    set_meetup_action: ServerAction<SetMeetupDetails>,
++    hydrated: ReadSignal<bool>,
++    i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
++) -> AnyView {
++    let pending = set_meetup_action.pending();
++    view! {
++        <leptos::form::ActionForm action=set_meetup_action>
++            <div class="field">
++                <label class="field-label" for="meetup-details">{t!(i18n, admin_meetup_label)}</label>
++                <textarea
++                    class="field-input"
++                    id="meetup-details"
++                    name="details"
++                    rows="3"
++                    maxlength=MEETUP_DETAILS_MAX_CHARS.to_string()
++                    placeholder=move || t_string!(i18n, admin_meetup_placeholder)
++                    data-testid="meetup-details-input"
++                    aria-describedby="meetup-details-hint action-error"
++                    aria-invalid=move || set_meetup_action.value().get().and_then(Result::err).map(|_| "true")
++                >
++                    {current.unwrap_or_default()}
++                </textarea>
++                <p id="meetup-details-hint" class="text-sm text-(--color-text-muted)">
++                    {t!(i18n, admin_meetup_hint)}
++                </p>
++            </div>
++            <button
++                class="btn"
++                data-variant="secondary"
++                type="submit"
++                data-testid="save-meetup-button"
++                disabled=move || pending.get() || !hydrated.get()
++                aria-busy=move || pending.get().then_some("true")
++            >
++                {move || if pending.get() {
++                    t!(i18n, admin_meetup_saving_loading).into_any()
++                } else {
++                    t!(i18n, admin_meetup_save_button).into_any()
++                }}
++            </button>
++        </leptos::form::ActionForm>
++    }
++    .into_any()
++}
++
+ /// Render an active season — controls differ by phase and launched state.
+ #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+ fn render_active_season(
+@@ -522,6 +584,7 @@ fn render_active_season(
+     confirm_nudge_action: ServerAction<SendConfirmNudgeSms>,
+     assignment_action: ServerAction<SendAssignmentSms>,
+     receipt_nudge_action: ServerAction<SendReceiptNudgeSms>,
++    set_meetup_action: ServerAction<SetMeetupDetails>,
+     hydrated: ReadSignal<bool>,
+     i18n: leptos_i18n::I18nContext<crate::i18n::i18n::Locale>,
+ ) -> AnyView {
+@@ -552,6 +615,7 @@ fn render_active_season(
+ 
+     // Clone data needed in closures.
+     let theme = season.theme.clone();
++    let meetup_details = season.meetup_details.clone();
+     let enrolled_count = season.enrolled_count;
+     let confirmed_count = season.confirmed_count;
+     let not_received_count = season.not_received_count;
+@@ -645,6 +709,12 @@ fn render_active_season(
+                 ().into_any()
+             }}
+ 
++            {if phase == crate::types::Phase::Cancelled {
++                ().into_any()
++            } else {
++                render_meetup_form(meetup_details, set_meetup_action, hydrated, i18n)
++            }}
++
+             // Phase-conditional SMS section (Story 4.6)
+             {render_phase_sms(
+                 phase,
+diff --git a/src/admin/season.rs b/src/admin/season.rs
+index c993957..4bfc753 100644
+--- a/src/admin/season.rs
++++ b/src/admin/season.rs
+@@ -220,3 +220,107 @@ pub async fn cancel_season() -> Result<(), ServerFnError> {
+ 
+     Ok(())
+ }
++
++/// Maximum meetup announcement length in characters; mirrored by the DB CHECK
++/// (migration 20261004000002) and the admin textarea `maxlength`.
++pub const MEETUP_DETAILS_MAX_CHARS: usize = 300;
++
++#[cfg(any(feature = "ssr", test))]
++#[derive(Debug, PartialEq, Eq)]
++enum MeetupDetailsError {
++    TooLong,
++}
++
++/// Trim; empty clears the announcement.
++#[cfg(any(feature = "ssr", test))]
++fn normalize_meetup_details(raw: &str) -> Result<Option<String>, MeetupDetailsError> {
++    let trimmed = raw.trim();
++    if trimmed.is_empty() {
++        return Ok(None);
++    }
++    if trimmed.chars().count() > MEETUP_DETAILS_MAX_CHARS {
++        return Err(MeetupDetailsError::TooLong);
++    }
++    Ok(Some(trimmed.to_owned()))
++}
++
++/// Set or clear the meetup announcement of the most recent season (admin only).
++///
++/// # Errors
++///
++/// Returns `Err` if caller is not admin, the text exceeds
++/// [`MEETUP_DETAILS_MAX_CHARS`], or there is no season / it is cancelled.
++#[server]
++pub async fn set_meetup_details(details: String) -> Result<(), ServerFnError> {
++    use crate::auth;
++    use crate::i18n::i18n::{Locale, td_string};
++
++    let (pool, _user) = auth::require_admin().await?;
++
++    let details = normalize_meetup_details(&details).map_err(|MeetupDetailsError::TooLong| {
++        ServerFnError::new(td_string!(Locale::uk, season_error_meetup_too_long))
++    })?;
++
++    let affected = sqlx::query!(
++        r#"
++        UPDATE seasons
++        SET meetup_details = $1
++        WHERE id = (SELECT id FROM seasons ORDER BY created_at DESC LIMIT 1)
++          AND phase <> 'cancelled'
++        "#,
++        details,
++    )
++    .execute(&pool)
++    .await
++    .map_err(db_err)?
++    .rows_affected();
++
++    if affected == 0 {
++        return Err(ServerFnError::new(td_string!(
++            Locale::uk,
++            season_error_no_season_for_meetup
++        )));
++    }
++    Ok(())
++}
++
++#[cfg(test)]
++mod tests {
++    use super::{MEETUP_DETAILS_MAX_CHARS, MeetupDetailsError, normalize_meetup_details};
++
++    #[test]
++    fn empty_clears_meetup() {
++        assert_eq!(normalize_meetup_details(""), Ok(None));
++    }
++
++    #[test]
++    fn whitespace_clears_meetup() {
++        assert_eq!(normalize_meetup_details("  \n "), Ok(None));
++    }
++
++    #[test]
++    fn meetup_is_trimmed() {
++        assert_eq!(
++            normalize_meetup_details("  15 листопада, 18:00 \n"),
++            Ok(Some("15 листопада, 18:00".into()))
++        );
++    }
++
++    #[test]
++    fn max_length_counts_characters_not_bytes() {
++        let cyrillic = "ї".repeat(MEETUP_DETAILS_MAX_CHARS);
++        assert_eq!(
++            normalize_meetup_details(&cyrillic),
++            Ok(Some(cyrillic.clone()))
++        );
++    }
++
++    #[test]
++    fn over_max_length_is_refused() {
++        let long = "a".repeat(MEETUP_DETAILS_MAX_CHARS + 1);
++        assert_eq!(
++            normalize_meetup_details(&long),
++            Err(MeetupDetailsError::TooLong)
++        );
++    }
++}
+diff --git a/src/admin/state.rs b/src/admin/state.rs
+index 9df557f..24c22c8 100644
+--- a/src/admin/state.rs
++++ b/src/admin/state.rs
+@@ -29,6 +29,8 @@ pub struct AdminSeason {
+     /// Pre-formatted confirm deadline, e.g. "25 березня 2026, 21:09".
+     pub confirm_deadline: String,
+     pub theme: Option<String>,
++    /// Organizer's free-text meetup announcement; `None` = not announced yet.
++    pub meetup_details: Option<String>,
+     pub launched: bool,
+     pub enrolled_count: i64,
+     pub confirmed_count: i64,
+@@ -52,6 +54,7 @@ struct AdminSeasonRow {
+     signup_deadline: time::OffsetDateTime,
+     confirm_deadline: time::OffsetDateTime,
+     theme: Option<String>,
++    meetup_details: Option<String>,
+     launched: bool,
+     enrolled_count: i64,
+     confirmed_count: i64,
+@@ -139,6 +142,7 @@ pub async fn get_admin_state() -> Result<AdminState, ServerFnError> {
+             s.signup_deadline,
+             s.confirm_deadline,
+             s.theme,
++            s.meetup_details,
+             (s.launched_at IS NOT NULL)                           AS "launched!: bool",
+             COUNT(DISTINCT e.user_id)                             AS "enrolled_count!: i64",
+             COUNT(DISTINCT e.user_id) FILTER (
+@@ -181,6 +185,7 @@ pub async fn get_admin_state() -> Result<AdminState, ServerFnError> {
+             signup_deadline: crate::date_format::format_date_uk(row.signup_deadline),
+             confirm_deadline: crate::date_format::format_date_uk(row.confirm_deadline),
+             theme: row.theme,
++            meetup_details: row.meetup_details,
+             launched: row.launched,
+             enrolled_count: row.enrolled_count,
+             confirmed_count: row.confirmed_count,
+-- 
+2.43.0
+

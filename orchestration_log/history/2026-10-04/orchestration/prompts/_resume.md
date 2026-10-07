@@ -1,6 +1,7 @@
-RESUME (you were killed by a session limit). Continue your unit exactly where you stopped.
-- Your worktree still has your edits; its target/ was deleted to free disk — rebuild with CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0.
-- Session limits are now tight: COMMIT EARLY AND OFTEN (each green sub-step = a commit, one-line conventional message) so work survives the next kill. Never stop idle.
-- U4 (swap) is now merged into claude/loving-johnson-7l8hn5; if your unit touches swap/assignment code or the POM swap helpers, `git merge --no-edit claude/loving-johnson-7l8hn5` before continuing.
-- Parallelism directive still binding: /home/user/same-te-mail-club/orchestration_log/recon/2026-10-04/fix/prompts/_parallelism.md.
+RESUME (killed by a weekly limit; worktree intact, nothing restored).
+- Check `git log` + `git status` against your memory; continue from where you stopped. target/ may be partial: build with CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0. Postgres is up (pg_ctlcluster 16 main start); recreate sibling DBs as your plan says.
+- COMMIT EARLY AND OFTEN (each green sub-step), one-line conventional messages. Never stop idle.
+- If your unit touches swap/assignment code or POM swap helpers: `git merge --no-edit claude/loving-johnson-7l8hn5` (U4 merged there).
+- Parallelism directive: /home/user/same-te-mail-club/orchestration_log/recon/2026-10-04/fix/prompts/_parallelism.md.
+- Agents now run in small batches; finish your unit fully this run.
 Report once at the end in the implementer Report Format.

@@ -1030,6 +1030,51 @@ fn render_receipt_form(
             </leptos::form::ActionForm>
         </section>
     }
+    .into_any()
+}
+
+/// Recipient name, branch and phone. Its own component (type-erased) so the assignment
+/// view does not nest this tree into one type deep enough to overflow rustc's default
+/// recursion limit during layout.
+#[component]
+fn RecipientCard(name: String, phone: String, city: String, branch_number: i32) -> impl IntoView {
+    let i18n = use_i18n();
+    let tel_href = format!("tel:{phone}");
+    let branch_text = t!(
+        i18n,
+        home_recipient_branch,
+        branch_number = branch_number,
+        city = city
+    );
+
+    view! {
+        <article class="card">
+            <h3 data-testid="recipient-name">
+                {name}
+            </h3>
+            <dl class="info-list">
+                <div class="info-item">
+                    <dt class="info-label">{t!(i18n, home_branch_label)}</dt>
+                    <dd class="info-value" data-testid="recipient-branch">
+                        {branch_text}
+                    </dd>
+                </div>
+                <div class="info-item">
+                    <dt class="info-label">{t!(i18n, home_phone_label)}</dt>
+                    <dd class="info-value">
+                        <a
+                            href=tel_href
+                            class="info-link"
+                            data-testid="recipient-phone"
+                        >
+                            {phone}
+                        </a>
+                    </dd>
+                </div>
+            </dl>
+        </article>
+    }
+    .into_any()
 }
 
 fn render_assignment_details(
@@ -1043,42 +1088,16 @@ fn render_assignment_details(
 ) -> AnyView {
     let receipt_pending = receipt_action.pending();
 
-    let recipient_branch_text = t!(
-        i18n,
-        home_recipient_branch,
-        branch_number = recipient_branch_number,
-        city = recipient_city.to_string()
-    );
-
     view! {
         <h1>{t!(i18n, home_assigned_heading)}</h1>
         <p>{t!(i18n, home_send_instructions)}</p>
 
-        <article class="card">
-            <h3 data-testid="recipient-name">
-                {recipient_name.to_string()}
-            </h3>
-            <dl class="info-list">
-                <div class="info-item">
-                    <dt class="info-label">{t!(i18n, home_branch_label)}</dt>
-                    <dd class="info-value" data-testid="recipient-branch">
-                        {recipient_branch_text}
-                    </dd>
-                </div>
-                <div class="info-item">
-                    <dt class="info-label">{t!(i18n, home_phone_label)}</dt>
-                    <dd class="info-value">
-                        <a
-                            href=format!("tel:{}", recipient_phone.to_string())
-                            class="info-link"
-                            data-testid="recipient-phone"
-                        >
-                            {recipient_phone.to_string()}
-                        </a>
-                    </dd>
-                </div>
-            </dl>
-        </article>
+        <RecipientCard
+            name=recipient_name.to_string()
+            phone=recipient_phone.to_string()
+            city=recipient_city.to_string()
+            branch_number=recipient_branch_number
+        />
 
         {render_receipt_form(receipt_action, receipt_pending, hydrated, i18n)}
     }

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM registration_tickets\n        WHERE token_hash = $1 AND expires_at > now()\n        RETURNING phone\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "phone",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e8dabc1a7645ea2d13d70a073541d4b475e933c994ea974c43c9c13cebb426de"
+}
