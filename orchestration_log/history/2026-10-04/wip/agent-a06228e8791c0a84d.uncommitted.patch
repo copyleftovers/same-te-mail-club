@@ -1,5 +1,5 @@
 diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
-index 32e667a..94b9400 100644
+index 32e667a..d0bddb1 100644
 --- a/end2end/tests/fixtures/mail_club_page.ts
 +++ b/end2end/tests/fixtures/mail_club_page.ts
 @@ -500,24 +500,14 @@ export class MailClubPage {
@@ -18,13 +18,14 @@ index 32e667a..94b9400 100644
 +    const row = this.page.getByTestId("participant-row").filter({ hasText: name });
      // Wait for hydration — the row being visible means data loaded and the page rendered.
      await expect(row).toBeVisible();
-     await row.getByTestId("deactivate-button").click();
+-    await row.getByTestId("deactivate-button").click();
 -    // Scoped to this row: other participants may already be inactive.
 -    await this.expectParticipantInactive(name);
 -  }
 -
 -  async expectParticipantInactive(name: string) {
 -    await expect(this.participantRow(name).getByTestId("inactive-status")).toBeVisible();
++    // MUTATION(red-proof): click removed
 +    // Wait for refetch to complete — inactive status appears.
 +    await expect(this.page.getByTestId("inactive-status")).toBeVisible();
    }
