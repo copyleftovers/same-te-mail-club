@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::config::Config;
+use crate::config::{Config, SmsMode};
 
 const TURBOSMS_SEND_URL: &str = "https://api.turbosms.ua/message/send.json";
 const RETRY_DELAY: Duration = Duration::from_secs(1);
@@ -20,7 +20,7 @@ pub fn build_http_client() -> Result<reqwest::Client, reqwest::Error> {
 
 /// Send an SMS via the `TurboSMS` API.
 ///
-/// When `config.sms_dry_run` is true, the message is logged instead of sent.
+/// In `SmsMode::DryRun`, the message is logged instead of sent.
 ///
 /// Uses the shared `client` for connection reuse and enforced timeout.
 /// On transient errors (HTTP 5xx or network failure), retries once after
@@ -37,29 +37,32 @@ pub async fn send_sms(
     phone: &str,
     message: &str,
 ) -> Result<(), SmsError> {
-    if config.sms_dry_run {
-        tracing::info!(
-            phone = phone,
-            message = message,
-            "[DRY RUN] SMS would be sent"
-        );
-        return Ok(());
-    }
+    let (token, sender) = match &config.sms {
+        SmsMode::DryRun { .. } => {
+            tracing::info!(
+                phone = phone,
+                message = message,
+                "[DRY RUN] SMS would be sent"
+            );
+            return Ok(());
+        }
+        SmsMode::Live { token, sender } => (token.as_str(), sender.as_str()),
+    };
 
     let body = serde_json::json!({
         "recipients": [phone],
         "sms": {
-            "sender": config.turbosms_sender,
+            "sender": sender,
             "text": message,
         }
     });
 
-    match post_to_turbosms(client, config, &body).await {
+    match post_to_turbosms(client, token, &body).await {
         Ok(()) => Ok(()),
         Err(e) if is_transient(&e) => {
             tracing::warn!(phone = phone, error = %e, "transient SMS error, retrying in 1s");
             tokio::time::sleep(RETRY_DELAY).await;
-            post_to_turbosms(client, config, &body).await
+            post_to_turbosms(client, token, &body).await
         }
         Err(e) => Err(e),
     }
@@ -68,12 +71,12 @@ pub async fn send_sms(
 /// Execute a single POST to `TurboSMS` and validate the response.
 async fn post_to_turbosms(
     client: &reqwest::Client,
-    config: &Config,
+    token: &str,
     body: &serde_json::Value,
 ) -> Result<(), SmsError> {
     let response = client
         .post(TURBOSMS_SEND_URL)
-        .bearer_auth(&config.turbosms_token)
+        .bearer_auth(token)
         .json(body)
         .send()
         .await?;

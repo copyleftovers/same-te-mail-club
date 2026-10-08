@@ -72,7 +72,7 @@ pub async fn request_otp(phone: String) -> Result<RequestOtpOutcome, ServerFnErr
     };
 
     // Rate limit — silently return AccountExists on limit to avoid enumeration
-    if auth::check_otp_rate_limit(&pool, &normalized)
+    if auth::check_otp_rate_limit(&pool, &normalized, config.test_mode())
         .await
         .is_err()
     {
@@ -80,7 +80,7 @@ pub async fn request_otp(phone: String) -> Result<RequestOtpOutcome, ServerFnErr
     }
 
     // Create OTP code (test mode returns "000000")
-    let Ok(code) = auth::create_otp(&pool, &normalized).await else {
+    let Ok(code) = auth::create_otp(&pool, &normalized, config.test_mode()).await else {
         return Ok(RequestOtpOutcome::AccountExists);
     };
 
