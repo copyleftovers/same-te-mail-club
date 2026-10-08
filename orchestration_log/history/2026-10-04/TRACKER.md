@@ -56,6 +56,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 23:30 UTC: A1 merged + pushed (gates: fmt, both clippies, ssr tests 97/0); worktree removed. U2 fixes DONE @8509bc6 + merge 46f10df (3x E2E 122/2/0, both clippies green). Spec re-review sent to a955d1ac5f06c0385. Running: P-S impl, P-H2 impl, U2 spec r2.
 - 2026-10-08 ~00:00 UTC: the U2 spec reviewer and the P-S and P-H2 implementers were killed by a session limit (reset 01:50); the worker restarted. 01:51: loops restarted; all three resumed. P-S @107cc23, P-H2 @55c4f4f, both clean.
 - 2026-10-08 02:30 UTC: U2 spec round 2 PASS @46f10df (race closed; E2E 122/2/0; boot refusals verified). Quality review dispatched: aa01b0dc57b272d99 (quality-U2.md). Running: P-S impl, P-H2 impl, U2 quality.
+- 2026-10-08 02:45 UTC: P-S DONE_WITH_CONCERNS @107cc23 (4 sends use with_site_link; MissingSiteUrl boot gate; E2E alternated fail/pass x2 on visual-audit:798 = PRB-101). Spec review dispatched: a2170a03bdeb8720f. PRB-101 is now blocking the 3-consecutive-green gate for every lane, so it is split out of F-COV as unit FIX-101 (F-COV addendum scope only: row-scoped inactive-status waits + audit of page-wide status waits); FIX-101 takes the next free slot. Running: P-H2 impl, U2 quality, P-S spec.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
