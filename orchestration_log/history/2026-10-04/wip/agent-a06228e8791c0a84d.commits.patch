@@ -1,0 +1,59 @@
+From b2128e9f26bdaad18fdb2d2356fff8cd9147a6df Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 8 Oct 2026 02:28:58 +0000
+Subject: [PATCH] fix(e2e): scope deactivation wait to the clicked participant
+ row
+
+---
+ end2end/tests/fixtures/mail_club_page.ts | 16 +++++++++++++---
+ end2end/tests/mail_club.spec.ts          |  2 +-
+ 2 files changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
+index 94b9400..32e667a 100644
+--- a/end2end/tests/fixtures/mail_club_page.ts
++++ b/end2end/tests/fixtures/mail_club_page.ts
+@@ -500,14 +500,24 @@ export class MailClubPage {
+     await expect(this.page.getByTestId("participant-name-cell").filter({hasText: name})).toBeVisible();
+   }
+ 
++  private participantRow(name: string): Locator {
++    return this.page.getByTestId("participant-row").filter({
++      has: this.page.getByTestId("participant-name-cell").filter({ hasText: name }),
++    });
++  }
++
+   async deactivateParticipant(name: string) {
+     await this.page.goto("/admin");
+-    const row = this.page.getByTestId("participant-row").filter({ hasText: name });
++    const row = this.participantRow(name);
+     // Wait for hydration — the row being visible means data loaded and the page rendered.
+     await expect(row).toBeVisible();
+     await row.getByTestId("deactivate-button").click();
+-    // Wait for refetch to complete — inactive status appears.
+-    await expect(this.page.getByTestId("inactive-status")).toBeVisible();
++    // Scoped to this row: other participants may already be inactive.
++    await this.expectParticipantInactive(name);
++  }
++
++  async expectParticipantInactive(name: string) {
++    await expect(this.participantRow(name).getByTestId("inactive-status")).toBeVisible();
+   }
+ 
+   // ── Admin: season management (Stories 4.1, 4.2) ──
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index a33cac0..c1741e9 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -971,7 +971,7 @@ test.describe.serial("Account Management", () => {
+     const app = new MailClubPage(page);
+     await app.login(ADMIN_PHONE);
+     await app.deactivateParticipant(DEACTIVATE_NAME);
+-    await expect(page.getByTestId("inactive-status")).toBeVisible();
++    await app.expectParticipantInactive(DEACTIVATE_NAME);
+   });
+ 
+   // Story 6.1 AC: deactivated account cannot sign in
+-- 
+2.43.0
+

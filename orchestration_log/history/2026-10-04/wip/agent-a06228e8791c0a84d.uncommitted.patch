@@ -1,0 +1,45 @@
+diff --git a/end2end/tests/fixtures/mail_club_page.ts b/end2end/tests/fixtures/mail_club_page.ts
+index 32e667a..94b9400 100644
+--- a/end2end/tests/fixtures/mail_club_page.ts
++++ b/end2end/tests/fixtures/mail_club_page.ts
+@@ -500,24 +500,14 @@ export class MailClubPage {
+     await expect(this.page.getByTestId("participant-name-cell").filter({hasText: name})).toBeVisible();
+   }
+ 
+-  private participantRow(name: string): Locator {
+-    return this.page.getByTestId("participant-row").filter({
+-      has: this.page.getByTestId("participant-name-cell").filter({ hasText: name }),
+-    });
+-  }
+-
+   async deactivateParticipant(name: string) {
+     await this.page.goto("/admin");
+-    const row = this.participantRow(name);
++    const row = this.page.getByTestId("participant-row").filter({ hasText: name });
+     // Wait for hydration — the row being visible means data loaded and the page rendered.
+     await expect(row).toBeVisible();
+     await row.getByTestId("deactivate-button").click();
+-    // Scoped to this row: other participants may already be inactive.
+-    await this.expectParticipantInactive(name);
+-  }
+-
+-  async expectParticipantInactive(name: string) {
+-    await expect(this.participantRow(name).getByTestId("inactive-status")).toBeVisible();
++    // Wait for refetch to complete — inactive status appears.
++    await expect(this.page.getByTestId("inactive-status")).toBeVisible();
+   }
+ 
+   // ── Admin: season management (Stories 4.1, 4.2) ──
+diff --git a/end2end/tests/mail_club.spec.ts b/end2end/tests/mail_club.spec.ts
+index c1741e9..a33cac0 100644
+--- a/end2end/tests/mail_club.spec.ts
++++ b/end2end/tests/mail_club.spec.ts
+@@ -971,7 +971,7 @@ test.describe.serial("Account Management", () => {
+     const app = new MailClubPage(page);
+     await app.login(ADMIN_PHONE);
+     await app.deactivateParticipant(DEACTIVATE_NAME);
+-    await app.expectParticipantInactive(DEACTIVATE_NAME);
++    await expect(page.getByTestId("inactive-status")).toBeVisible();
+   });
+ 
+   // Story 6.1 AC: deactivated account cannot sign in
