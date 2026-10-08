@@ -54,6 +54,7 @@ All implementers were killed by a session limit at ~09:20 UTC. Their work is pre
 - 2026-10-07 22:15 UTC: A1 spec PASS. RED proof: attr:aria-busy count went 1 -> 0 in both the bin and the wasm. E2E 122/2/0. Quality review dispatched: acb920a346411db51. Running: P-S impl, U2 spec, A1 quality.
 - 2026-10-07 22:50 UTC: U2 spec FAIL. Root cause of the run-1 E2E failure: U2.5's `test_mode()` calls use_context after .await, losing the SSR context; failed 5/6 runs, and the no-U2 control passed 80/80. Also, the merge reverted 067b9bd's .unwrap() asserts. Back to the U2 implementer; the plan's U2.5 is corrected. A1 quality Yes; merged, gates running. A guard against `attr:` regressions (CI grep) goes to FOLLOWUP-1. P-H2 resumed.
 - 2026-10-07 23:30 UTC: A1 merged + pushed (gates: fmt, both clippies, ssr tests 97/0); worktree removed. U2 fixes DONE @8509bc6 + merge 46f10df (3x E2E 122/2/0, both clippies green). Spec re-review sent to a955d1ac5f06c0385. Running: P-S impl, P-H2 impl, U2 spec r2.
+- 2026-10-08 ~00:00 UTC: the U2 spec reviewer and the P-S and P-H2 implementers were killed by a session limit (reset 01:50); the worker restarted. 01:51: loops restarted; all three resumed. P-S @107cc23, P-H2 @55c4f4f, both clean.
 
 ## Units
 | Unit | Plan | Problems (PRB) | State | Branch / worktree | Spec | Quality | Integrated |
