@@ -1,4 +1,51 @@
-# Spec Review: worktree-agent-ae294272a7d5f6210
+# Spec Review: worktree-agent-ae294272a7d5f6210 (round 2)
+
+Verdict: PASS
+Worktree: /home/user/same-te-mail-club/.claude/worktrees/agent-ae294272a7d5f6210
+Branch: worktree-agent-ae294272a7d5f6210
+HEAD SHA: 46f10df78cbca4ef709ae2cc514f9f3843ce1943 (fix 8509bc6 + merge of integration 5df6509)
+Reviewed at: 2026-10-08T02:13Z
+Diff scope: git diff 5df6509..46f10df (merged integration parent → HEAD) = exactly the 8 U2 files; plus git show 8509bc6
+Files reviewed:
+- src/pages/home.rs
+- src/config.rs
+- src/auth.rs
+- src/pages/login.rs
+- src/main.rs, src/sms.rs, README.md, .env.example (merge re-check)
+
+## Findings
+
+PASS -- Spec compliant. All round-1 findings closed and every U2 requirement re-verified on the merged tree.
+
+Round-1 findings:
+- BLOCKER (post-await `use_context` race), CLOSED. `let test_mode = test_mode()?;` is now the first statement before any `.await` in `get_home_state` (home.rs:297, first await :298), `enroll_in_season` (:396/:397) and `confirm_ready` (:519/:520). `resolve_preparation_state` takes `test_mode: bool` and does no context lookup. The helper's doc warns that it must be called before the first await. Other Config lookups: `request_otp` (login.rs:49) and admin/sms.rs read context before their first await, as before. E2E confirms it: 2.2 "enrolled participant confirms ready" (#45) and "participant C confirms ready" (#48) pass, and the full suite is green.
+- MAJOR (merge reverted 067b9bd), CLOSED. `git diff 5df6509..HEAD -- src/config.rs` no longer touches the three admin_bootstrap test assertions; the `.unwrap()` form is restored and matches the integration branch.
+- Minor (auth.rs doc placement), CLOSED. "Skipped entirely when `test_mode` is true." now sits above `# Errors`.
+
+Merge 46f10df: login.rs `.ok().is_some_and` → `.is_ok_and` and the README Prerequisites/Toolchain rows come from the integration branch (ENV/PRB-102). U2 edits in config.rs, main.rs, README env table, db.rs and .sqlx are unaffected. Against the merged parent, the net diff is only the 8 U2 files.
+
+Gates, all run by the reviewer after the merge, on rustc 1.97.1 (pinned):
+- cargo fmt --check: clean.
+- clippy SSR -D warnings: exit 0. clippy wasm32 hydrate -D warnings: exit 0. Only warning in either: the external proc-macro-error2 future-incompat note.
+- cargo test: 79 passed. cargo test --features ssr: 106 passed, 2 ignored, 0 failed.
+- SSR bin build: Finished.
+- Grep gates: SAMETE_* only in config.rs/main.rs; no std::env::var outside config.rs except SAMETE_LOG_POOL; sms_dry_run/turbosms_*/CSRF_SECRET = 0.
+- Boot refusals: TestModeRequiresDryRun count 1, exit 101; TestModeRequiresLoopback (0.0.0.0) count 1, exit 101. Positive control (dry-run + test mode on 127.0.0.1) passes the guard, logs the test-mode WARN, and stops only at DB connect.
+- E2E, isolated `full`, sibling DB samete_e2e_u2r2 (torn down by the harness), PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers: 122 passed, 2 skipped, 0 failed, 0 flaky, exit=0. Before the fix, U2 failed 5 of 6 runs at a confirm-ready click.
+
+## Reasoning
+
+Round 1 traced the failure to `use_context::<Config>()` being reached after `.await` points, which put `Err("no config in context")` into the SSR hydration payload. The only structural fix is to read the context before the first await. I checked each of the three server functions for that ordering, and checked that no new post-await lookup was added anywhere in U2's write-set. The round-2 E2E run passes the exact tests that failed before, on a binary built from this HEAD.
+
+I compared the merge against its integration parent, not against the stale 5ef6072 base, so changes from other lanes are not counted against U2. The boot-refusal and grep gates were re-run on the merged tree because the implementer had not re-run them after the merge.
+
+No target/ was created (the existing one is the implementer's). The worktree has no tracked changes.
+
+---
+
+# Round 1 record (superseded)
+
+## Spec Review: worktree-agent-ae294272a7d5f6210
 
 Verdict: FAIL
 Worktree: /home/user/same-te-mail-club/.claude/worktrees/agent-ae294272a7d5f6210
